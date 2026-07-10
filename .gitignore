@@ -24,3 +24,7 @@ build/
 Pods/
 
 .DS_Store
+
+# Arquivos de outro projeto (removidos do histórico) — nunca devem voltar a este repositório.
+index.html
+itvbi_sm_2026_completo.json
