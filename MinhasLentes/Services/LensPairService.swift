@@ -2,8 +2,9 @@ import Foundation
 import SwiftData
 
 /// Centraliza as regras de negócio de pares de lentes e usos, garantindo que o histórico
-/// nunca seja apagado, que o contador nunca fique negativo e que exista no máximo um par
-/// ativo por lado.
+/// nunca seja apagado e que o contador nunca fique negativo. Múltiplos pares podem ficar
+/// ativos ao mesmo tempo, inclusive do mesmo lado (ex.: um par reserva guardado em outro
+/// lugar) — quem decide encerrar um par é sempre o usuário, nunca uma ação automática.
 ///
 /// Nenhuma função aqui descarta erros de persistência silenciosamente: falhas de leitura ou
 /// gravação do SwiftData são sempre propagadas como `ServiceError.persistenceFailed`, para que
@@ -42,14 +43,20 @@ enum LensPairService {
         }
     }
 
-    static func activePair(side: LensSide, context: ModelContext) throws -> LensPair? {
-        try activePairs(context: context).first { $0.side == side }
-    }
-
     static func allPairs(context: ModelContext) throws -> [LensPair] {
         let descriptor = FetchDescriptor<LensPair>(sortBy: [SortDescriptor(\.sequenceNumber, order: .reverse)])
         do {
             return try context.fetch(descriptor)
+        } catch {
+            throw ServiceError.persistenceFailed(error.localizedDescription)
+        }
+    }
+
+    static func pair(withID id: UUID, context: ModelContext) throws -> LensPair? {
+        var descriptor = FetchDescriptor<LensPair>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        do {
+            return try context.fetch(descriptor).first
         } catch {
             throw ServiceError.persistenceFailed(error.localizedDescription)
         }
@@ -78,9 +85,8 @@ enum LensPairService {
 
     // MARK: - Início e encerramento de pares
 
-    /// Inicia um novo par/lado. Se já houver um par ativo para o mesmo lado, ele é encerrado
-    /// automaticamente antes (rede de segurança para a regra "no máximo um par ativo por lado";
-    /// o fluxo normal de UI já solicita confirmação e motivo antes de chegar aqui).
+    /// Inicia um novo par/lado. Pares já ativos (inclusive do mesmo lado) não são afetados —
+    /// para substituir um par existente, encerre-o explicitamente antes (`finishPair`).
     @discardableResult
     static func startNewPair(
         name: String?,
@@ -90,15 +96,6 @@ enum LensPairService {
         side: LensSide,
         context: ModelContext
     ) throws -> LensPair {
-        if let current = try activePair(side: side, context: context) {
-            try finishPair(
-                current,
-                endDate: startDate,
-                reason: current.hasReachedLimit ? .usageLimitReached : .other,
-                notes: "Encerrado automaticamente ao iniciar um novo par.",
-                context: context
-            )
-        }
         let sequence = try nextSequenceNumber(side: side, context: context)
         let resolvedName: String
         if let name, !name.isEmpty {
@@ -149,9 +146,64 @@ enum LensPairService {
         try save(context: context)
     }
 
-    static func renamePair(_ pair: LensPair, newName: String, context: ModelContext) throws {
-        guard !newName.isEmpty else { return }
-        pair.name = newName
+    /// Corrige identificação, data de início e limite de usos de um par — inclusive um par já
+    /// encerrado, para acertar um dado lançado errado sem precisar reabri-lo.
+    static func editPair(
+        _ pair: LensPair,
+        name: String,
+        startDate: Date,
+        maximumUses: Int,
+        context: ModelContext
+    ) throws {
+        pair.name = name.isEmpty ? pair.name : name
+        pair.startDate = startDate
+        pair.maximumUses = maximumUses
+        logEvent(
+            .pairEdited,
+            date: Date(),
+            pair: pair,
+            description: "\(pair.name) editado.",
+            context: context
+        )
+        try save(context: context)
+    }
+
+    /// Desfaz um encerramento feito por engano: o par volta a ficar ativo, sem apagar o
+    /// histórico de usos que ele já tinha. Vários pares ativos simultâneos já são permitidos,
+    /// então reabrir não afeta nenhum outro par em andamento.
+    static func reopenPair(_ pair: LensPair, context: ModelContext) throws {
+        pair.status = .active
+        pair.endDate = nil
+        pair.discardReason = nil
+        logEvent(
+            .pairReopened,
+            date: Date(),
+            pair: pair,
+            description: "\(pair.name) reaberto.",
+            context: context
+        )
+        try save(context: context)
+    }
+
+    /// Exclui permanentemente um par criado por engano, junto com os usos registrados nele.
+    /// Ao contrário das demais correções deste serviço, esta ação não pode ser desfeita — por
+    /// isso a UI deve sempre confirmar antes de chamar esta função.
+    static func deletePair(_ pair: LensPair, context: ModelContext) throws {
+        let name = pair.name
+        let deletedUsesCount = pair.usesCount
+        for usage in pair.usages ?? [] {
+            context.delete(usage)
+        }
+        let event = HistoryEvent(
+            eventType: .pairDeleted,
+            eventDate: Date(),
+            lensPairID: pair.id,
+            lensPairName: name,
+            side: pair.side,
+            descriptionText: "\(name) excluído permanentemente, junto com \(deletedUsesCount) uso(s)."
+        )
+        context.insert(event)
+        context.delete(pair)
         try save(context: context)
     }
 

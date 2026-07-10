@@ -7,8 +7,15 @@ import SwiftData
 @Observable
 final class HistoryViewModel {
     var activeFilters: Set<HistoryFilter> = []
+    var searchText: String = ""
     var editingUsage: LensUsage?
     var usageToDelete: LensUsage?
+    var cleaningToDelete: CaseCleaning?
+    var cleaningToEdit: CaseCleaning?
+    var pairToEdit: LensPair?
+    var pairToReopen: LensPair?
+    var pairToDelete: LensPair?
+    var eventToDelete: HistoryEvent?
     var presentedError: IdentifiableError?
 
     func toggleFilter(_ filter: HistoryFilter) {
@@ -38,6 +45,20 @@ final class HistoryViewModel {
                 matches(item: item, filter: filter)
             }
         }
+    }
+
+    func applySearch(to items: [HistoryItem]) -> [HistoryItem] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return items }
+        return items.filter { item in
+            item.typeLabel.localizedCaseInsensitiveContains(query)
+            || (item.pairName?.localizedCaseInsensitiveContains(query) ?? false)
+            || (item.notes?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+    }
+
+    func groupedSections(from items: [HistoryItem]) -> [HistorySection] {
+        HistoryGrouping.group(items)
     }
 
     private func matches(item: HistoryItem, filter: HistoryFilter) -> Bool {
@@ -75,6 +96,65 @@ final class HistoryViewModel {
             try LensPairService.editUsage(usage, newDate: date, newSide: side, newNotes: notes, context: context)
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível salvar a edição do uso. \(error.localizedDescription)")
+        }
+    }
+
+    func deleteCleaning(_ cleaning: CaseCleaning, settings: AppSettings, context: ModelContext) async {
+        do {
+            try await CaseCleaningService.deleteCleaning(cleaning, settings: settings, context: context)
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível excluir a limpeza. \(error.localizedDescription)")
+        }
+    }
+
+    func editCleaning(_ cleaning: CaseCleaning, newDate: Date, newNotes: String?, settings: AppSettings, context: ModelContext) async {
+        do {
+            try await CaseCleaningService.editCleaning(cleaning, newDate: newDate, newNotes: newNotes, settings: settings, context: context)
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível salvar a edição da limpeza. \(error.localizedDescription)")
+        }
+    }
+
+    /// Resolve o par referenciado por um evento administrativo (início/encerramento de par),
+    /// já que `HistoryEvent` guarda apenas o identificador — de propósito, para o histórico
+    /// continuar legível mesmo que o par seja editado ou excluído depois.
+    func pair(for event: HistoryEvent, context: ModelContext) -> LensPair? {
+        guard let id = event.lensPairID else { return nil }
+        return try? LensPairService.pair(withID: id, context: context)
+    }
+
+    func editPair(_ pair: LensPair, name: String, startDate: Date, maximumUses: Int, context: ModelContext) {
+        do {
+            try LensPairService.editPair(pair, name: name, startDate: startDate, maximumUses: maximumUses, context: context)
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível salvar as alterações do par. \(error.localizedDescription)")
+        }
+    }
+
+    func reopenPair(_ pair: LensPair, context: ModelContext) {
+        do {
+            try LensPairService.reopenPair(pair, context: context)
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível reabrir o par. \(error.localizedDescription)")
+        }
+    }
+
+    func deletePair(_ pair: LensPair, context: ModelContext) {
+        do {
+            try LensPairService.deletePair(pair, context: context)
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível excluir o par. \(error.localizedDescription)")
+        }
+    }
+
+    /// Remove um registro administrativo avulso do histórico (ex.: duplicado), sem qualquer
+    /// efeito sobre usos, limpezas ou pares — esses são corrigidos nos próprios registros.
+    func deleteEvent(_ event: HistoryEvent, context: ModelContext) {
+        context.delete(event)
+        do {
+            try context.save()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível excluir o registro. \(error.localizedDescription)")
         }
     }
 }

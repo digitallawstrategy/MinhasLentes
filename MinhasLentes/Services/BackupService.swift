@@ -128,6 +128,9 @@ enum BackupService {
         var soundEnabled: Bool
         var badgeEnabled: Bool
         var trackingMode: String
+        var healthGoodBelowPercent: Int? = nil
+        var healthWarningBelowPercent: Int? = nil
+        var healthCriticalBelowPercent: Int? = nil
     }
 
     // MARK: - Exportação
@@ -211,7 +214,10 @@ enum BackupService {
                     deadlineReminderEnabled: s.deadlineReminderEnabled,
                     soundEnabled: s.soundEnabled,
                     badgeEnabled: s.badgeEnabled,
-                    trackingMode: s.trackingModeRawValue
+                    trackingMode: s.trackingModeRawValue,
+                    healthGoodBelowPercent: s.healthGoodBelowPercent,
+                    healthWarningBelowPercent: s.healthWarningBelowPercent,
+                    healthCriticalBelowPercent: s.healthCriticalBelowPercent
                 )
             }
         )
@@ -416,5 +422,8 @@ enum BackupService {
         settings.soundEnabled = dto.soundEnabled
         settings.badgeEnabled = dto.badgeEnabled
         settings.trackingModeRawValue = dto.trackingMode
+        settings.healthGoodBelowPercent = dto.healthGoodBelowPercent ?? 80
+        settings.healthWarningBelowPercent = dto.healthWarningBelowPercent ?? 40
+        settings.healthCriticalBelowPercent = dto.healthCriticalBelowPercent ?? 15
     }
 }

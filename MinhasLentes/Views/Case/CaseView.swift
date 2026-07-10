@@ -11,12 +11,36 @@ struct CaseView: View {
     @State private var showRegisterOtherDate = false
     @State private var customDate = Date()
     @State private var customNotes = ""
+    @State private var cleaningToDelete: CaseCleaning?
+    @State private var cleaningToEdit: CaseCleaning?
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
     }
 
     private var lastCleaning: CaseCleaning? { cleanings.first }
+
+    private var daysSinceLastCleaning: Int? {
+        guard let lastCleaning else { return nil }
+        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: lastCleaning.cleaningDate), to: Calendar.current.startOfDay(for: Date())).day
+    }
+
+    private var daysUntilNextCleaning: Int? {
+        guard let nextCleaningDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: nextCleaningDate)).day
+    }
+
+    private var countdownFraction: Double {
+        guard let daysUntilNextCleaning, settings.cleaningIntervalDays > 0 else { return 0 }
+        return min(max(Double(daysUntilNextCleaning) / Double(settings.cleaningIntervalDays), 0), 1)
+    }
+
+    private var countdownTint: Color {
+        guard let daysUntilNextCleaning else { return .accentColor }
+        if daysUntilNextCleaning <= 0 { return .red }
+        if daysUntilNextCleaning <= settings.advanceReminderDays { return .orange }
+        return .green
+    }
 
     private var nextCleaningDate: Date? {
         guard let lastCleaning else { return nil }
@@ -46,6 +70,9 @@ struct CaseView: View {
                             } else {
                                 StatRow(label: "Última limpeza", value: "Nenhuma registrada")
                             }
+                            if let daysSinceLastCleaning {
+                                StatRow(label: "Dias desde a limpeza", value: "\(daysSinceLastCleaning) dia(s)")
+                            }
                             if let advanceReminderDate {
                                 StatRow(label: "Aviso antecipado", value: DateFormatting.short.string(from: advanceReminderDate))
                             }
@@ -53,6 +80,17 @@ struct CaseView: View {
                                 StatRow(label: "Prazo da limpeza", value: DateFormatting.short.string(from: nextCleaningDate))
                             }
                             StatRow(label: "Intervalo configurado", value: "\(settings.cleaningIntervalDays) dias")
+                        }
+
+                        if let daysUntilNextCleaning {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(daysUntilNextCleaning <= 0 ? "Limpeza atrasada" : "Faltam \(daysUntilNextCleaning) dia(s) para a próxima limpeza")
+                                    .font(.footnote.weight(.medium))
+                                    .foregroundStyle(countdownTint)
+                                ProgressBarView(fraction: countdownFraction, tint: countdownTint)
+                                    .animation(.easeInOut(duration: 0.6), value: countdownFraction)
+                            }
+                            .padding(.top, 4)
                         }
 
                         VStack(spacing: 10) {
@@ -97,6 +135,23 @@ struct CaseView: View {
                                             }
                                         }
                                         Spacer()
+                                        Button {
+                                            cleaningToEdit = cleaning
+                                        } label: {
+                                            Image(systemName: "pencil")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Editar limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
+
+                                        Button(role: .destructive) {
+                                            cleaningToDelete = cleaning
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Excluir limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
                                     }
                                 }
                             }
@@ -138,6 +193,11 @@ struct CaseView: View {
                 }
                 .presentationDetents([.medium])
             }
+            .sheet(item: $cleaningToEdit) { cleaning in
+                EditCleaningSheet(cleaning: cleaning) { date, notes in
+                    Task { await viewModel.editCleaning(cleaning, newDate: date, newNotes: notes, settings: settings, context: modelContext) }
+                }
+            }
             .alert(
                 "Não foi possível concluir a ação",
                 isPresented: Binding(
@@ -149,6 +209,23 @@ struct CaseView: View {
                 Button("OK", role: .cancel) {}
             } message: { error in
                 Text(error.message)
+            }
+            .alert(
+                "Excluir limpeza?",
+                isPresented: Binding(
+                    get: { cleaningToDelete != nil },
+                    set: { if !$0 { cleaningToDelete = nil } }
+                )
+            ) {
+                Button("Cancelar", role: .cancel) { cleaningToDelete = nil }
+                Button("Excluir", role: .destructive) {
+                    if let cleaning = cleaningToDelete {
+                        Task { await viewModel.deleteCleaning(cleaning, settings: settings, context: modelContext) }
+                    }
+                    cleaningToDelete = nil
+                }
+            } message: {
+                Text("Os avisos de limpeza serão recalculados a partir do registro anterior, se houver.")
             }
         }
     }

@@ -92,6 +92,88 @@ enum CaseCleaningService {
         return cleaning
     }
 
+    /// Exclui uma limpeza registrada por engano e reagenda as notificações a partir da limpeza
+    /// mais recente que restar (ou cancela o ciclo, se não sobrar nenhuma). Segue o mesmo
+    /// procedimento de `registerCleaning`: cancela o ciclo anterior, salva a exclusão e só então
+    /// tenta reagendar — uma falha no reagendamento não desfaz a exclusão, que já foi salva.
+    static func deleteCleaning(
+        _ cleaning: CaseCleaning,
+        settings: AppSettings,
+        context: ModelContext
+    ) async throws {
+        let date = cleaning.cleaningDate
+        context.delete(cleaning)
+
+        let event = HistoryEvent(
+            eventType: .cleaningDeleted,
+            eventDate: Date(),
+            descriptionText: "Limpeza do estojo de \(DateFormatting.short.string(from: date)) excluída."
+        )
+        context.insert(event)
+
+        do {
+            try context.save()
+        } catch {
+            throw ServiceError.persistenceFailed(error.localizedDescription)
+        }
+
+        try await rescheduleFromCurrentLast(settings: settings, context: context)
+    }
+
+    /// Corrige a data ou a observação de uma limpeza já registrada (ex.: usuário tocou em
+    /// "Limpei o estojo hoje" mas quis dizer ontem). Reagenda o ciclo a partir da limpeza mais
+    /// recente resultante, do mesmo modo que `registerCleaning`/`deleteCleaning`.
+    static func editCleaning(
+        _ cleaning: CaseCleaning,
+        newDate: Date,
+        newNotes: String?,
+        settings: AppSettings,
+        context: ModelContext
+    ) async throws {
+        let oldDate = cleaning.cleaningDate
+        cleaning.cleaningDate = newDate
+        cleaning.notes = newNotes
+
+        let event = HistoryEvent(
+            eventType: .cleaningEdited,
+            eventDate: Date(),
+            descriptionText: "Limpeza alterada de \(DateFormatting.short.string(from: oldDate)) para \(DateFormatting.short.string(from: newDate))."
+        )
+        context.insert(event)
+
+        do {
+            try context.save()
+        } catch {
+            throw ServiceError.persistenceFailed(error.localizedDescription)
+        }
+
+        try await rescheduleFromCurrentLast(settings: settings, context: context)
+    }
+
+    /// Cancela o ciclo de notificações e reagenda a partir da limpeza mais recente que restar
+    /// (ou não reagenda nada, se não sobrar nenhuma). Uma falha aqui nunca desfaz a alteração
+    /// que já foi salva — apenas propaga o erro para que a UI avise o usuário.
+    private static func rescheduleFromCurrentLast(settings: AppSettings, context: ModelContext) async throws {
+        await NotificationManager.shared.cancelCaseCleaningNotifications()
+
+        guard let newLast = try? lastCleaning(context: context) else { return }
+
+        do {
+            try await NotificationManager.shared.scheduleCaseCleaningNotifications(lastCleaningDate: newLast.cleaningDate, settings: settings)
+        } catch NotificationManager.NotificationError.authorizationDenied {
+            // Usuário ainda não autorizou notificações; a alteração permanece salva normalmente.
+        } catch {
+            let failureEvent = HistoryEvent(
+                eventType: .settingsChanged,
+                eventDate: Date(),
+                descriptionText: "Falha ao reagendar notificações do estojo: \(error.localizedDescription)"
+            )
+            context.insert(failureEvent)
+            try? context.save()
+            throw ServiceError.notificationSchedulingFailed(error.localizedDescription)
+        }
+    }
+
     static func nextCleaningDate(settings: AppSettings, context: ModelContext) throws -> Date? {
         guard let last = try lastCleaning(context: context) else { return nil }
         return LensStatisticsService.nextCleaningDate(

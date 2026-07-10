@@ -67,6 +67,31 @@ final class LensStatisticsServiceTests: XCTestCase {
         XCTAssertTrue(calendar.isDate(next, inSameDayAs: TestSupport.date(2028, 3, 6)))
     }
 
+    func testHealthStatusBands() {
+        // Padrões: excelente >= 80%, boa >= 40%, próxima da troca >= 15%, senão trocar já.
+        XCTAssertEqual(
+            LensStatisticsService.healthStatus(usesRemaining: 55, maximumUses: 60, goodBelowPercent: 80, warningBelowPercent: 40, criticalBelowPercent: 15),
+            .excellent
+        )
+        XCTAssertEqual(
+            LensStatisticsService.healthStatus(usesRemaining: 30, maximumUses: 60, goodBelowPercent: 80, warningBelowPercent: 40, criticalBelowPercent: 15),
+            .good
+        )
+        XCTAssertEqual(
+            LensStatisticsService.healthStatus(usesRemaining: 15, maximumUses: 60, goodBelowPercent: 80, warningBelowPercent: 40, criticalBelowPercent: 15),
+            .warning
+        )
+        XCTAssertEqual(
+            LensStatisticsService.healthStatus(usesRemaining: 5, maximumUses: 60, goodBelowPercent: 80, warningBelowPercent: 40, criticalBelowPercent: 15),
+            .critical
+        )
+        XCTAssertEqual(
+            LensStatisticsService.healthStatus(usesRemaining: 0, maximumUses: 60, goodBelowPercent: 80, warningBelowPercent: 40, criticalBelowPercent: 15),
+            .critical,
+            "Par no limite deve ser sempre crítico"
+        )
+    }
+
     func testHasUsageOnSameDay() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!

@@ -80,6 +80,11 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
     case usageDeleted
     case usageUndone
     case cleaningRegistered
+    case cleaningDeleted
+    case cleaningEdited
+    case pairReopened
+    case pairEdited
+    case pairDeleted
     case settingsChanged
 
     var displayName: String {
@@ -91,7 +96,48 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
         case .usageDeleted: return "Uso excluído"
         case .usageUndone: return "Uso desfeito"
         case .cleaningRegistered: return "Limpeza do estojo"
+        case .cleaningDeleted: return "Limpeza excluída"
+        case .cleaningEdited: return "Limpeza editada"
+        case .pairReopened: return "Par reaberto"
+        case .pairEdited: return "Par editado"
+        case .pairDeleted: return "Par excluído"
         case .settingsChanged: return "Alteração de configuração"
+        }
+    }
+}
+
+/// Faixa de saúde de um par, derivada dos usos restantes e das faixas configuráveis em
+/// `AppSettings`. Nunca depende apenas de cor — sempre acompanhada de um rótulo textual.
+enum LensHealthStatus: String, CaseIterable, Hashable, Sendable {
+    case excellent
+    case good
+    case warning
+    case critical
+
+    var label: String {
+        switch self {
+        case .excellent: return "Excelente"
+        case .good: return "Boa"
+        case .warning: return "Próxima da troca"
+        case .critical: return "Trocar imediatamente"
+        }
+    }
+
+    var emoji: String {
+        switch self {
+        case .excellent: return "🟢"
+        case .good: return "🟡"
+        case .warning: return "🟠"
+        case .critical: return "🔴"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .excellent: return "checkmark.circle.fill"
+        case .good: return "checkmark.circle"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .critical: return "exclamationmark.octagon.fill"
         }
     }
 }

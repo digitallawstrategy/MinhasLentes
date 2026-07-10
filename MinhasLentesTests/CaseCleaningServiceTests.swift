@@ -70,4 +70,33 @@ final class CaseCleaningServiceTests: XCTestCase {
         XCTAssertNil(try CaseCleaningService.lastCleaning(context: context))
         XCTAssertNil(try CaseCleaningService.nextCleaningDate(settings: settings, context: context))
     }
+
+    func testEditCleaningChangesDateAndRecalculatesCycle() async throws {
+        let cleaning = try await CaseCleaningService.registerCleaning(date: TestSupport.date(2026, 7, 10), notes: nil, settings: settings, context: context)
+        try await CaseCleaningService.editCleaning(cleaning, newDate: TestSupport.date(2026, 7, 12), newNotes: "Corrigido", settings: settings, context: context)
+
+        XCTAssertTrue(Calendar.current.isDate(cleaning.cleaningDate, inSameDayAs: TestSupport.date(2026, 7, 12)))
+        XCTAssertEqual(cleaning.notes, "Corrigido")
+        let next = try CaseCleaningService.nextCleaningDate(settings: settings, context: context)
+        XCTAssertTrue(Calendar.current.isDate(next!, inSameDayAs: TestSupport.date(2026, 7, 27)))
+    }
+
+    func testDeleteCleaningFallsBackToPreviousCleaning() async throws {
+        _ = try await CaseCleaningService.registerCleaning(date: TestSupport.date(2026, 7, 10), notes: nil, settings: settings, context: context)
+        let second = try await CaseCleaningService.registerCleaning(date: TestSupport.date(2026, 7, 12), notes: nil, settings: settings, context: context)
+
+        try await CaseCleaningService.deleteCleaning(second, settings: settings, context: context)
+
+        XCTAssertEqual(try CaseCleaningService.allCleanings(context: context).count, 1)
+        let last = try CaseCleaningService.lastCleaning(context: context)
+        XCTAssertTrue(Calendar.current.isDate(last!.cleaningDate, inSameDayAs: TestSupport.date(2026, 7, 10)))
+    }
+
+    func testDeleteOnlyCleaningLeavesNoNextDate() async throws {
+        let cleaning = try await CaseCleaningService.registerCleaning(date: TestSupport.date(2026, 7, 10), notes: nil, settings: settings, context: context)
+        try await CaseCleaningService.deleteCleaning(cleaning, settings: settings, context: context)
+
+        XCTAssertEqual(try CaseCleaningService.allCleanings(context: context).count, 0)
+        XCTAssertNil(try CaseCleaningService.nextCleaningDate(settings: settings, context: context))
+    }
 }

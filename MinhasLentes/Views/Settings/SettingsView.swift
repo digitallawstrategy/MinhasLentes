@@ -38,11 +38,11 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                notificationStatusSection
-                usageSection
+                lentesSection
+                healthSection
                 caseSection
+                notificationStatusSection
                 notificationPreferencesSection
-                modeSection
                 backupSection
                 exportSection
                 persistenceInfoSection
@@ -147,8 +147,8 @@ struct SettingsView: View {
         }
     }
 
-    private var usageSection: some View {
-        Section("Uso das lentes") {
+    private var lentesSection: some View {
+        Section("Lentes") {
             Stepper("Limite máximo de usos: \(settings.maximumUses)", value: Binding(
                 get: { settings.maximumUses },
                 set: { settings.maximumUses = $0; saveSettings() }
@@ -158,6 +158,38 @@ struct SettingsView: View {
                 get: { settings.allowMultipleUsesPerDay },
                 set: { settings.allowMultipleUsesPerDay = $0; saveSettings() }
             ))
+
+            Picker("Modo de controle", selection: Binding(
+                get: { settings.trackingMode },
+                set: { viewModel.requestTrackingModeChange(to: $0, current: settings.trackingMode) }
+            )) {
+                ForEach(TrackingMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+        }
+    }
+
+    private var healthSection: some View {
+        Section {
+            Stepper("Excelente acima de \(settings.healthGoodBelowPercent)%", value: Binding(
+                get: { settings.healthGoodBelowPercent },
+                set: { settings.healthGoodBelowPercent = $0; saveSettings() }
+            ), in: (settings.healthWarningBelowPercent + 1)...99)
+
+            Stepper("Boa acima de \(settings.healthWarningBelowPercent)%", value: Binding(
+                get: { settings.healthWarningBelowPercent },
+                set: { settings.healthWarningBelowPercent = $0; saveSettings() }
+            ), in: (settings.healthCriticalBelowPercent + 1)...(settings.healthGoodBelowPercent - 1))
+
+            Stepper("Próxima da troca acima de \(settings.healthCriticalBelowPercent)%", value: Binding(
+                get: { settings.healthCriticalBelowPercent },
+                set: { settings.healthCriticalBelowPercent = $0; saveSettings() }
+            ), in: 1...(settings.healthWarningBelowPercent - 1))
+        } header: {
+            Text("Faixas de saúde das lentes")
+        } footer: {
+            Text("Definem, pelo percentual de usos restantes, quando o indicador de saúde muda de Excelente para Boa, Próxima da troca e Trocar imediatamente.")
         }
     }
 
@@ -198,19 +230,6 @@ struct SettingsView: View {
             if viewModel.notificationAuthorizationStatus == .notDetermined {
                 Button("Autorizar notificações") {
                     Task { await viewModel.requestNotificationAuthorization() }
-                }
-            }
-        }
-    }
-
-    private var modeSection: some View {
-        Section("Modo de controle") {
-            Picker("Modo", selection: Binding(
-                get: { settings.trackingMode },
-                set: { viewModel.requestTrackingModeChange(to: $0, current: settings.trackingMode) }
-            )) {
-                ForEach(TrackingMode.allCases, id: \.self) { mode in
-                    Text(mode.displayName).tag(mode)
                 }
             }
         }

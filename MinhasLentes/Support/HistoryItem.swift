@@ -53,8 +53,11 @@ struct HistoryItem: Identifiable {
             switch event.eventType {
             case .pairStarted: return "plus.circle"
             case .pairFinished: return "checkmark.seal"
-            case .usageEdited: return "pencil"
-            case .usageDeleted, .usageUndone: return "trash"
+            case .pairReopened: return "arrow.uturn.backward.circle"
+            case .pairEdited: return "pencil.circle"
+            case .pairDeleted: return "trash"
+            case .usageEdited, .cleaningEdited: return "pencil"
+            case .usageDeleted, .usageUndone, .cleaningDeleted: return "trash"
             case .cleaningRegistered: return "sparkles"
             case .settingsChanged: return "gearshape"
             case .usageAdded: return "eye"
@@ -64,6 +67,16 @@ struct HistoryItem: Identifiable {
 
     var underlyingUsage: LensUsage? {
         if case .usage(let usage) = kind { return usage }
+        return nil
+    }
+
+    var underlyingCleaning: CaseCleaning? {
+        if case .cleaning(let cleaning) = kind { return cleaning }
+        return nil
+    }
+
+    var underlyingEvent: HistoryEvent? {
+        if case .event(let event) = kind { return event }
         return nil
     }
 }

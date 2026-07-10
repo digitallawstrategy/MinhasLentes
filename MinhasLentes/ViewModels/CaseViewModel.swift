@@ -21,4 +21,24 @@ final class CaseViewModel {
             presentedError = IdentifiableError(message: error.localizedDescription)
         }
     }
+
+    func deleteCleaning(_ cleaning: CaseCleaning, settings: AppSettings, context: ModelContext) async {
+        do {
+            try await CaseCleaningService.deleteCleaning(cleaning, settings: settings, context: context)
+            HapticsService.success()
+        } catch {
+            HapticsService.error()
+            presentedError = IdentifiableError(message: error.localizedDescription)
+        }
+    }
+
+    func editCleaning(_ cleaning: CaseCleaning, newDate: Date, newNotes: String?, settings: AppSettings, context: ModelContext) async {
+        do {
+            try await CaseCleaningService.editCleaning(cleaning, newDate: newDate, newNotes: newNotes, settings: settings, context: context)
+            HapticsService.success()
+        } catch {
+            HapticsService.error()
+            presentedError = IdentifiableError(message: error.localizedDescription)
+        }
+    }
 }

@@ -33,7 +33,7 @@ final class LensPairServiceTests: XCTestCase {
         XCTAssertEqual(pair2.name, "Par nº 2")
     }
 
-    func testOnlyOneActivePairAtATimeInPairMode() throws {
+    func testMultipleActivePairsAllowedSimultaneouslyEvenOnSameSide() throws {
         let pair1 = try LensPairService.startNewPair(
             name: nil, startDate: TestSupport.date(2026, 7, 10), maximumUses: 60,
             trackingMode: .pair, side: .both, context: context
@@ -42,9 +42,48 @@ final class LensPairServiceTests: XCTestCase {
             name: nil, startDate: TestSupport.date(2026, 8, 1), maximumUses: 60,
             trackingMode: .pair, side: .both, context: context
         )
-        XCTAssertEqual(pair1.status, .finished)
+        XCTAssertEqual(pair1.status, .active, "Iniciar um novo par não deve encerrar o par anterior automaticamente")
         XCTAssertEqual(pair2.status, .active)
+        XCTAssertEqual(try LensPairService.activePairs(context: context).count, 2)
+
+        try LensPairService.finishPair(pair1, endDate: TestSupport.date(2026, 8, 5), reason: .other, notes: nil, context: context)
+        XCTAssertEqual(pair1.status, .finished)
         XCTAssertEqual(try LensPairService.activePairs(context: context).count, 1)
+    }
+
+    func testReopenPairRestoresActiveStatusWithoutLosingUsageHistory() throws {
+        let pair = try makePair()
+        _ = try LensPairService.registerUsage(
+            for: pair, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
+            allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )
+        try LensPairService.finishPair(pair, endDate: TestSupport.date(2026, 7, 20), reason: .other, notes: nil, context: context)
+        XCTAssertEqual(pair.status, .finished)
+
+        try LensPairService.reopenPair(pair, context: context)
+        XCTAssertEqual(pair.status, .active)
+        XCTAssertNil(pair.endDate)
+        XCTAssertNil(pair.discardReasonValue)
+        XCTAssertEqual(pair.usesCount, 1, "Reabrir não deve apagar os usos já registrados")
+    }
+
+    func testDeletePairRemovesItAndItsUsages() throws {
+        let pair = try makePair()
+        _ = try LensPairService.registerUsage(
+            for: pair, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
+            allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )
+        try LensPairService.deletePair(pair, context: context)
+        XCTAssertEqual(try LensPairService.allPairs(context: context).count, 0)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<LensUsage>()).count, 0)
+    }
+
+    func testEditPairUpdatesNameStartDateAndMaximumUses() throws {
+        let pair = try makePair()
+        try LensPairService.editPair(pair, name: "Reserva", startDate: TestSupport.date(2026, 6, 1), maximumUses: 30, context: context)
+        XCTAssertEqual(pair.name, "Reserva")
+        XCTAssertTrue(Calendar.current.isDate(pair.startDate, inSameDayAs: TestSupport.date(2026, 6, 1)))
+        XCTAssertEqual(pair.maximumUses, 30)
     }
 
     func testRegisterUsageIncrementsCountAndDecrementsRemaining() throws {

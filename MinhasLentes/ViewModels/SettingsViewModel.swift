@@ -114,7 +114,9 @@ final class SettingsViewModel {
     func exportCSV(pairs: [LensPair], cleanings: [CaseCleaning]) {
         do {
             exportedFileURL = try CSVExporter.export(pairs: pairs, cleanings: cleanings)
+            HapticsService.success()
         } catch {
+            HapticsService.error()
             presentedError = IdentifiableError(message: error.localizedDescription)
         }
     }
@@ -122,7 +124,9 @@ final class SettingsViewModel {
     func exportPDF(pairs: [LensPair], cleanings: [CaseCleaning]) {
         do {
             exportedFileURL = try PDFExporter.export(pairs: pairs, cleanings: cleanings)
+            HapticsService.success()
         } catch {
+            HapticsService.error()
             presentedError = IdentifiableError(message: error.localizedDescription)
         }
     }
@@ -130,7 +134,9 @@ final class SettingsViewModel {
     func exportBackup(context: ModelContext) {
         do {
             exportedFileURL = try BackupService.exportJSON(context: context)
+            HapticsService.success()
         } catch {
+            HapticsService.error()
             presentedError = IdentifiableError(message: error.localizedDescription)
         }
     }
@@ -163,7 +169,9 @@ final class SettingsViewModel {
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         do {
             importReport = try BackupService.importBackup(from: url, mode: mode, context: context)
+            HapticsService.success()
         } catch {
+            HapticsService.error()
             presentedError = IdentifiableError(message: error.localizedDescription)
         }
         pendingImportURL = nil

@@ -18,6 +18,10 @@ final class HomeViewModel {
     private(set) var lastRegisteredUsage: LensUsage?
 
     private var pendingRegistration: (pair: LensPair, date: Date, side: LensSide, notes: String?)?
+    private var undoToastTask: Task<Void, Never>?
+
+    /// Quanto tempo o "Desfazer" fica disponível após um registro, antes do toast sumir sozinho.
+    private static let undoToastDuration: Duration = .seconds(5)
 
     // MARK: - Registro de uso
 
@@ -63,6 +67,7 @@ final class HomeViewModel {
             toastMessage = "Uso registrado em \(DateFormatting.short.string(from: date))."
             showUndoToast = true
             HapticsService.success()
+            scheduleUndoToastAutoDismiss()
         } catch LensPairService.ServiceError.duplicateUsageOnDate {
             pendingRegistration = (pair, date, side, notes)
             showDuplicateConfirmation = true
@@ -77,6 +82,7 @@ final class HomeViewModel {
 
     func undoLastRegisteredUsage(context: ModelContext) {
         guard let usage = lastRegisteredUsage else { return }
+        undoToastTask?.cancel()
         do {
             try LensPairService.deleteUsage(usage, context: context)
             lastRegisteredUsage = nil
@@ -88,8 +94,18 @@ final class HomeViewModel {
     }
 
     func dismissToast() {
+        undoToastTask?.cancel()
         showUndoToast = false
         lastRegisteredUsage = nil
+    }
+
+    private func scheduleUndoToastAutoDismiss() {
+        undoToastTask?.cancel()
+        undoToastTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.undoToastDuration)
+            guard !Task.isCancelled else { return }
+            self?.showUndoToast = false
+        }
     }
 
     // MARK: - Ciclo de vida do par
@@ -126,11 +142,30 @@ final class HomeViewModel {
         }
     }
 
-    func rename(_ pair: LensPair, to newName: String, context: ModelContext) {
+    func editPair(_ pair: LensPair, name: String, startDate: Date, maximumUses: Int, context: ModelContext) {
         do {
-            try LensPairService.renamePair(pair, newName: newName, context: context)
+            try LensPairService.editPair(pair, name: name, startDate: startDate, maximumUses: maximumUses, context: context)
+            HapticsService.lightImpact()
         } catch {
-            presentedError = IdentifiableError(message: "Não foi possível renomear o par. \(error.localizedDescription)")
+            presentedError = IdentifiableError(message: "Não foi possível salvar as alterações do par. \(error.localizedDescription)")
+        }
+    }
+
+    func reopenPair(_ pair: LensPair, context: ModelContext) {
+        do {
+            try LensPairService.reopenPair(pair, context: context)
+            HapticsService.success()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível reabrir o par. \(error.localizedDescription)")
+        }
+    }
+
+    func deletePair(_ pair: LensPair, context: ModelContext) {
+        do {
+            try LensPairService.deletePair(pair, context: context)
+            HapticsService.lightImpact()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível excluir o par. \(error.localizedDescription)")
         }
     }
 }

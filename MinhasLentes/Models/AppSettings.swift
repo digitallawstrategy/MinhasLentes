@@ -18,6 +18,14 @@ final class AppSettings {
     var badgeEnabled: Bool = true
     var trackingModeRawValue: String = TrackingMode.pair.rawValue
 
+    /// Faixas de saúde configuráveis, expressas em percentual de usos restantes (0...100).
+    /// Abaixo de `healthGoodBelowPercent` o par deixa de ser "Excelente"; abaixo de
+    /// `healthWarningBelowPercent`, vira "Próxima da troca"; abaixo de
+    /// `healthCriticalBelowPercent`, vira "Trocar imediatamente".
+    var healthGoodBelowPercent: Int = 80
+    var healthWarningBelowPercent: Int = 40
+    var healthCriticalBelowPercent: Int = 15
+
     init(id: UUID = UUID()) {
         self.id = id
     }
@@ -40,5 +48,8 @@ final class AppSettings {
         soundEnabled = true
         badgeEnabled = true
         trackingModeRawValue = TrackingMode.pair.rawValue
+        healthGoodBelowPercent = 80
+        healthWarningBelowPercent = 40
+        healthCriticalBelowPercent = 15
     }
 }

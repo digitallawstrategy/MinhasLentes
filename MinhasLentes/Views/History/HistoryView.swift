@@ -18,7 +18,34 @@ struct HistoryView: View {
 
     private var timeline: [HistoryItem] {
         let items = viewModel.buildTimeline(usages: usages, cleanings: cleanings, events: events)
-        return viewModel.applyFilters(to: items)
+        let filtered = viewModel.applyFilters(to: items)
+        return viewModel.applySearch(to: filtered)
+    }
+
+    private var sections: [HistorySection] {
+        viewModel.groupedSections(from: timeline)
+    }
+
+    @ViewBuilder
+    private func eventSwipeActions(for event: HistoryEvent) -> some View {
+        switch event.eventType {
+        case .pairStarted:
+            if let pair = viewModel.pair(for: event, context: modelContext) {
+                Button("Excluir par", role: .destructive) { viewModel.pairToDelete = pair }
+                Button("Editar par") { viewModel.pairToEdit = pair }
+                    .tint(.blue)
+            }
+        case .pairFinished:
+            if let pair = viewModel.pair(for: event, context: modelContext), pair.status == .finished {
+                Button("Excluir par", role: .destructive) { viewModel.pairToDelete = pair }
+                Button("Reabrir par") { viewModel.pairToReopen = pair }
+                    .tint(.green)
+            }
+        default:
+            Button("Excluir", role: .destructive) {
+                viewModel.eventToDelete = event
+            }
+        }
     }
 
     var body: some View {
@@ -37,25 +64,41 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
-                        ForEach(timeline) { item in
-                            HistoryRowView(item: item)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    if let usage = item.underlyingUsage {
-                                        Button("Excluir", role: .destructive) {
-                                            viewModel.usageToDelete = usage
+                        ForEach(sections) { section in
+                            Section(section.title) {
+                                ForEach(section.items) { item in
+                                    HistoryRowView(item: item)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            if let usage = item.underlyingUsage {
+                                                Button("Excluir", role: .destructive) {
+                                                    viewModel.usageToDelete = usage
+                                                }
+                                                Button("Editar") {
+                                                    viewModel.editingUsage = usage
+                                                }
+                                                .tint(.blue)
+                                            } else if let cleaning = item.underlyingCleaning {
+                                                Button("Excluir", role: .destructive) {
+                                                    viewModel.cleaningToDelete = cleaning
+                                                }
+                                                Button("Editar") {
+                                                    viewModel.cleaningToEdit = cleaning
+                                                }
+                                                .tint(.blue)
+                                            } else if let event = item.underlyingEvent {
+                                                eventSwipeActions(for: event)
+                                            }
                                         }
-                                        Button("Editar") {
-                                            viewModel.editingUsage = usage
-                                        }
-                                        .tint(.blue)
-                                    }
+                                        .listRowSeparator(.hidden)
                                 }
+                            }
                         }
                     }
                     .listStyle(.plain)
                 }
             }
             .navigationTitle("Histórico")
+            .searchable(text: $viewModel.searchText, prompt: "Buscar por tipo, par ou observação")
             .sheet(item: $viewModel.editingUsage) { usage in
                 EditUsageSheet(usage: usage, allowSideSelection: settings.trackingMode == .individual) { date, side, notes in
                     viewModel.updateUsage(usage, date: date, side: side, notes: notes, context: modelContext)
@@ -74,6 +117,72 @@ struct HistoryView: View {
                 }
             } message: {
                 Text("Esta ação devolve uma utilização ao contador do par correspondente.")
+            }
+            .alert("Excluir limpeza?", isPresented: Binding(
+                get: { viewModel.cleaningToDelete != nil },
+                set: { if !$0 { viewModel.cleaningToDelete = nil } }
+            )) {
+                Button("Cancelar", role: .cancel) { viewModel.cleaningToDelete = nil }
+                Button("Excluir", role: .destructive) {
+                    if let cleaning = viewModel.cleaningToDelete {
+                        Task { await viewModel.deleteCleaning(cleaning, settings: settings, context: modelContext) }
+                    }
+                    viewModel.cleaningToDelete = nil
+                }
+            } message: {
+                Text("Os avisos de limpeza serão recalculados a partir do registro anterior, se houver.")
+            }
+            .sheet(item: $viewModel.cleaningToEdit) { cleaning in
+                EditCleaningSheet(cleaning: cleaning) { date, notes in
+                    Task { await viewModel.editCleaning(cleaning, newDate: date, newNotes: notes, settings: settings, context: modelContext) }
+                }
+            }
+            .sheet(item: $viewModel.pairToEdit) { pair in
+                EditPairSheet(pair: pair) { name, startDate, maximumUses in
+                    viewModel.editPair(pair, name: name, startDate: startDate, maximumUses: maximumUses, context: modelContext)
+                }
+            }
+            .alert("Reabrir par?", isPresented: Binding(
+                get: { viewModel.pairToReopen != nil },
+                set: { if !$0 { viewModel.pairToReopen = nil } }
+            )) {
+                Button("Cancelar", role: .cancel) { viewModel.pairToReopen = nil }
+                Button("Reabrir") {
+                    if let pair = viewModel.pairToReopen {
+                        viewModel.reopenPair(pair, context: modelContext)
+                    }
+                    viewModel.pairToReopen = nil
+                }
+            } message: {
+                Text("O par volta a ficar ativo, com o histórico de usos preservado.")
+            }
+            .alert("Excluir par?", isPresented: Binding(
+                get: { viewModel.pairToDelete != nil },
+                set: { if !$0 { viewModel.pairToDelete = nil } }
+            )) {
+                Button("Cancelar", role: .cancel) { viewModel.pairToDelete = nil }
+                Button("Excluir permanentemente", role: .destructive) {
+                    if let pair = viewModel.pairToDelete {
+                        viewModel.deletePair(pair, context: modelContext)
+                    }
+                    viewModel.pairToDelete = nil
+                }
+            } message: {
+                Text("Apaga o par e todos os usos registrados nele. Diferente de encerrar, não pode ser desfeito.")
+            }
+            .alert("Excluir registro?", isPresented: Binding(
+                get: { viewModel.eventToDelete != nil },
+                set: { if !$0 { viewModel.eventToDelete = nil } }
+            )) {
+                Button("Cancelar", role: .cancel) { viewModel.eventToDelete = nil }
+                Button("Excluir", role: .destructive) {
+                    if let event = viewModel.eventToDelete {
+                        viewModel.deleteEvent(event, context: modelContext)
+                    }
+                    viewModel.eventToDelete = nil
+                }
+            } message: {
+                Text("Remove apenas esta entrada do histórico. Não afeta usos, limpezas ou pares.")
             }
             .alert(
                 "Não foi possível concluir a ação",

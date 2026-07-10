@@ -10,6 +10,8 @@ struct HomeView: View {
 
     @State private var viewModel = HomeViewModel()
     @State private var pairToFinish: LensPair?
+    @State private var pairToEdit: LensPair?
+    @State private var pairForDiary: LensPair?
     @State private var showStartNewPair = false
     @State private var startNewPairSides: [LensSide] = [.both]
 
@@ -23,14 +25,36 @@ struct HomeView: View {
 
     private var lastCleaning: CaseCleaning? { cleanings.first }
 
-    private var missingSides: [LensSide] {
-        guard settings.trackingMode == .individual else {
-            return activePairs.isEmpty ? [.both] : []
+    private var dashboardSummary: String? {
+        guard let first = activePairs.first else { return nil }
+        let health = LensStatisticsService.healthStatus(
+            usesRemaining: first.usesRemaining,
+            maximumUses: first.maximumUses,
+            goodBelowPercent: settings.healthGoodBelowPercent,
+            warningBelowPercent: settings.healthWarningBelowPercent,
+            criticalBelowPercent: settings.healthCriticalBelowPercent
+        )
+        var parts = ["\(greeting). Suas lentes estão em estado \(health.label.lowercased())."]
+        parts.append("\(first.usesRemaining) utilização(ões) restantes.")
+        if let lastCleaning {
+            let days = Calendar.current.dateComponents([.day], from: lastCleaning.cleaningDate, to: Date()).day ?? 0
+            parts.append("Estojo limpo há \(days) dia(s).")
         }
-        var sides: [LensSide] = []
-        if !activePairs.contains(where: { $0.side == .right }) { sides.append(.right) }
-        if !activePairs.contains(where: { $0.side == .left }) { sides.append(.left) }
-        return sides
+        return parts.joined(separator: " ")
+    }
+
+    private var greeting: String {
+        switch Calendar.current.component(.hour, from: Date()) {
+        case 0..<12: return "Bom dia"
+        case 12..<18: return "Boa tarde"
+        default: return "Boa noite"
+        }
+    }
+
+    /// Lados disponíveis para iniciar um novo par. Não depende dos pares já ativos: é permitido
+    /// ter mais de um par ativo simultaneamente, inclusive do mesmo lado (ex.: um par reserva).
+    private var startableSides: [LensSide] {
+        settings.trackingMode == .individual ? [.right, .left] : [.both]
     }
 
     var body: some View {
@@ -40,8 +64,14 @@ struct HomeView: View {
                     if activePairs.isEmpty {
                         emptyState
                     } else {
-                        if settings.trackingMode == .individual, activePairs.count > 1 {
-                            bothSidesButton
+                        if let dashboardSummary {
+                            Text(dashboardSummary)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if activePairs.count > 1 {
+                            registerAllButton
                         }
                         ForEach(activePairs) { pair in
                             LensPairCardView(
@@ -50,9 +80,9 @@ struct HomeView: View {
                                 settings: settings,
                                 onRegisterUsage: { registerUsage(for: pair) },
                                 onFinishPair: { pairToFinish = pair },
-                                onRename: { newName in
-                                    viewModel.rename(pair, to: newName, context: modelContext)
-                                }
+                                onEdit: { pairToEdit = pair },
+                                onShowDiary: { pairForDiary = pair },
+                                onDelete: { viewModel.deletePair(pair, context: modelContext) }
                             )
                         }
                     }
@@ -63,16 +93,14 @@ struct HomeView: View {
             }
             .navigationTitle("Minhas Lentes")
             .toolbar {
-                if !missingSides.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            startNewPairSides = missingSides
-                            showStartNewPair = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .accessibilityLabel("Iniciar novo par")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        startNewPairSides = startableSides
+                        showStartNewPair = true
+                    } label: {
+                        Image(systemName: "plus")
                     }
+                    .accessibilityLabel("Iniciar novo par")
                 }
             }
             .overlay(alignment: .bottom) {
@@ -135,6 +163,14 @@ struct HomeView: View {
                     )
                 }
             }
+            .sheet(item: $pairToEdit) { pair in
+                EditPairSheet(pair: pair) { name, startDate, maximumUses in
+                    viewModel.editPair(pair, name: name, startDate: startDate, maximumUses: maximumUses, context: modelContext)
+                }
+            }
+            .sheet(item: $pairForDiary) { pair in
+                PairDiaryView(pair: pair, allCleanings: cleanings, warningBelowPercent: settings.healthWarningBelowPercent)
+            }
         }
     }
 
@@ -146,7 +182,7 @@ struct HomeView: View {
                 description: Text("Inicie um novo par de lentes para começar a registrar os usos.")
             )
             Button {
-                startNewPairSides = missingSides
+                startNewPairSides = startableSides
                 showStartNewPair = true
             } label: {
                 Label("Iniciar novo par", systemImage: "plus.circle.fill")
@@ -157,11 +193,11 @@ struct HomeView: View {
         .padding(.top, 40)
     }
 
-    private var bothSidesButton: some View {
+    private var registerAllButton: some View {
         Button {
-            registerUsageForBothSides()
+            registerUsageForAllActivePairs()
         } label: {
-            Label("Registrar uso hoje (ambas as lentes)", systemImage: "checkmark.circle.fill")
+            Label("Registrar uso hoje (todos os pares)", systemImage: "checkmark.circle.fill")
                 .font(.headline)
                 .frame(maxWidth: .infinity)
         }
@@ -173,7 +209,7 @@ struct HomeView: View {
         viewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
     }
 
-    private func registerUsageForBothSides() {
+    private func registerUsageForAllActivePairs() {
         for pair in activePairs where !pair.hasReachedLimit {
             viewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
         }

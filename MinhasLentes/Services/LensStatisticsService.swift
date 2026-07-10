@@ -24,6 +24,23 @@ enum LensStatisticsService {
         usesCount >= maximumUses
     }
 
+    /// Faixa de saúde do par, derivada do percentual de usos restantes e das faixas
+    /// configuráveis em `AppSettings`. Um par que já atingiu o limite é sempre `.critical`.
+    static func healthStatus(
+        usesRemaining: Int,
+        maximumUses: Int,
+        goodBelowPercent: Int,
+        warningBelowPercent: Int,
+        criticalBelowPercent: Int
+    ) -> LensHealthStatus {
+        guard maximumUses > 0, usesRemaining > 0 else { return .critical }
+        let remainingPercent = Int((Double(usesRemaining) / Double(maximumUses) * 100).rounded())
+        if remainingPercent < criticalBelowPercent { return .critical }
+        if remainingPercent < warningBelowPercent { return .warning }
+        if remainingPercent < goodBelowPercent { return .good }
+        return .excellent
+    }
+
     /// Data da próxima limpeza recomendada, calculada a partir da última limpeza registrada,
     /// usando o calendário e o fuso horário atuais do aparelho. Independe dos usos das lentes.
     static func nextCleaningDate(lastCleaningDate: Date, intervalDays: Int, calendar: Calendar = .current) -> Date {
