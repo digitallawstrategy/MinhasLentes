@@ -1,22 +1,22 @@
 import SwiftUI
 
-/// Cartão-dashboard do par em uso: identificação, anel de progresso, status de utilização,
-/// estatísticas e o botão principal "Registrar uso hoje". Pensado para que a situação das
-/// lentes seja compreendida em poucos segundos.
+/// Cartão-dashboard do par em uso: identificação, anel de progresso, status de utilização e o
+/// botão principal "Registrar uso hoje". Mostra só o que pertence à lente — informações do
+/// estojo (limpeza, prazo) ficam no cartão compacto separado da Home, não aqui, para não
+/// repetir o mesmo conteúdo em cada par quando há mais de um em uso.
 struct LensPairCardView: View {
     let pair: LensPair
-    let lastCleaning: CaseCleaning?
     let settings: AppSettings
     let onRegisterUsage: () -> Void
     let onFinishPair: () -> Void
     let onEdit: () -> Void
     let onShowDiary: () -> Void
-    let onDelete: () -> Void
+    let onMoveToTrash: () -> Void
     let onDemoteToReserve: () -> Void
     let wearingSessionPairID: UUID?
     let onToggleWearingSession: () -> Void
 
-    @State private var showDeleteConfirmation = false
+    @State private var showTrashConfirmation = false
 
     private var isWearingSessionActiveHere: Bool {
         wearingSessionPairID == pair.id
@@ -37,23 +37,6 @@ struct LensPairCardView: View {
         )
     }
 
-    private var nextCleaningDate: Date? {
-        guard let lastCleaning else { return nil }
-        return LensStatisticsService.nextCleaningDate(
-            lastCleaningDate: lastCleaning.cleaningDate,
-            intervalDays: settings.cleaningIntervalDays
-        )
-    }
-
-    private var advanceReminderDate: Date? {
-        guard let lastCleaning else { return nil }
-        return LensStatisticsService.advanceReminderDate(
-            lastCleaningDate: lastCleaning.cleaningDate,
-            intervalDays: settings.cleaningIntervalDays,
-            advanceDays: settings.advanceReminderDays
-        )
-    }
-
     var body: some View {
         SectionCard {
             VStack(alignment: .leading, spacing: 16) {
@@ -61,18 +44,20 @@ struct LensPairCardView: View {
                 ringAndHeadline
                 ProgressBarView(fraction: remainingFraction, tint: usageStatus.tintColor)
                     .animation(.easeInOut(duration: 0.6), value: remainingFraction)
-                stats
+                if let lastUsage = pair.lastUsageDate {
+                    StatRow(label: "Último uso", value: DateFormatting.short.string(from: lastUsage))
+                }
                 registerButton
                 if wearingSessionPairID == nil || isWearingSessionActiveHere {
                     wearingSessionButton
                 }
             }
         }
-        .alert("Excluir \(pair.name)?", isPresented: $showDeleteConfirmation) {
+        .alert("Mover \(pair.name) para a lixeira?", isPresented: $showTrashConfirmation) {
             Button("Cancelar", role: .cancel) {}
-            Button("Excluir permanentemente", role: .destructive, action: onDelete)
+            Button("Mover para a lixeira", role: .destructive, action: onMoveToTrash)
         } message: {
-            Text("Isso apaga o par e os \(pair.usesCount) uso(s) registrados nele. Diferente de encerrar, não pode ser desfeito.")
+            Text("Some da Home e das reservas, mas fica recuperável na Lixeira (Configurações → Dados) por \(LensPairService.trashRetentionDays) dias.")
         }
     }
 
@@ -92,8 +77,8 @@ struct LensPairCardView: View {
                 Button("Ver diário do par", systemImage: "book.pages", action: onShowDiary)
                 Button("Mover para reserva", systemImage: "tray.and.arrow.down", action: onDemoteToReserve)
                 Button("Encerrar ou substituir este par", systemImage: "arrow.triangle.2.circlepath", role: .destructive, action: onFinishPair)
-                Button("Excluir par", systemImage: "trash", role: .destructive) {
-                    showDeleteConfirmation = true
+                Button("Mover para a lixeira", systemImage: "trash", role: .destructive) {
+                    showTrashConfirmation = true
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -133,23 +118,6 @@ struct LensPairCardView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-        }
-    }
-
-    private var stats: some View {
-        VStack(spacing: 6) {
-            if let lastUsage = pair.lastUsageDate {
-                StatRow(label: "Último uso", value: DateFormatting.short.string(from: lastUsage))
-            }
-            if let lastCleaning {
-                StatRow(label: "Última limpeza do estojo", value: DateFormatting.short.string(from: lastCleaning.cleaningDate))
-            }
-            if let advanceReminderDate {
-                StatRow(label: "Aviso antecipado", value: DateFormatting.short.string(from: advanceReminderDate))
-            }
-            if let nextCleaningDate {
-                StatRow(label: "Próxima limpeza", value: DateFormatting.short.string(from: nextCleaningDate))
-            }
         }
     }
 

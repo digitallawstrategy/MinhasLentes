@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import WidgetKit
 
 /// Centraliza as regras de negócio de pares de lentes e usos, garantindo que o histórico
 /// nunca seja apagado e que o contador nunca fique negativo.
@@ -36,7 +37,7 @@ enum LensPairService {
 
     static func inUsePairs(context: ModelContext) throws -> [LensPair] {
         let descriptor = FetchDescriptor<LensPair>(
-            predicate: #Predicate { $0.statusRawValue == "inUse" },
+            predicate: #Predicate { $0.statusRawValue == "inUse" && $0.deletedAt == nil },
             sortBy: [SortDescriptor(\.sequenceNumber)]
         )
         do {
@@ -48,7 +49,7 @@ enum LensPairService {
 
     static func reservePairs(context: ModelContext) throws -> [LensPair] {
         let descriptor = FetchDescriptor<LensPair>(
-            predicate: #Predicate { $0.statusRawValue == "reserve" },
+            predicate: #Predicate { $0.statusRawValue == "reserve" && $0.deletedAt == nil },
             sortBy: [SortDescriptor(\.sequenceNumber)]
         )
         do {
@@ -58,8 +59,23 @@ enum LensPairService {
         }
     }
 
+    /// Todos os pares, inclusive os na lixeira — usado para backup/exportação (que devem
+    /// preservar tudo) e para numeração sequencial (que nunca deve repetir um número, mesmo de
+    /// um par já apagado).
     static func allPairs(context: ModelContext) throws -> [LensPair] {
         let descriptor = FetchDescriptor<LensPair>(sortBy: [SortDescriptor(\.sequenceNumber, order: .reverse)])
+        do {
+            return try context.fetch(descriptor)
+        } catch {
+            throw ServiceError.persistenceFailed(error.localizedDescription)
+        }
+    }
+
+    static func trashedPairs(context: ModelContext) throws -> [LensPair] {
+        let descriptor = FetchDescriptor<LensPair>(
+            predicate: #Predicate { $0.deletedAt != nil },
+            sortBy: [SortDescriptor(\.deletedAt, order: .reverse)]
+        )
         do {
             return try context.fetch(descriptor)
         } catch {
@@ -94,8 +110,19 @@ enum LensPairService {
         do {
             try context.save()
         } catch {
-            throw ServiceError.persistenceFailed(error.localizedDescription)
+            // "Banco bloqueado"/"arquivo não pôde ser aberto" costuma ser transitório (ex.:
+            // colisão de acesso simultâneo com o widget lendo o mesmo arquivo do App Group) —
+            // uma segunda tentativa imediata resolve a maioria dos casos sem incomodar o usuário.
+            do {
+                try context.save()
+            } catch {
+                throw ServiceError.persistenceFailed(error.localizedDescription)
+            }
         }
+        // Sem isso, o widget só percebe a mudança no próximo refresh agendado (até 4h depois)
+        // — toda alteração de par/uso passa por este helper, então é o único lugar que precisa
+        // avisar o WidgetKit para redesenhar com os dados novos.
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Início e encerramento de pares
@@ -267,10 +294,45 @@ enum LensPairService {
         try save(context: context)
     }
 
-    /// Exclui permanentemente um par criado por engano, junto com os usos registrados nele.
-    /// Ao contrário das demais correções deste serviço, esta ação não pode ser desfeita — por
-    /// isso a UI deve sempre confirmar antes de chamar esta função.
-    static func deletePair(_ pair: LensPair, context: ModelContext) throws {
+    // MARK: - Lixeira
+
+    /// Quantos dias um par fica recuperável na lixeira antes de ser apagado de vez.
+    static let trashRetentionDays = 30
+
+    /// Move um par para a lixeira: some da Home, das reservas e de tudo mais, mas continua
+    /// existindo e pode ser restaurado por `trashRetentionDays` dias. Nada é apagado de
+    /// verdade aqui — nem o par, nem os usos.
+    static func moveToTrash(_ pair: LensPair, context: ModelContext) throws {
+        pair.deletedAt = Date()
+        logEvent(
+            .pairTrashed,
+            date: Date(),
+            pair: pair,
+            description: "\(pair.name) movido para a lixeira. Some ser recuperado em até \(trashRetentionDays) dias.",
+            context: context
+        )
+        try save(context: context)
+    }
+
+    /// Restaura um par da lixeira como reserva — nunca substitui automaticamente o que já
+    /// estiver em uso no mesmo lado. Preserva todo o histórico de usos.
+    static func restoreFromTrash(_ pair: LensPair, context: ModelContext) throws {
+        pair.deletedAt = nil
+        pair.status = .reserve
+        logEvent(
+            .pairRestored,
+            date: Date(),
+            pair: pair,
+            description: "\(pair.name) restaurado da lixeira como reserva.",
+            context: context
+        )
+        try save(context: context)
+    }
+
+    /// Exclui permanentemente um par, junto com os usos registrados nele. Ao contrário das
+    /// demais correções deste serviço, esta ação não pode ser desfeita — só é chamada de
+    /// dentro da lixeira, depois de o usuário já ter passado pela etapa de "mover para lixeira".
+    static func permanentlyDeletePair(_ pair: LensPair, context: ModelContext) throws {
         let name = pair.name
         let deletedUsesCount = pair.usesCount
         for usage in pair.usages ?? [] {
@@ -287,6 +349,19 @@ enum LensPairService {
         context.insert(event)
         context.delete(pair)
         try save(context: context)
+    }
+
+    /// Apaga de vez qualquer par que esteja na lixeira há mais de `trashRetentionDays` dias.
+    /// Idempotente — seguro chamar toda vez que o app abre.
+    static func purgeExpiredTrash(context: ModelContext) throws {
+        let expired = try trashedPairs(context: context).filter { pair in
+            guard let deletedAt = pair.deletedAt else { return false }
+            return LensStatisticsService.daysSince(deletedAt) >= trashRetentionDays
+        }
+        guard !expired.isEmpty else { return }
+        for pair in expired {
+            try permanentlyDeletePair(pair, context: context)
+        }
     }
 
     // MARK: - Registro de usos

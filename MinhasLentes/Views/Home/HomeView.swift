@@ -9,10 +9,12 @@ struct HomeView: View {
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
 
     @State private var viewModel = HomeViewModel()
+    @State private var caseViewModel = CaseViewModel()
+    @State private var router = AppRouter.shared
     @State private var pairToFinish: LensPair?
     @State private var pairToEdit: LensPair?
     @State private var pairForDiary: LensPair?
-    @State private var pairToDelete: LensPair?
+    @State private var pairToTrash: LensPair?
     @State private var showStartNewPair = false
     @State private var startNewPairSides: [LensSide] = [.both]
 
@@ -21,11 +23,11 @@ struct HomeView: View {
     }
 
     private var inUsePairs: [LensPair] {
-        allPairs.filter { $0.status == .inUse }
+        allPairs.filter { $0.status == .inUse && $0.deletedAt == nil }
     }
 
     private var reservePairs: [LensPair] {
-        allPairs.filter { $0.status == .reserve }
+        allPairs.filter { $0.status == .reserve && $0.deletedAt == nil }
     }
 
     private var lastCleaning: CaseCleaning? { cleanings.first }
@@ -39,12 +41,7 @@ struct HomeView: View {
             warningBelowPercent: settings.healthWarningBelowPercent,
             criticalBelowPercent: settings.healthCriticalBelowPercent
         )
-        var parts = ["\(greeting). \(status.label) — \(first.usesRemaining) utilização(ões) restante(s)."]
-        if let lastCleaning {
-            let days = Calendar.current.dateComponents([.day], from: lastCleaning.cleaningDate, to: Date()).day ?? 0
-            parts.append("Estojo limpo há \(days) dia(s).")
-        }
-        return parts.joined(separator: " ")
+        return "\(greeting). \(status.label) — \(first.usesRemaining) utilização(ões) restante(s)."
     }
 
     private var greeting: String {
@@ -69,33 +66,7 @@ struct HomeView: View {
                     if inUsePairs.isEmpty && reservePairs.isEmpty {
                         emptyState
                     } else {
-                        if let dashboardSummary {
-                            Text(dashboardSummary)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        if inUsePairs.count > 1 {
-                            registerAllButton
-                        }
-                        ForEach(inUsePairs) { pair in
-                            LensPairCardView(
-                                pair: pair,
-                                lastCleaning: lastCleaning,
-                                settings: settings,
-                                onRegisterUsage: { registerUsage(for: pair) },
-                                onFinishPair: { pairToFinish = pair },
-                                onEdit: { pairToEdit = pair },
-                                onShowDiary: { pairForDiary = pair },
-                                onDelete: { viewModel.deletePair(pair, context: modelContext) },
-                                onDemoteToReserve: { viewModel.demoteToReserve(pair, context: modelContext) },
-                                wearingSessionPairID: viewModel.wearingSessionPairID,
-                                onToggleWearingSession: { viewModel.toggleWearingSession(for: pair, settings: settings) }
-                            )
-                        }
-                        if !reservePairs.isEmpty {
-                            reservesSection
-                        }
+                        dashboardContent
                     }
                 }
                 .padding(.horizontal)
@@ -103,7 +74,13 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .navigationTitle("Minhas Lentes")
-            .task { viewModel.refreshWearingSessionState() }
+            .task {
+                viewModel.refreshWearingSessionState()
+                openPendingPairIfNeeded()
+            }
+            .onChange(of: router.pendingPairID) { _, _ in
+                openPendingPairIfNeeded()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -122,9 +99,16 @@ struct HomeView: View {
                     }
                     .padding(.bottom, 8)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if caseViewModel.showUndoToast, let message = caseViewModel.toastMessage {
+                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                        Task { await caseViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
+                    }
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.snappy, value: viewModel.showUndoToast)
+            .animation(.snappy, value: caseViewModel.showUndoToast)
             .alert("Limite atingido", isPresented: $viewModel.showLimitReachedAlert) {
                 Button("Entendi", role: .cancel) {}
             } message: {
@@ -142,6 +126,18 @@ struct HomeView: View {
             } message: { error in
                 Text(error.message)
             }
+            .alert(
+                "Não foi possível concluir a ação",
+                isPresented: Binding(
+                    get: { caseViewModel.presentedError != nil },
+                    set: { if !$0 { caseViewModel.presentedError = nil } }
+                ),
+                presenting: caseViewModel.presentedError
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { error in
+                Text(error.message)
+            }
             .confirmationDialog(
                 "Já existe uma utilização registrada nesta data em pelo menos um par. Registrar mesmo assim, em todos os pares deste lote?",
                 isPresented: $viewModel.showDuplicateConfirmation,
@@ -154,19 +150,19 @@ struct HomeView: View {
                     viewModel.cancelDuplicateRegistration()
                 }
             }
-            .alert("Excluir par?", isPresented: Binding(
-                get: { pairToDelete != nil },
-                set: { if !$0 { pairToDelete = nil } }
+            .alert("Mover \(pairToTrash?.name ?? "par") para a lixeira?", isPresented: Binding(
+                get: { pairToTrash != nil },
+                set: { if !$0 { pairToTrash = nil } }
             )) {
-                Button("Cancelar", role: .cancel) { pairToDelete = nil }
-                Button("Excluir permanentemente", role: .destructive) {
-                    if let pair = pairToDelete {
-                        viewModel.deletePair(pair, context: modelContext)
+                Button("Cancelar", role: .cancel) { pairToTrash = nil }
+                Button("Mover para a lixeira", role: .destructive) {
+                    if let pair = pairToTrash {
+                        viewModel.moveToTrash(pair, context: modelContext)
                     }
-                    pairToDelete = nil
+                    pairToTrash = nil
                 }
             } message: {
-                Text("Apaga o par e todos os usos registrados nele. Diferente de encerrar, não pode ser desfeito.")
+                Text("Some da Home e das reservas, mas fica recuperável na Lixeira (Configurações → Dados) por \(LensPairService.trashRetentionDays) dias.")
             }
             .sheet(item: $pairToFinish) { pair in
                 EndPairSheet(pair: pair) { endDate, reason, notes, startNew in
@@ -201,11 +197,57 @@ struct HomeView: View {
         }
     }
 
+    @ViewBuilder
+    private var dashboardContent: some View {
+        if let dashboardSummary {
+            Text(dashboardSummary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        if inUsePairs.isEmpty {
+            noPairInUseNotice
+        } else {
+            inUsePairsContent
+        }
+        if !reservePairs.isEmpty {
+            reservesSection
+        }
+    }
+
+    @ViewBuilder
+    private var inUsePairsContent: some View {
+        if inUsePairs.count > 1 {
+            registerAllButton
+        }
+        ForEach(inUsePairs) { pair in
+            LensPairCardView(
+                pair: pair,
+                settings: settings,
+                onRegisterUsage: { registerUsage(for: pair) },
+                onFinishPair: { pairToFinish = pair },
+                onEdit: { pairToEdit = pair },
+                onShowDiary: { pairForDiary = pair },
+                onMoveToTrash: { viewModel.moveToTrash(pair, context: modelContext) },
+                onDemoteToReserve: { viewModel.demoteToReserve(pair, context: modelContext) },
+                wearingSessionPairID: viewModel.wearingSessionPairID,
+                onToggleWearingSession: { viewModel.toggleWearingSession(for: pair, settings: settings) }
+            )
+        }
+        CaseSummaryCardView(
+            lastCleaning: lastCleaning,
+            settings: settings,
+            onRegisterCleaningToday: {
+                Task { await caseViewModel.registerCleaningToday(settings: settings, context: modelContext) }
+            }
+        )
+    }
+
     private var emptyState: some View {
         VStack(spacing: 16) {
             ContentUnavailableView(
                 "Nenhum par cadastrado",
-                systemImage: "eye.slash",
+                systemImage: "eyeglasses",
                 description: Text("Inicie um novo par de lentes para começar a registrar os usos.")
             )
             Button {
@@ -218,6 +260,22 @@ struct HomeView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(.top, 40)
+    }
+
+    private var noPairInUseNotice: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "tray.and.arrow.up")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("Nenhum par em uso")
+                .font(.headline)
+            Text("Ative uma das reservas abaixo, ou inicie um par novo pelo botão + no topo.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
     }
 
     private var registerAllButton: some View {
@@ -264,7 +322,7 @@ struct HomeView: View {
                 Button("Editar par", systemImage: "pencil") { pairToEdit = pair }
                 Button("Ver diário do par", systemImage: "book.pages") { pairForDiary = pair }
                 Button("Encerrar par", systemImage: "arrow.triangle.2.circlepath", role: .destructive) { pairToFinish = pair }
-                Button("Excluir par", systemImage: "trash", role: .destructive) { pairToDelete = pair }
+                Button("Mover para a lixeira", systemImage: "trash", role: .destructive) { pairToTrash = pair }
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .foregroundStyle(.secondary)
@@ -275,6 +333,15 @@ struct HomeView: View {
 
     private func registerUsage(for pair: LensPair) {
         viewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
+    }
+
+    /// Abre o Diário do par indicado por um deep link do widget (`minhaslentes://pair/<uuid>`),
+    /// se houver um pendente e o par ainda existir.
+    private func openPendingPairIfNeeded() {
+        guard let pendingID = router.pendingPairID else { return }
+        router.pendingPairID = nil
+        guard let pair = allPairs.first(where: { $0.id == pendingID }) else { return }
+        pairForDiary = pair
     }
 }
 

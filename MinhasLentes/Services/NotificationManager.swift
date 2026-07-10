@@ -10,12 +10,12 @@ import UIKit
 /// `deadlineIdentifier`) e, apenas em builds DEBUG, de teste (`testOneMinuteIdentifier`,
 /// `testTwoMinuteIdentifier`) — para que cancelamentos nunca se misturem entre si.
 @MainActor
-final class NotificationManager {
+final class NotificationManager: NSObject {
     static let shared = NotificationManager()
 
-    static let advanceIdentifier = "estojo.aviso-antecipado"
-    static let deadlineIdentifier = "estojo.prazo"
-    static let wearingReminderIdentifier = "lentes.remover-lembrete"
+    nonisolated static let advanceIdentifier = "estojo.aviso-antecipado"
+    nonisolated static let deadlineIdentifier = "estojo.prazo"
+    nonisolated static let wearingReminderIdentifier = "lentes.remover-lembrete"
 
     #if DEBUG
     static let testOneMinuteIdentifier = "dev.teste.aviso-1min"
@@ -24,7 +24,10 @@ final class NotificationManager {
 
     private let center = UNUserNotificationCenter.current()
 
-    private init() {}
+    private override init() {
+        super.init()
+        center.delegate = self
+    }
 
     enum NotificationError: LocalizedError {
         case authorizationDenied
@@ -248,4 +251,36 @@ final class NotificationManager {
         _ = await center.pendingNotificationRequests()
     }
     #endif
+}
+
+// MARK: - Deep link ao tocar numa notificação
+
+extension NotificationManager: UNUserNotificationCenterDelegate {
+    /// Mostra a notificação normalmente mesmo com o app aberto — sem isso, o sistema some
+    /// silenciosamente com o banner em primeiro plano.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound, .badge]
+    }
+
+    /// Leva o usuário para a aba certa quando ele toca numa notificação: Estojo para os
+    /// avisos de limpeza, Início para o lembrete de remoção das lentes.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        let identifier = response.notification.request.identifier
+        await MainActor.run {
+            switch identifier {
+            case Self.advanceIdentifier, Self.deadlineIdentifier:
+                AppRouter.shared.openEstojo()
+            case Self.wearingReminderIdentifier:
+                AppRouter.shared.openHome()
+            default:
+                break
+            }
+        }
+    }
 }

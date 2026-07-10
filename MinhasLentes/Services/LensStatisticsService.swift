@@ -62,4 +62,16 @@ enum LensStatisticsService {
     static func hasUsage(onSameDayAs date: Date, in usages: [LensUsage], calendar: Calendar = .current) -> Bool {
         usages.contains { calendar.isDate($0.date, inSameDayAs: date) }
     }
+
+    /// Dias corridos entre `date` e `referenceDate` (positivo se `date` for no passado).
+    /// Compartilhado entre a aba Estojo, o cartão compacto da Home e o widget, para as três
+    /// apresentações concordarem sempre no mesmo número.
+    static func daysSince(_ date: Date, referenceDate: Date = Date(), calendar: Calendar = .current) -> Int {
+        calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: referenceDate)).day ?? 0
+    }
+
+    /// Dias corridos entre `referenceDate` e `date` (positivo se `date` for no futuro).
+    static func daysUntil(_ date: Date, referenceDate: Date = Date(), calendar: Calendar = .current) -> Int {
+        calendar.dateComponents([.day], from: calendar.startOfDay(for: referenceDate), to: calendar.startOfDay(for: date)).day ?? 0
+    }
 }

@@ -19,6 +19,10 @@ final class LensPair {
     var sideRawValue: String = LensSide.both.rawValue
     var createdAt: Date = Date()
 
+    /// Quando não-nulo, o par está na lixeira: escondido do restante do app, mas recuperável
+    /// até `LensPairService.trashRetentionDays` depois desta data, quando é apagado de vez.
+    var deletedAt: Date?
+
     @Relationship(deleteRule: .nullify, inverse: \LensUsage.lensPair)
     var usages: [LensUsage]? = []
 

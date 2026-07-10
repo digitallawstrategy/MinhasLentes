@@ -8,9 +8,10 @@ struct ContentView: View {
     @Query private var pairs: [LensPair]
 
     @State private var startupError: IdentifiableError?
+    @State private var router = AppRouter.shared
 
     private var hasAnyPair: Bool {
-        pairs.contains { $0.status != .finished }
+        pairs.contains { $0.status != .finished && $0.deletedAt == nil }
     }
 
     var body: some View {
@@ -29,22 +30,31 @@ struct ContentView: View {
                 // Idempotente: corrige qualquer inconsistência de "mais de um par em uso por
                 // lado" residual de dados anteriores ao conceito de reserva.
                 try LensPairService.normalizeInUseInvariant(context: modelContext)
+                // Idempotente: apaga de vez pares na lixeira há mais de trashRetentionDays dias.
+                try LensPairService.purgeExpiredTrash(context: modelContext)
             } catch {
                 startupError = IdentifiableError(error)
             }
         }
+        .onOpenURL { url in
+            router.handle(url: url)
+        }
     }
 
     private var mainTabs: some View {
-        TabView {
+        TabView(selection: $router.selectedTab) {
             HomeView()
                 .tabItem { Label("Início", systemImage: "eye") }
+                .tag(AppTab.home)
             HistoryView()
                 .tabItem { Label("Histórico", systemImage: "clock") }
+                .tag(AppTab.history)
             CaseView()
                 .tabItem { Label("Estojo", systemImage: "shippingbox") }
+                .tag(AppTab.estojo)
             SettingsView()
                 .tabItem { Label("Configurações", systemImage: "gearshape") }
+                .tag(AppTab.settings)
         }
     }
 

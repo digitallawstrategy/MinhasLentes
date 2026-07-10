@@ -302,6 +302,16 @@ struct SettingsView: View {
 
     private var dataSection: some View {
         Section("Dados") {
+            NavigationLink {
+                TrashView()
+            } label: {
+                LabeledContent("Lixeira") {
+                    let trashedCount = pairs.filter { $0.deletedAt != nil }.count
+                    if trashedCount > 0 {
+                        Text("\(trashedCount)")
+                    }
+                }
+            }
             Button("Restaurar configurações padrão") {
                 viewModel.restoreDefaults(settings: settings, context: modelContext)
             }

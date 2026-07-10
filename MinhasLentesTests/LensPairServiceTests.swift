@@ -116,15 +116,58 @@ final class LensPairServiceTests: XCTestCase {
         XCTAssertEqual(pair.usesCount, 1, "Reabrir não deve apagar os usos já registrados")
     }
 
-    func testDeletePairRemovesItAndItsUsages() throws {
+    func testPermanentlyDeletePairRemovesItAndItsUsages() throws {
         let pair = try makePair()
         _ = try LensPairService.registerUsage(
             for: pair, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
             allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
         )
-        try LensPairService.deletePair(pair, context: context)
+        try LensPairService.permanentlyDeletePair(pair, context: context)
         XCTAssertEqual(try LensPairService.allPairs(context: context).count, 0)
         XCTAssertEqual(try context.fetch(FetchDescriptor<LensUsage>()).count, 0)
+    }
+
+    func testMoveToTrashHidesPairFromInUseAndReserveQueries() throws {
+        let pair = try makePair()
+        try LensPairService.moveToTrash(pair, context: context)
+
+        XCTAssertNotNil(pair.deletedAt)
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 0)
+        XCTAssertEqual(try LensPairService.trashedPairs(context: context).count, 1)
+        XCTAssertEqual(try LensPairService.allPairs(context: context).count, 1, "Mover para a lixeira não apaga o par")
+    }
+
+    func testRestoreFromTrashBringsPairBackAsReserve() throws {
+        let pair = try makePair()
+        _ = try LensPairService.registerUsage(
+            for: pair, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
+            allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )
+        try LensPairService.moveToTrash(pair, context: context)
+        try LensPairService.restoreFromTrash(pair, context: context)
+
+        XCTAssertNil(pair.deletedAt)
+        XCTAssertEqual(pair.status, .reserve, "Restaurar não deve substituir automaticamente o que já estiver em uso")
+        XCTAssertEqual(pair.usesCount, 1, "Restaurar não deve apagar os usos já registrados")
+        XCTAssertEqual(try LensPairService.trashedPairs(context: context).count, 0)
+    }
+
+    func testPurgeExpiredTrashOnlyDeletesPairsPastRetention() throws {
+        let recentlyTrashed = try makePair()
+        try LensPairService.moveToTrash(recentlyTrashed, context: context)
+
+        let longTrashed = try LensPairService.startNewPair(
+            name: nil, startDate: TestSupport.date(2026, 1, 1), maximumUses: 60,
+            trackingMode: .pair, side: .right, asReserve: true, context: context
+        )
+        try LensPairService.moveToTrash(longTrashed, context: context)
+        longTrashed.deletedAt = Calendar.current.date(byAdding: .day, value: -(LensPairService.trashRetentionDays + 1), to: Date())
+        try context.save()
+
+        try LensPairService.purgeExpiredTrash(context: context)
+
+        XCTAssertEqual(try LensPairService.trashedPairs(context: context).count, 1, "Só o par além do prazo deve ser apagado")
+        XCTAssertEqual(try LensPairService.allPairs(context: context).count, 1)
     }
 
     func testEditPairUpdatesNameStartDateAndMaximumUses() throws {

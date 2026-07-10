@@ -14,7 +14,7 @@ final class HistoryViewModel {
     var cleaningToEdit: CaseCleaning?
     var pairToEdit: LensPair?
     var pairToReopen: LensPair?
-    var pairToDelete: LensPair?
+    var pairToTrash: LensPair?
     var eventToDelete: HistoryEvent?
     var presentedError: IdentifiableError?
 
@@ -151,11 +151,11 @@ final class HistoryViewModel {
         }
     }
 
-    func deletePair(_ pair: LensPair, context: ModelContext) {
+    func moveToTrash(_ pair: LensPair, context: ModelContext) {
         do {
-            try LensPairService.deletePair(pair, context: context)
+            try LensPairService.moveToTrash(pair, context: context)
         } catch {
-            presentedError = IdentifiableError(message: "Não foi possível excluir o par. \(error.localizedDescription)")
+            presentedError = IdentifiableError(message: "Não foi possível mover o par para a lixeira. \(error.localizedDescription)")
         }
     }
 

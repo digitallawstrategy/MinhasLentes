@@ -22,12 +22,12 @@ struct CaseView: View {
 
     private var daysSinceLastCleaning: Int? {
         guard let lastCleaning else { return nil }
-        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: lastCleaning.cleaningDate), to: Calendar.current.startOfDay(for: Date())).day
+        return LensStatisticsService.daysSince(lastCleaning.cleaningDate)
     }
 
     private var daysUntilNextCleaning: Int? {
         guard let nextCleaningDate else { return nil }
-        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: nextCleaningDate)).day
+        return LensStatisticsService.daysUntil(nextCleaningDate)
     }
 
     private var countdownFraction: Double {
@@ -163,6 +163,16 @@ struct CaseView: View {
                 .padding(.bottom, 32)
             }
             .navigationTitle("Estojo")
+            .overlay(alignment: .bottom) {
+                if viewModel.showUndoToast, let message = viewModel.toastMessage {
+                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                        Task { await viewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
+                    }
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.snappy, value: viewModel.showUndoToast)
             .sheet(isPresented: $showRegisterOtherDate) {
                 NavigationStack {
                     Form {

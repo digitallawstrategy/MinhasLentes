@@ -74,12 +74,19 @@
 			);
 			target = 4F6506E8300163FE00908E3A /* MinhasLentesWidgetExtension */;
 		};
+		4FFFFF61300189B80017250F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 57C42C7989A008811A3D7563 /* MinhasLentes */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3D9B7CEB10791450DF609C28 /* MinhasLentesTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MinhasLentesTests; sourceTree = "<group>"; };
 		4F6506EF300163FE00908E3A /* MinhasLentesWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4F650703300163FF00908E3A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MinhasLentesWidget; sourceTree = "<group>"; };
-		C556A867B2349B87BCB103A6 /* MinhasLentes */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4F6507AC3001698E00908E3A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MinhasLentes; sourceTree = "<group>"; };
+		C556A867B2349B87BCB103A6 /* MinhasLentes */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4FFFFF61300189B80017250F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 4F6507AC3001698E00908E3A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MinhasLentes; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -336,6 +343,7 @@
 				DEVELOPMENT_TEAM = YX9GVUF79Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MinhasLentes/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Minhas Lentes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -581,6 +589,7 @@
 				DEVELOPMENT_TEAM = YX9GVUF79Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MinhasLentes/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Minhas Lentes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

@@ -31,13 +31,13 @@ struct HistoryView: View {
         switch event.eventType {
         case .pairStarted:
             if let pair = viewModel.pair(for: event, context: modelContext) {
-                Button("Excluir par", role: .destructive) { viewModel.pairToDelete = pair }
+                Button("Mover para a lixeira", role: .destructive) { viewModel.pairToTrash = pair }
                 Button("Editar par") { viewModel.pairToEdit = pair }
                     .tint(.blue)
             }
         case .pairFinished:
             if let pair = viewModel.pair(for: event, context: modelContext), pair.status == .finished {
-                Button("Excluir par", role: .destructive) { viewModel.pairToDelete = pair }
+                Button("Mover para a lixeira", role: .destructive) { viewModel.pairToTrash = pair }
                 Button("Reabrir par") { viewModel.pairToReopen = pair }
                     .tint(.green)
             }
@@ -156,19 +156,19 @@ struct HistoryView: View {
             } message: {
                 Text("O par volta a ficar ativo, com o histórico de usos preservado.")
             }
-            .alert("Excluir par?", isPresented: Binding(
-                get: { viewModel.pairToDelete != nil },
-                set: { if !$0 { viewModel.pairToDelete = nil } }
+            .alert("Mover par para a lixeira?", isPresented: Binding(
+                get: { viewModel.pairToTrash != nil },
+                set: { if !$0 { viewModel.pairToTrash = nil } }
             )) {
-                Button("Cancelar", role: .cancel) { viewModel.pairToDelete = nil }
-                Button("Excluir permanentemente", role: .destructive) {
-                    if let pair = viewModel.pairToDelete {
-                        viewModel.deletePair(pair, context: modelContext)
+                Button("Cancelar", role: .cancel) { viewModel.pairToTrash = nil }
+                Button("Mover para a lixeira", role: .destructive) {
+                    if let pair = viewModel.pairToTrash {
+                        viewModel.moveToTrash(pair, context: modelContext)
                     }
-                    viewModel.pairToDelete = nil
+                    viewModel.pairToTrash = nil
                 }
             } message: {
-                Text("Apaga o par e todos os usos registrados nele. Diferente de encerrar, não pode ser desfeito.")
+                Text("Some da Home e das reservas, mas fica recuperável na Lixeira (Configurações → Dados) por \(LensPairService.trashRetentionDays) dias.")
             }
             .alert("Excluir registro?", isPresented: Binding(
                 get: { viewModel.eventToDelete != nil },

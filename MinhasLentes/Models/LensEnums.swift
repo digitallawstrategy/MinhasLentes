@@ -95,6 +95,8 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
     case pairReopened
     case pairEdited
     case pairDeleted
+    case pairTrashed
+    case pairRestored
     case settingsChanged
 
     var displayName: String {
@@ -110,7 +112,9 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
         case .cleaningEdited: return "Limpeza editada"
         case .pairReopened: return "Par reaberto"
         case .pairEdited: return "Par editado"
-        case .pairDeleted: return "Par excluído"
+        case .pairDeleted: return "Par excluído permanentemente"
+        case .pairTrashed: return "Par movido para a lixeira"
+        case .pairRestored: return "Par restaurado da lixeira"
         case .settingsChanged: return "Alteração de configuração"
         }
     }

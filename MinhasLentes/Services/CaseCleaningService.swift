@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import WidgetKit
 
 /// Regras de negócio do ciclo de limpeza do estojo. O prazo é sempre recalculado a partir
 /// da limpeza efetivamente registrada, independentemente dos usos das lentes.
@@ -33,6 +34,22 @@ enum CaseCleaningService {
         try allCleanings(context: context).first
     }
 
+    private static func save(context: ModelContext) throws {
+        do {
+            try context.save()
+        } catch {
+            // "Banco bloqueado"/"arquivo não pôde ser aberto" costuma ser transitório (ex.:
+            // colisão de acesso simultâneo com o widget lendo o mesmo arquivo do App Group) —
+            // uma segunda tentativa imediata resolve a maioria dos casos sem incomodar o usuário.
+            do {
+                try context.save()
+            } catch {
+                throw ServiceError.persistenceFailed(error.localizedDescription)
+            }
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     /// Registra uma nova limpeza e reagenda as notificações reais seguindo o procedimento:
     /// 1. cancela somente as notificações reais do ciclo anterior;
     /// 2. aguarda a confirmação do cancelamento junto ao sistema;
@@ -57,11 +74,7 @@ enum CaseCleaningService {
         )
         context.insert(event)
 
-        do {
-            try context.save()
-        } catch {
-            throw ServiceError.persistenceFailed(error.localizedDescription)
-        }
+        try save(context: context)
 
         // 1. cancela somente as notificações reais do ciclo anterior
         // 2. cancelCaseCleaningNotifications já consulta a fila real do sistema antes de retornar,
@@ -111,11 +124,7 @@ enum CaseCleaningService {
         )
         context.insert(event)
 
-        do {
-            try context.save()
-        } catch {
-            throw ServiceError.persistenceFailed(error.localizedDescription)
-        }
+        try save(context: context)
 
         try await rescheduleFromCurrentLast(settings: settings, context: context)
     }
@@ -141,11 +150,7 @@ enum CaseCleaningService {
         )
         context.insert(event)
 
-        do {
-            try context.save()
-        } catch {
-            throw ServiceError.persistenceFailed(error.localizedDescription)
-        }
+        try save(context: context)
 
         try await rescheduleFromCurrentLast(settings: settings, context: context)
     }

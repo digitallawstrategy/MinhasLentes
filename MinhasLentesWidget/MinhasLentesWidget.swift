@@ -38,6 +38,14 @@ struct MinhasLentesWidgetEntryView: View {
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
+        .widgetURL(deepLinkURL)
+    }
+
+    /// Toque no widget abre o Diário do par em uso direto, sem passar pela Home genérica —
+    /// só um destino por widget é suportado, então isso é tudo que dá pra linkar aqui.
+    private var deepLinkURL: URL? {
+        guard let pairID = entry.snapshot.pairID else { return nil }
+        return URL(string: "minhaslentes://pair/\(pairID.uuidString)")
     }
 }
 
@@ -59,7 +67,7 @@ private struct SmallLensWidgetView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            EmptyLensWidgetView(compact: true)
+            EmptyLensWidgetView(compact: true, debugMessage: snapshot.debugMessage)
         }
     }
 }
@@ -97,13 +105,14 @@ private struct MediumLensWidgetView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            EmptyLensWidgetView(compact: false)
+            EmptyLensWidgetView(compact: false, debugMessage: snapshot.debugMessage)
         }
     }
 }
 
 private struct EmptyLensWidgetView: View {
     let compact: Bool
+    let debugMessage: String?
 
     var body: some View {
         VStack(spacing: 4) {
@@ -112,6 +121,14 @@ private struct EmptyLensWidgetView: View {
             Text(compact ? "Nenhum par ativo" : "Nenhum par ativo — abra o app para começar")
                 .font(.caption)
                 .multilineTextAlignment(.center)
+            #if DEBUG
+            if let debugMessage {
+                Text(debugMessage)
+                    .font(.system(size: 8))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(4)
+            }
+            #endif
         }
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity)

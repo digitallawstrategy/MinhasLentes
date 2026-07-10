@@ -56,6 +56,8 @@ struct HistoryItem: Identifiable {
             case .pairReopened: return "arrow.uturn.backward.circle"
             case .pairEdited: return "pencil.circle"
             case .pairDeleted: return "trash"
+            case .pairTrashed: return "trash.circle"
+            case .pairRestored: return "arrow.uturn.backward.circle"
             case .usageEdited, .cleaningEdited: return "pencil"
             case .usageDeleted, .usageUndone, .cleaningDeleted: return "trash"
             case .cleaningRegistered: return "sparkles"

@@ -206,12 +206,12 @@ final class HomeViewModel {
         }
     }
 
-    func deletePair(_ pair: LensPair, context: ModelContext) {
+    func moveToTrash(_ pair: LensPair, context: ModelContext) {
         do {
-            try LensPairService.deletePair(pair, context: context)
+            try LensPairService.moveToTrash(pair, context: context)
             HapticsService.lightImpact()
         } catch {
-            presentedError = IdentifiableError(message: "Não foi possível excluir o par. \(error.localizedDescription)")
+            presentedError = IdentifiableError(message: "Não foi possível mover o par para a lixeira. \(error.localizedDescription)")
         }
     }
 
