@@ -7,6 +7,7 @@ struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \LensUsage.date, order: .reverse) private var usages: [LensUsage]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
+    @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
     @Query(sort: \HistoryEvent.eventDate, order: .reverse) private var events: [HistoryEvent]
     @Query private var allSettings: [AppSettings]
 
@@ -17,7 +18,7 @@ struct HistoryView: View {
     }
 
     private var timeline: [HistoryItem] {
-        let items = viewModel.buildTimeline(usages: usages, cleanings: cleanings, events: events)
+        let items = viewModel.buildTimeline(usages: usages, cleanings: cleanings, routineCareLogs: routineCareLogs, events: events)
         let filtered = viewModel.applyFilters(to: items)
         return viewModel.applySearch(to: filtered)
     }
@@ -85,6 +86,14 @@ struct HistoryView: View {
                                                     viewModel.cleaningToEdit = cleaning
                                                 }
                                                 .tint(.blue)
+                                            } else if let routineCare = item.underlyingRoutineCare {
+                                                Button("Excluir", role: .destructive) {
+                                                    viewModel.routineCareToDelete = routineCare
+                                                }
+                                                Button("Editar") {
+                                                    viewModel.routineCareToEdit = routineCare
+                                                }
+                                                .tint(.blue)
                                             } else if let event = item.underlyingEvent {
                                                 eventSwipeActions(for: event)
                                             }
@@ -135,6 +144,26 @@ struct HistoryView: View {
             .sheet(item: $viewModel.cleaningToEdit) { cleaning in
                 EditCleaningSheet(cleaning: cleaning) { date, notes in
                     Task { await viewModel.editCleaning(cleaning, newDate: date, newNotes: notes, settings: settings, context: modelContext) }
+                }
+            }
+            .alert("Excluir cuidado diário?", isPresented: Binding(
+                get: { viewModel.routineCareToDelete != nil },
+                set: { if !$0 { viewModel.routineCareToDelete = nil } }
+            )) {
+                Button("Cancelar", role: .cancel) { viewModel.routineCareToDelete = nil }
+                Button("Excluir", role: .destructive) {
+                    if let log = viewModel.routineCareToDelete {
+                        viewModel.deleteRoutineCare(log, context: modelContext)
+                    }
+                    viewModel.routineCareToDelete = nil
+                }
+            }
+            .sheet(item: $viewModel.routineCareToEdit) { log in
+                EditRoutineCareSheet(log: log) { date, discardedSolution, cleanedCase, airDried, notes in
+                    viewModel.editRoutineCare(
+                        log, newDate: date, discardedSolution: discardedSolution,
+                        cleanedCase: cleanedCase, airDried: airDried, newNotes: notes, context: modelContext
+                    )
                 }
             }
             .sheet(item: $viewModel.pairToEdit) { pair in

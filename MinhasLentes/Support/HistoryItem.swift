@@ -6,6 +6,7 @@ struct HistoryItem: Identifiable {
     enum Kind {
         case usage(LensUsage)
         case cleaning(CaseCleaning)
+        case routineCare(RoutineCareLog)
         case event(HistoryEvent)
     }
 
@@ -17,6 +18,7 @@ struct HistoryItem: Identifiable {
         switch kind {
         case .usage: return "Uso das lentes"
         case .cleaning: return "Limpeza do estojo"
+        case .routineCare: return "Cuidado diário"
         case .event(let event): return event.eventType.displayName
         }
     }
@@ -25,6 +27,7 @@ struct HistoryItem: Identifiable {
         switch kind {
         case .usage(let usage): return usage.lensPair?.name
         case .cleaning: return nil
+        case .routineCare: return nil
         case .event(let event): return event.lensPairName
         }
     }
@@ -33,6 +36,7 @@ struct HistoryItem: Identifiable {
         switch kind {
         case .usage(let usage): return usage.side
         case .cleaning: return nil
+        case .routineCare: return nil
         case .event(let event): return event.side
         }
     }
@@ -41,6 +45,7 @@ struct HistoryItem: Identifiable {
         switch kind {
         case .usage(let usage): return usage.notes
         case .cleaning(let cleaning): return cleaning.notes
+        case .routineCare(let log): return log.notes
         case .event(let event): return event.descriptionText
         }
     }
@@ -49,6 +54,7 @@ struct HistoryItem: Identifiable {
         switch kind {
         case .usage: return "eye"
         case .cleaning: return "sparkles"
+        case .routineCare: return "drop.circle"
         case .event(let event):
             switch event.eventType {
             case .pairStarted: return "plus.circle"
@@ -58,11 +64,14 @@ struct HistoryItem: Identifiable {
             case .pairDeleted: return "trash"
             case .pairTrashed: return "trash.circle"
             case .pairRestored: return "arrow.uturn.backward.circle"
-            case .usageEdited, .cleaningEdited: return "pencil"
-            case .usageDeleted, .usageUndone, .cleaningDeleted: return "trash"
+            case .usageEdited, .cleaningEdited, .caseEdited, .routineCareEdited: return "pencil"
+            case .usageDeleted, .usageUndone, .cleaningDeleted, .caseDeleted, .routineCareDeleted: return "trash"
             case .cleaningRegistered: return "sparkles"
             case .settingsChanged: return "gearshape"
             case .usageAdded: return "eye"
+            case .caseStarted: return "shippingbox"
+            case .caseReplaced: return "arrow.triangle.2.circlepath"
+            case .routineCareRegistered: return "drop.circle"
             }
         }
     }
@@ -77,6 +86,11 @@ struct HistoryItem: Identifiable {
         return nil
     }
 
+    var underlyingRoutineCare: RoutineCareLog? {
+        if case .routineCare(let log) = kind { return log }
+        return nil
+    }
+
     var underlyingEvent: HistoryEvent? {
         if case .event(let event) = kind { return event }
         return nil
@@ -88,6 +102,8 @@ enum HistoryFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case usages
     case cleanings
     case pairLifecycle
+    case caseLifecycle
+    case routineCare
     case right
     case left
     case both
@@ -99,6 +115,8 @@ enum HistoryFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .usages: return "Usos"
         case .cleanings: return "Limpezas"
         case .pairLifecycle: return "Substituições e pares"
+        case .caseLifecycle: return "Ciclos do estojo"
+        case .routineCare: return "Cuidado diário"
         case .right: return "Lente direita"
         case .left: return "Lente esquerda"
         case .both: return "Ambas as lentes"

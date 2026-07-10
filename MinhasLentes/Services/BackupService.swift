@@ -60,6 +60,10 @@ enum BackupService {
         var usagesSkippedAsDuplicate = 0
         var cleaningsSkippedAsDuplicate = 0
         var eventsSkippedAsDuplicate = 0
+        var casesImported = 0
+        var casesSkippedAsDuplicate = 0
+        var routineCareLogsImported = 0
+        var routineCareLogsSkippedAsDuplicate = 0
     }
 
     // MARK: - Estrutura do arquivo (versionada)
@@ -72,6 +76,30 @@ enum BackupService {
         var cleanings: [CleaningDTO]
         var events: [EventDTO]
         var settings: SettingsDTO?
+        /// Opcional para preservar compatibilidade com backups criados antes da versão que
+        /// introduziu o ciclo de vida do estojo (ausente = nenhum registro, não "erro").
+        var cases: [CaseDTO]? = nil
+        var routineCareLogs: [RoutineCareLogDTO]? = nil
+    }
+
+    struct CaseDTO: Codable {
+        var id: UUID
+        var startDate: Date
+        var replacedAt: Date?
+        var intervalDays: Int
+        var notes: String?
+        var status: String
+        var createdAt: Date
+    }
+
+    struct RoutineCareLogDTO: Codable {
+        var id: UUID
+        var date: Date
+        var discardedSolution: Bool
+        var cleanedCase: Bool
+        var airDried: Bool
+        var notes: String?
+        var createdAt: Date
     }
 
     struct PairDTO: Codable {
@@ -139,6 +167,8 @@ enum BackupService {
     static func exportJSON(context: ModelContext) throws -> URL {
         let pairs = try LensPairService.allPairs(context: context)
         let cleanings = try CaseCleaningService.allCleanings(context: context)
+        let cases = try LensCaseService.allCases(context: context)
+        let routineCareLogs = try RoutineCareService.allLogs(context: context)
 
         let events: [HistoryEvent]
         do {
@@ -221,6 +251,18 @@ enum BackupService {
                     healthCriticalBelowPercent: s.healthCriticalBelowPercent,
                     wearingReminderHours: s.wearingReminderHours
                 )
+            },
+            cases: cases.map {
+                CaseDTO(
+                    id: $0.id, startDate: $0.startDate, replacedAt: $0.replacedAt, intervalDays: $0.intervalDays,
+                    notes: $0.notes, status: $0.statusRawValue, createdAt: $0.createdAt
+                )
+            },
+            routineCareLogs: routineCareLogs.map {
+                RoutineCareLogDTO(
+                    id: $0.id, date: $0.date, discardedSolution: $0.discardedSolution, cleanedCase: $0.cleanedCase,
+                    airDried: $0.airDried, notes: $0.notes, createdAt: $0.createdAt
+                )
             }
         )
 
@@ -267,7 +309,9 @@ enum BackupService {
         guard envelope.schemaVersion <= currentSchemaVersion else {
             throw BackupError.unsupportedSchemaVersion(envelope.schemaVersion)
         }
-        guard !envelope.pairs.isEmpty || !envelope.cleanings.isEmpty || envelope.settings != nil else {
+        guard !envelope.pairs.isEmpty || !envelope.cleanings.isEmpty || envelope.settings != nil
+            || !(envelope.cases ?? []).isEmpty || !(envelope.routineCareLogs ?? []).isEmpty
+        else {
             throw BackupError.invalidFile("O arquivo não contém nenhum dado reconhecível.")
         }
 
@@ -298,6 +342,8 @@ enum BackupService {
                 for cleaning in try context.fetch(FetchDescriptor<CaseCleaning>()) { context.delete(cleaning) }
                 for event in try context.fetch(FetchDescriptor<HistoryEvent>()) { context.delete(event) }
                 for settings in try context.fetch(FetchDescriptor<AppSettings>()) { context.delete(settings) }
+                for lensCase in try context.fetch(FetchDescriptor<LensCase>()) { context.delete(lensCase) }
+                for log in try context.fetch(FetchDescriptor<RoutineCareLog>()) { context.delete(log) }
             }
 
             // Pares — mantém um mapa id → LensPair (novo ou já existente) para religar os usos.
@@ -385,6 +431,41 @@ enum BackupService {
                 event.createdAt = dto.createdAt
                 context.insert(event)
                 report.eventsImported += 1
+            }
+
+            // Ciclos do estojo
+            let existingCaseIDs: Set<UUID> = mode == .merge
+                ? Set(try context.fetch(FetchDescriptor<LensCase>()).map(\.id))
+                : []
+            for dto in envelope.cases ?? [] {
+                if mode == .merge, existingCaseIDs.contains(dto.id) {
+                    report.casesSkippedAsDuplicate += 1
+                    continue
+                }
+                let lensCase = LensCase(id: dto.id, startDate: dto.startDate, intervalDays: dto.intervalDays, notes: dto.notes)
+                lensCase.replacedAt = dto.replacedAt
+                lensCase.statusRawValue = dto.status
+                lensCase.createdAt = dto.createdAt
+                context.insert(lensCase)
+                report.casesImported += 1
+            }
+
+            // Cuidados diários (rotina pós-remoção)
+            let existingRoutineCareIDs: Set<UUID> = mode == .merge
+                ? Set(try context.fetch(FetchDescriptor<RoutineCareLog>()).map(\.id))
+                : []
+            for dto in envelope.routineCareLogs ?? [] {
+                if mode == .merge, existingRoutineCareIDs.contains(dto.id) {
+                    report.routineCareLogsSkippedAsDuplicate += 1
+                    continue
+                }
+                let log = RoutineCareLog(
+                    id: dto.id, date: dto.date, discardedSolution: dto.discardedSolution,
+                    cleanedCase: dto.cleanedCase, airDried: dto.airDried, notes: dto.notes
+                )
+                log.createdAt = dto.createdAt
+                context.insert(log)
+                report.routineCareLogsImported += 1
             }
 
             // Configurações — substitui em modo replace; em modo merge, só aplica se ainda não

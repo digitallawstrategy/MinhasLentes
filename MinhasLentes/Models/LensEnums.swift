@@ -98,6 +98,13 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
     case pairTrashed
     case pairRestored
     case settingsChanged
+    case caseStarted
+    case caseReplaced
+    case caseEdited
+    case caseDeleted
+    case routineCareRegistered
+    case routineCareDeleted
+    case routineCareEdited
 
     var displayName: String {
         switch self {
@@ -116,6 +123,13 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
         case .pairTrashed: return "Par movido para a lixeira"
         case .pairRestored: return "Par restaurado da lixeira"
         case .settingsChanged: return "Alteração de configuração"
+        case .caseStarted: return "Novo ciclo de estojo"
+        case .caseReplaced: return "Estojo substituído"
+        case .caseEdited: return "Ciclo de estojo editado"
+        case .caseDeleted: return "Ciclo de estojo excluído"
+        case .routineCareRegistered: return "Cuidado diário registrado"
+        case .routineCareDeleted: return "Cuidado diário excluído"
+        case .routineCareEdited: return "Cuidado diário editado"
         }
     }
 }

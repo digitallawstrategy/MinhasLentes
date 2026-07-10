@@ -31,6 +31,16 @@ final class AppSettings {
     /// Após quantas horas de sessão "Estou usando as lentes" o lembrete de remoção é enviado.
     var wearingReminderHours: Int = 8
 
+    /// Intervalo recomendado, em dias, para substituição do estojo físico. Copiado para cada
+    /// `LensCase` no momento em que o ciclo começa — mudar aqui não altera ciclos já iniciados.
+    var caseReplacementIntervalDays: Int = 90
+    /// Liga/desliga todo o conjunto de avisos de substituição do estojo (15 dias antes, 7 dias
+    /// antes, no dia e o lembrete periódico após o prazo).
+    var caseReminderEnabled: Bool = true
+    /// De quantos em quantos dias o lembrete se repete depois que o prazo recomendado já passou
+    /// e nenhuma substituição foi registrada.
+    var caseOverdueReminderIntervalDays: Int = 7
+
     init(id: UUID = UUID()) {
         self.id = id
     }
@@ -57,5 +67,8 @@ final class AppSettings {
         healthWarningBelowPercent = 40
         healthCriticalBelowPercent = 15
         wearingReminderHours = 8
+        caseReplacementIntervalDays = 90
+        caseReminderEnabled = true
+        caseOverdueReminderIntervalDays = 7
     }
 }

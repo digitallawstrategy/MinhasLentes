@@ -12,6 +12,8 @@ final class HistoryViewModel {
     var usageToDelete: LensUsage?
     var cleaningToDelete: CaseCleaning?
     var cleaningToEdit: CaseCleaning?
+    var routineCareToDelete: RoutineCareLog?
+    var routineCareToEdit: RoutineCareLog?
     var pairToEdit: LensPair?
     var pairToReopen: LensPair?
     var pairToTrash: LensPair?
@@ -36,13 +38,19 @@ final class HistoryViewModel {
     /// `cleaningDeleted` continuam visíveis: depois de excluído, o evento é o único registro
     /// que sobra de que aquilo existiu.
     private static let eventTypesHiddenFromTimeline: Set<HistoryEventType> = [
-        .usageAdded, .usageEdited, .cleaningRegistered, .cleaningEdited,
+        .usageAdded, .usageEdited, .cleaningRegistered, .cleaningEdited, .routineCareRegistered, .routineCareEdited,
     ]
 
-    func buildTimeline(usages: [LensUsage], cleanings: [CaseCleaning], events: [HistoryEvent]) -> [HistoryItem] {
+    func buildTimeline(
+        usages: [LensUsage],
+        cleanings: [CaseCleaning],
+        routineCareLogs: [RoutineCareLog] = [],
+        events: [HistoryEvent]
+    ) -> [HistoryItem] {
         var items: [HistoryItem] = []
         items.append(contentsOf: usages.map { HistoryItem(id: "usage-\($0.id)", date: $0.date, kind: .usage($0)) })
         items.append(contentsOf: cleanings.map { HistoryItem(id: "cleaning-\($0.id)", date: $0.cleaningDate, kind: .cleaning($0)) })
+        items.append(contentsOf: routineCareLogs.map { HistoryItem(id: "routineCare-\($0.id)", date: $0.date, kind: .routineCare($0)) })
         items.append(contentsOf: events
             .filter { !Self.eventTypesHiddenFromTimeline.contains($0.eventType) }
             .map { HistoryItem(id: "event-\($0.id)", date: $0.eventDate, kind: .event($0)) }
@@ -86,6 +94,14 @@ final class HistoryViewModel {
                 return event.eventType == .pairStarted || event.eventType == .pairFinished
             }
             return false
+        case .caseLifecycle:
+            if case .event(let event) = item.kind {
+                return event.eventType == .caseStarted || event.eventType == .caseReplaced
+            }
+            return false
+        case .routineCare:
+            if case .routineCare = item.kind { return true }
+            return false
         case .right:
             return item.side == .right
         case .left:
@@ -124,6 +140,33 @@ final class HistoryViewModel {
             try await CaseCleaningService.editCleaning(cleaning, newDate: newDate, newNotes: newNotes, settings: settings, context: context)
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível salvar a edição da limpeza. \(error.localizedDescription)")
+        }
+    }
+
+    func deleteRoutineCare(_ log: RoutineCareLog, context: ModelContext) {
+        do {
+            try RoutineCareService.deleteCare(log, context: context)
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível excluir o registro de cuidado diário. \(error.localizedDescription)")
+        }
+    }
+
+    func editRoutineCare(
+        _ log: RoutineCareLog,
+        newDate: Date,
+        discardedSolution: Bool,
+        cleanedCase: Bool,
+        airDried: Bool,
+        newNotes: String?,
+        context: ModelContext
+    ) {
+        do {
+            try RoutineCareService.editCare(
+                log, newDate: newDate, discardedSolution: discardedSolution,
+                cleanedCase: cleanedCase, airDried: airDried, newNotes: newNotes, context: context
+            )
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível salvar a edição do cuidado diário. \(error.localizedDescription)")
         }
     }
 

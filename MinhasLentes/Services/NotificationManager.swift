@@ -17,6 +17,11 @@ final class NotificationManager: NSObject {
     nonisolated static let deadlineIdentifier = "estojo.prazo"
     nonisolated static let wearingReminderIdentifier = "lentes.remover-lembrete"
 
+    nonisolated static let case15DayIdentifier = "estojo.substituicao.aviso-15dias"
+    nonisolated static let case7DayIdentifier = "estojo.substituicao.aviso-7dias"
+    nonisolated static let caseDueIdentifier = "estojo.substituicao.dia-recomendado"
+    nonisolated static let caseOverdueRepeatIdentifier = "estojo.substituicao.lembrete-periodico"
+
     #if DEBUG
     static let testOneMinuteIdentifier = "dev.teste.aviso-1min"
     static let testTwoMinuteIdentifier = "dev.teste.aviso-2min"
@@ -171,6 +176,109 @@ final class NotificationManager: NSObject {
         }
     }
 
+    // MARK: - Substituição do estojo (ciclo de vida do LensCase)
+
+    /// Cancela apenas as notificações REAIS de substituição do estojo — os quatro identificadores
+    /// (15 dias antes, 7 dias antes, no dia, e o lembrete periódico após o prazo).
+    func cancelLensCaseNotifications() async {
+        center.removePendingNotificationRequests(withIdentifiers: [
+            Self.case15DayIdentifier, Self.case7DayIdentifier, Self.caseDueIdentifier, Self.caseOverdueRepeatIdentifier,
+        ])
+        _ = await center.pendingNotificationRequests()
+    }
+
+    /// Agenda os avisos de substituição do estojo (15 dias antes, 7 dias antes e no dia
+    /// recomendado) a partir do início do ciclo atual. O lembrete periódico pós-prazo não é
+    /// agendado aqui — como o prazo pode estar meses no futuro, ele só é agendado quando o prazo
+    /// já tiver passado de fato, por `refreshOverdueCaseReminder`, chamado sempre que o app abre.
+    ///
+    /// Linguagem sempre não-alarmista, mesmo no aviso do dia: nunca "venceu"/"atrasado".
+    @discardableResult
+    func scheduleLensCaseNotifications(startDate: Date, intervalDays: Int, settings: AppSettings) async throws -> [UNNotificationRequest] {
+        guard await authorizationStatus() == .authorized else {
+            throw NotificationError.authorizationDenied
+        }
+        guard settings.caseReminderEnabled else { return [] }
+
+        let dueDate = LensStatisticsService.nextCaseReplacementDate(startDate: startDate, intervalDays: intervalDays)
+        let calendar = Calendar.current
+        let day15 = calendar.date(byAdding: .day, value: -15, to: dueDate) ?? dueDate
+        let day7 = calendar.date(byAdding: .day, value: -7, to: dueDate) ?? dueDate
+
+        var expectedIdentifiers: Set<String> = []
+
+        if day15 > Date() {
+            try await schedule(
+                identifier: Self.case15DayIdentifier,
+                title: "Estojo de lentes",
+                body: "Está se aproximando o momento recomendado para substituir o estojo.",
+                fireDate: day15,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(Self.case15DayIdentifier)
+        }
+
+        if day7 > Date() {
+            try await schedule(
+                identifier: Self.case7DayIdentifier,
+                title: "Estojo de lentes",
+                body: "Faltam cerca de 7 dias para o momento recomendado de substituir o estojo.",
+                fireDate: day7,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(Self.case7DayIdentifier)
+        }
+
+        if dueDate > Date() {
+            try await schedule(
+                identifier: Self.caseDueIdentifier,
+                title: "Estojo de lentes",
+                body: "Hoje é o dia recomendado para substituir o estojo, conforme o intervalo configurado.",
+                fireDate: dueDate,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(Self.caseDueIdentifier)
+        }
+
+        let pending = await pendingNotifications()
+        let pendingIdentifiers = Set(pending.map(\.identifier))
+        let missing = expectedIdentifiers.subtracting(pendingIdentifiers)
+        guard missing.isEmpty else {
+            throw NotificationError.verificationFailed(missing: missing)
+        }
+        return pending.filter { expectedIdentifiers.contains($0.identifier) }
+    }
+
+    /// Idempotente — seguro chamar toda vez que o app abre. Se o ciclo atual do estojo já
+    /// passou do prazo recomendado e ainda não há um lembrete periódico pendente, agenda um,
+    /// repetindo a cada `caseOverdueReminderIntervalDays` dias a partir de agora. Não faz nada
+    /// se o estojo não estiver atrasado, se os avisos estiverem desligados, ou se um lembrete
+    /// já estiver agendado.
+    func refreshOverdueCaseReminder(dueDate: Date, settings: AppSettings) async {
+        guard settings.caseReminderEnabled, dueDate <= Date() else { return }
+        guard await authorizationStatus() == .authorized else { return }
+
+        let pending = await pendingNotifications()
+        guard !pending.contains(where: { $0.identifier == Self.caseOverdueRepeatIdentifier }) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Estojo de lentes"
+        content.body = "Ainda não há registro de substituição do estojo. Considere substituí-lo quando for conveniente."
+        if settings.soundEnabled { content.sound = .default }
+        if settings.badgeEnabled { content.badge = 1 }
+
+        let intervalSeconds = TimeInterval(max(1, settings.caseOverdueReminderIntervalDays) * 86400)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: intervalSeconds, repeats: true)
+        let request = UNNotificationRequest(identifier: Self.caseOverdueRepeatIdentifier, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
     // MARK: - Lembrete de remoção ("Estou usando as lentes")
 
     /// Agenda o lembrete "Hora de remover as lentes?" para o fim de uma sessão de uso. Ao
@@ -274,7 +382,8 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         let identifier = response.notification.request.identifier
         await MainActor.run {
             switch identifier {
-            case Self.advanceIdentifier, Self.deadlineIdentifier:
+            case Self.advanceIdentifier, Self.deadlineIdentifier,
+                 Self.case15DayIdentifier, Self.case7DayIdentifier, Self.caseDueIdentifier, Self.caseOverdueRepeatIdentifier:
                 AppRouter.shared.openEstojo()
             case Self.wearingReminderIdentifier:
                 AppRouter.shared.openHome()

@@ -41,6 +41,7 @@ struct SettingsView: View {
                 lentesSection
                 healthSection
                 caseSection
+                caseLifecycleSection
                 notificationStatusSection
                 notificationPreferencesSection
                 backupSection
@@ -126,6 +127,8 @@ struct SettingsView: View {
         lines.append("Usos: \(report.usagesImported) importado(s), \(report.usagesSkippedAsDuplicate) ignorado(s) por já existir.")
         lines.append("Limpezas: \(report.cleaningsImported) importada(s), \(report.cleaningsSkippedAsDuplicate) ignorada(s) por já existir.")
         lines.append("Eventos de histórico: \(report.eventsImported) importado(s), \(report.eventsSkippedAsDuplicate) ignorado(s) por já existir.")
+        lines.append("Ciclos do estojo: \(report.casesImported) importado(s), \(report.casesSkippedAsDuplicate) ignorado(s) por já existir.")
+        lines.append("Cuidados diários: \(report.routineCareLogsImported) importado(s), \(report.routineCareLogsSkippedAsDuplicate) ignorado(s) por já existir.")
         lines.append("Configurações: \(report.settingsImported ? "importadas" : "mantidas as atuais").")
         return lines.joined(separator: "\n")
     }
@@ -228,6 +231,29 @@ struct SettingsView: View {
         }
     }
 
+    private var caseLifecycleSection: some View {
+        Section {
+            Stepper("Substituir o estojo a cada: \(settings.caseReplacementIntervalDays) dias", value: Binding(
+                get: { settings.caseReplacementIntervalDays },
+                set: { settings.caseReplacementIntervalDays = $0; saveSettings() }
+            ), in: 1...365)
+
+            Toggle("Avisos de substituição do estojo", isOn: Binding(
+                get: { settings.caseReminderEnabled },
+                set: { settings.caseReminderEnabled = $0; rescheduleLensCaseNotifications() }
+            ))
+
+            Stepper("Repetir lembrete a cada: \(settings.caseOverdueReminderIntervalDays) dias", value: Binding(
+                get: { settings.caseOverdueReminderIntervalDays },
+                set: { settings.caseOverdueReminderIntervalDays = $0; rescheduleLensCaseNotifications() }
+            ), in: 1...30)
+        } header: {
+            Text("Ciclo de vida do estojo")
+        } footer: {
+            Text("Usado apenas para o próximo ciclo iniciado — não altera o prazo de um ciclo já em andamento. Os avisos de 15 e 7 dias antes e no dia recomendado usam sempre uma linguagem sem alarme; o lembrete periódico só começa depois que o prazo já passou.")
+        }
+    }
+
     private var notificationPreferencesSection: some View {
         Section("Notificações") {
             Toggle("Aviso antecipado", isOn: Binding(
@@ -265,7 +291,7 @@ struct SettingsView: View {
         } header: {
             Text("Backup completo (JSON)")
         } footer: {
-            Text("O backup em JSON contém todos os pares, usos, limpezas, eventos de histórico e configurações, com seus identificadores e relacionamentos — diferente do CSV/PDF, ele pode ser reimportado para restaurar os dados neste ou em outro aparelho.")
+            Text("O backup em JSON contém todos os pares, usos, limpezas, ciclos do estojo, cuidados diários, eventos de histórico e configurações, com seus identificadores e relacionamentos — diferente do CSV/PDF, ele pode ser reimportado para restaurar os dados neste ou em outro aparelho.")
         }
     }
 
@@ -370,6 +396,10 @@ struct SettingsView: View {
 
     private func reschedule() {
         Task { await viewModel.rescheduleNotifications(settings: settings, context: modelContext) }
+    }
+
+    private func rescheduleLensCaseNotifications() {
+        Task { await viewModel.rescheduleLensCaseNotifications(settings: settings, context: modelContext) }
     }
 }
 

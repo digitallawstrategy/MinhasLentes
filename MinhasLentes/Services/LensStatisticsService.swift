@@ -74,4 +74,10 @@ enum LensStatisticsService {
     static func daysUntil(_ date: Date, referenceDate: Date = Date(), calendar: Calendar = .current) -> Int {
         calendar.dateComponents([.day], from: calendar.startOfDay(for: referenceDate), to: calendar.startOfDay(for: date)).day ?? 0
     }
+
+    /// Data recomendada para substituição do estojo, calculada a partir do início do ciclo
+    /// atual — independe de quantas limpezas (periódicas ou de rotina) aconteceram nesse meio-tempo.
+    static func nextCaseReplacementDate(startDate: Date, intervalDays: Int, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: intervalDays, to: calendar.startOfDay(for: startDate)) ?? startDate
+    }
 }

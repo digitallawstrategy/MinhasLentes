@@ -5,7 +5,7 @@ import SwiftData
 @MainActor
 final class BackupServiceTests: XCTestCase {
 
-    private func seedContext() throws -> ModelContext {
+    private func seedContext() async throws -> ModelContext {
         let context = TestSupport.makeContext()
         let settings = AppSettings()
         context.insert(settings)
@@ -24,6 +24,14 @@ final class BackupServiceTests: XCTestCase {
         )
         let cleaning = CaseCleaning(cleaningDate: TestSupport.date(2026, 7, 10))
         context.insert(cleaning)
+
+        _ = try await LensCaseService.startNewCase(
+            startDate: TestSupport.date(2026, 7, 10), intervalDays: 90, notes: nil, settings: settings, context: context
+        )
+        _ = try RoutineCareService.registerCare(
+            date: TestSupport.date(2026, 7, 10), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context
+        )
+
         try context.save()
         return context
     }
@@ -34,8 +42,8 @@ final class BackupServiceTests: XCTestCase {
         return url
     }
 
-    func testExportProducesValidVersionedEnvelope() throws {
-        let context = try seedContext()
+    func testExportProducesValidVersionedEnvelope() async throws {
+        let context = try await seedContext()
         let url = try BackupService.exportJSON(context: context)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -44,7 +52,37 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(envelope.pairs.count, 1)
         XCTAssertEqual(envelope.usages.count, 2)
         XCTAssertEqual(envelope.cleanings.count, 1)
+        XCTAssertEqual(envelope.cases?.count, 1)
+        XCTAssertEqual(envelope.routineCareLogs?.count, 1)
         XCTAssertNotNil(envelope.settings)
+    }
+
+    func testOldBackupWithoutCaseFieldsStillValidates() throws {
+        let legacy = """
+        {
+          "schemaVersion": 1,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [],
+          "settings": {
+            "maximumUses": 60, "cleaningIntervalDays": 15, "advanceReminderDays": 3,
+            "notificationHour": 9, "notificationMinute": 0, "allowMultipleUsesPerDay": false,
+            "advanceReminderEnabled": true, "deadlineReminderEnabled": true,
+            "soundEnabled": true, "badgeEnabled": true, "trackingMode": "pair"
+          }
+        }
+        """
+        let url = writeTempJSON(legacy)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let envelope = try BackupService.validate(url: url)
+        XCTAssertNil(envelope.cases)
+        XCTAssertNil(envelope.routineCareLogs)
+
+        let context = TestSupport.makeContext()
+        let report = try BackupService.importBackup(from: url, mode: .replace, context: context)
+        XCTAssertEqual(report.casesImported, 0)
+        XCTAssertEqual(report.routineCareLogsImported, 0)
+        XCTAssertTrue(report.settingsImported)
     }
 
     func testValidateRejectsCorruptedFile() throws {
@@ -102,8 +140,8 @@ final class BackupServiceTests: XCTestCase {
         }
     }
 
-    func testReplaceImportWipesExistingDataAndRestoresBackup() throws {
-        let sourceContext = try seedContext()
+    func testReplaceImportWipesExistingDataAndRestoresBackup() async throws {
+        let sourceContext = try await seedContext()
         let url = try BackupService.exportJSON(context: sourceContext)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -119,16 +157,20 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(report.pairsImported, 1)
         XCTAssertEqual(report.usagesImported, 2)
         XCTAssertEqual(report.cleaningsImported, 1)
+        XCTAssertEqual(report.casesImported, 1)
+        XCTAssertEqual(report.routineCareLogsImported, 1)
         XCTAssertTrue(report.settingsImported)
 
         let importedPairs = try LensPairService.allPairs(context: targetContext)
         XCTAssertEqual(importedPairs.count, 1)
         XCTAssertEqual(importedPairs.first?.name, "Par de teste")
         XCTAssertEqual(importedPairs.first?.usesCount, 2)
+        XCTAssertEqual(try LensCaseService.allCases(context: targetContext).count, 1)
+        XCTAssertEqual(try RoutineCareService.allLogs(context: targetContext).count, 1)
     }
 
-    func testMergeImportDoesNotDuplicateExistingRecords() throws {
-        let sourceContext = try seedContext()
+    func testMergeImportDoesNotDuplicateExistingRecords() async throws {
+        let sourceContext = try await seedContext()
         let url = try BackupService.exportJSON(context: sourceContext)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -145,14 +187,16 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(secondReport.usagesImported, 0)
         XCTAssertEqual(secondReport.usagesSkippedAsDuplicate, 2)
         XCTAssertEqual(secondReport.cleaningsSkippedAsDuplicate, 1)
+        XCTAssertEqual(secondReport.casesSkippedAsDuplicate, 1)
+        XCTAssertEqual(secondReport.routineCareLogsSkippedAsDuplicate, 1)
 
         let pairs = try LensPairService.allPairs(context: targetContext)
         XCTAssertEqual(pairs.count, 1, "A mesclagem repetida não deve duplicar pares")
         XCTAssertEqual(pairs.first?.usesCount, 2, "A mesclagem repetida não deve duplicar usos")
     }
 
-    func testMergeImportPreservesUsagePairRelationshipForSkippedDuplicates() throws {
-        let sourceContext = try seedContext()
+    func testMergeImportPreservesUsagePairRelationshipForSkippedDuplicates() async throws {
+        let sourceContext = try await seedContext()
         let url = try BackupService.exportJSON(context: sourceContext)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -166,14 +210,14 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(pairs.first?.usesCount, 2)
     }
 
-    func testImportFailureLeavesNoPartialData() throws {
+    func testImportFailureLeavesNoPartialData() async throws {
         // Backup com um par válido mas usos que referenciam um lensPairID inexistente NO
         // ARQUIVO seriam barrados na validação; aqui simulamos uma falha após a validação
         // usando um contexto cujo tipo já existe, mas verificando que uma importação que
         // lança erro não deixa o banco em estado intermediário: como `validate` já impede
         // arquivos relacionalmente inconsistentes, este teste confirma que uma tentativa de
         // importação de arquivo inválido não altera em nada o armazenamento existente.
-        let context = try seedContext()
+        let context = try await seedContext()
         let pairsBefore = try LensPairService.allPairs(context: context).count
 
         let invalidURL = writeTempJSON("{ inválido")

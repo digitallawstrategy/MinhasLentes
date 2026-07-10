@@ -26,12 +26,21 @@ struct ContentView: View {
         }
         .task {
             do {
-                _ = try AppSettingsStore.currentSettings(context: modelContext)
+                let settings = try AppSettingsStore.currentSettings(context: modelContext)
                 // Idempotente: corrige qualquer inconsistência de "mais de um par em uso por
                 // lado" residual de dados anteriores ao conceito de reserva.
                 try LensPairService.normalizeInUseInvariant(context: modelContext)
                 // Idempotente: apaga de vez pares na lixeira há mais de trashRetentionDays dias.
                 try LensPairService.purgeExpiredTrash(context: modelContext)
+                // Idempotente: se o ciclo ativo do estojo já passou do prazo recomendado e não
+                // há lembrete periódico pendente, agenda um — ver NotificationManager para o
+                // motivo de isso não poder ser agendado com antecedência.
+                if let activeCase = try LensCaseService.activeCase(context: modelContext) {
+                    await NotificationManager.shared.refreshOverdueCaseReminder(
+                        dueDate: activeCase.nextRecommendedReplacementDate,
+                        settings: settings
+                    )
+                }
             } catch {
                 startupError = IdentifiableError(error)
             }

@@ -13,6 +13,8 @@ struct MinhasLentesApp: App {
             CaseCleaning.self,
             AppSettings.self,
             HistoryEvent.self,
+            LensCase.self,
+            RoutineCareLog.self,
         ])
         do {
             // O banco vive no App Group, não no contêiner privado do app, para que o widget e

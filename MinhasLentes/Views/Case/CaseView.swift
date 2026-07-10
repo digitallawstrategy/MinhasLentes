@@ -5,6 +5,8 @@ import SwiftData
 struct CaseView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
+    @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
+    @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
     @Query private var allSettings: [AppSettings]
 
     @State private var viewModel = CaseViewModel()
@@ -13,9 +15,24 @@ struct CaseView: View {
     @State private var customNotes = ""
     @State private var cleaningToDelete: CaseCleaning?
     @State private var cleaningToEdit: CaseCleaning?
+    @State private var showStartOrReplaceCase = false
+    @State private var showRegisterRoutineCareDetails = false
+    @State private var routineDate = Date()
+    @State private var routineDiscardedSolution = true
+    @State private var routineCleanedCase = true
+    @State private var routineAirDried = true
+    @State private var routineNotes = ""
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
+    }
+
+    private var activeCase: LensCase? { cases.first { $0.status == .active } }
+    private var lastRoutineCare: RoutineCareLog? { routineCareLogs.first }
+
+    private var daysUntilCaseReplacement: Int? {
+        guard let activeCase else { return nil }
+        return LensStatisticsService.daysUntil(activeCase.nextRecommendedReplacementDate)
     }
 
     private var lastCleaning: CaseCleaning? { cleanings.first }
@@ -59,10 +76,101 @@ struct CaseView: View {
         )
     }
 
+    @ViewBuilder
+    private var caseLifecycleCard: some View {
+        SectionCard(title: "Ciclo do estojo") {
+            if let activeCase {
+                VStack(spacing: 6) {
+                    StatRow(label: "Início do ciclo atual", value: DateFormatting.short.string(from: activeCase.startDate))
+                    StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
+                    StatRow(label: "Intervalo configurado", value: "\(activeCase.intervalDays) dias")
+                    if let daysUntilCaseReplacement {
+                        StatRow(
+                            label: "Situação",
+                            value: daysUntilCaseReplacement <= 0
+                                ? "Substituição recomendada já se aproximou"
+                                : "Faltam \(daysUntilCaseReplacement) dia(s)"
+                        )
+                    }
+                }
+                Button {
+                    showStartOrReplaceCase = true
+                } label: {
+                    Label("Substituí o estojo", systemImage: "shippingbox")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.top, 4)
+            } else {
+                Text("Nenhum ciclo de estojo iniciado ainda.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Button {
+                    showStartOrReplaceCase = true
+                } label: {
+                    Label("Iniciar acompanhamento do estojo", systemImage: "shippingbox")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.top, 4)
+            }
+
+            NavigationLink("Ver histórico de ciclos") {
+                LensCaseHistoryView()
+            }
+            .font(.subheadline)
+            .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder
+    private var routineCareCard: some View {
+        SectionCard(title: "Cuidado diário") {
+            if let lastRoutineCare {
+                StatRow(label: "Último registro", value: DateFormatting.shortWithTime.string(from: lastRoutineCare.date))
+            } else {
+                Text("Nenhum cuidado diário registrado ainda.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Text("Descartar a solução usada, limpar o estojo e deixá-lo secar ao ar livre, todos os dias após remover as lentes.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 10) {
+                Button {
+                    viewModel.registerRoutineCareToday(context: modelContext)
+                } label: {
+                    Label("Registrar cuidado de hoje", systemImage: "drop.circle")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                Button("Registrar com detalhes") {
+                    routineDate = Date()
+                    routineDiscardedSolution = true
+                    routineCleanedCase = true
+                    routineAirDried = true
+                    routineNotes = ""
+                    showRegisterRoutineCareDetails = true
+                }
+                .font(.subheadline)
+            }
+            .padding(.top, 4)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    caseLifecycleCard
+                    routineCareCard
+
                     SectionCard(title: "Estojo") {
                         VStack(spacing: 6) {
                             if let lastCleaning {
@@ -207,6 +315,44 @@ struct CaseView: View {
                 EditCleaningSheet(cleaning: cleaning) { date, notes in
                     Task { await viewModel.editCleaning(cleaning, newDate: date, newNotes: notes, settings: settings, context: modelContext) }
                 }
+            }
+            .sheet(isPresented: $showStartOrReplaceCase) {
+                StartOrReplaceCaseSheet(
+                    isReplacing: activeCase != nil,
+                    defaultIntervalDays: settings.caseReplacementIntervalDays
+                ) { startDate, intervalDays, notes in
+                    Task { await viewModel.startOrReplaceCase(startDate: startDate, intervalDays: intervalDays, notes: notes, settings: settings, context: modelContext) }
+                }
+            }
+            .sheet(isPresented: $showRegisterRoutineCareDetails) {
+                NavigationStack {
+                    Form {
+                        DatePicker("Data", selection: $routineDate, displayedComponents: [.date, .hourAndMinute])
+                        Toggle("Descartei a solução usada", isOn: $routineDiscardedSolution)
+                        Toggle("Limpei o estojo", isOn: $routineCleanedCase)
+                        Toggle("Deixei secar ao ar livre", isOn: $routineAirDried)
+                        TextField("Observação (opcional)", text: $routineNotes, axis: .vertical)
+                            .lineLimit(2...4)
+                    }
+                    .navigationTitle("Cuidado diário")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancelar") { showRegisterRoutineCareDetails = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Salvar") {
+                                viewModel.registerRoutineCare(
+                                    date: routineDate, discardedSolution: routineDiscardedSolution,
+                                    cleanedCase: routineCleanedCase, airDried: routineAirDried,
+                                    notes: routineNotes.isEmpty ? nil : routineNotes, context: modelContext
+                                )
+                                showRegisterRoutineCareDetails = false
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
             }
             .alert(
                 "Não foi possível concluir a ação",

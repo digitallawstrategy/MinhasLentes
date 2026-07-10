@@ -58,6 +58,31 @@ final class SettingsViewModel {
         }
     }
 
+    /// Deve ser chamado após alterar `caseReminderEnabled` ou `caseOverdueReminderIntervalDays`,
+    /// para que a mudança valha imediatamente para o ciclo ativo do estojo (se houver), em vez
+    /// de só na próxima vez que o app abrir.
+    func rescheduleLensCaseNotifications(settings: AppSettings, context: ModelContext) async {
+        do {
+            try context.save()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível salvar a preferência. \(error.localizedDescription)")
+            return
+        }
+        guard let activeCase = try? LensCaseService.activeCase(context: context) else { return }
+        await NotificationManager.shared.cancelLensCaseNotifications()
+        do {
+            try await NotificationManager.shared.scheduleLensCaseNotifications(
+                startDate: activeCase.startDate, intervalDays: activeCase.intervalDays, settings: settings
+            )
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível reagendar as notificações do estojo. \(error.localizedDescription)")
+            return
+        }
+        await NotificationManager.shared.refreshOverdueCaseReminder(
+            dueDate: activeCase.nextRecommendedReplacementDate, settings: settings
+        )
+    }
+
     func requestTrackingModeChange(to newMode: TrackingMode, current: TrackingMode) {
         guard newMode != current else { return }
         pendingTrackingMode = newMode
@@ -90,6 +115,8 @@ final class SettingsViewModel {
             for cleaning in try context.fetch(FetchDescriptor<CaseCleaning>()) { context.delete(cleaning) }
             for event in try context.fetch(FetchDescriptor<HistoryEvent>()) { context.delete(event) }
             for settings in try context.fetch(FetchDescriptor<AppSettings>()) { context.delete(settings) }
+            for lensCase in try context.fetch(FetchDescriptor<LensCase>()) { context.delete(lensCase) }
+            for log in try context.fetch(FetchDescriptor<RoutineCareLog>()) { context.delete(log) }
             try context.save()
         } catch {
             context.rollback()
@@ -97,6 +124,7 @@ final class SettingsViewModel {
             return
         }
         await NotificationManager.shared.cancelCaseCleaningNotifications()
+        await NotificationManager.shared.cancelLensCaseNotifications()
         #if DEBUG
         await NotificationManager.shared.cancelTestNotifications()
         #endif

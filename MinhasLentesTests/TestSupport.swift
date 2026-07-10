@@ -12,6 +12,8 @@ enum TestSupport {
             CaseCleaning.self,
             AppSettings.self,
             HistoryEvent.self,
+            LensCase.self,
+            RoutineCareLog.self,
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [configuration])

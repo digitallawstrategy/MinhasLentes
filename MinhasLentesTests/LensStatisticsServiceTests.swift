@@ -103,6 +103,14 @@ final class LensStatisticsServiceTests: XCTestCase {
         XCTAssertLessThan(advance, deadline)
     }
 
+    func testNextCaseReplacementDateIndependentOfCleanings() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        let start = TestSupport.date(2026, 7, 10)
+        let next = LensStatisticsService.nextCaseReplacementDate(startDate: start, intervalDays: 90, calendar: calendar)
+        XCTAssertTrue(calendar.isDate(next, inSameDayAs: TestSupport.date(2026, 10, 8)))
+    }
+
     func testHasUsageOnSameDay() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!

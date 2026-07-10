@@ -12,6 +12,8 @@ enum PreviewData {
             CaseCleaning.self,
             AppSettings.self,
             HistoryEvent.self,
+            LensCase.self,
+            RoutineCareLog.self,
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         // swiftlint:disable:next force_try
