@@ -1,6 +1,6 @@
 import SwiftUI
 
-extension LensHealthStatus {
+extension LensUsageStatus {
     var tintColor: Color {
         switch self {
         case .excellent: return .green
@@ -11,9 +11,11 @@ extension LensHealthStatus {
     }
 }
 
-/// Indicador de saúde do par. Nunca depende só da cor: sempre mostra o emoji e o texto juntos.
-struct HealthBadgeView: View {
-    let status: LensHealthStatus
+/// Indicador do status de utilização do par (leitura da contagem de usos restantes — não uma
+/// avaliação clínica ou de integridade física da lente). Nunca depende só da cor: sempre
+/// mostra o emoji e o texto juntos.
+struct UsageStatusBadgeView: View {
+    let status: LensUsageStatus
 
     var body: some View {
         Label {
@@ -27,14 +29,14 @@ struct HealthBadgeView: View {
         .background(status.tintColor.opacity(0.15), in: Capsule())
         .foregroundStyle(status.tintColor)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Saúde das lentes: \(status.label)")
+        .accessibilityLabel("Status de utilização: \(status.label)")
     }
 }
 
 #Preview {
     VStack(spacing: 8) {
-        ForEach(LensHealthStatus.allCases, id: \.self) { status in
-            HealthBadgeView(status: status)
+        ForEach(LensUsageStatus.allCases, id: \.self) { status in
+            UsageStatusBadgeView(status: status)
         }
     }
     .padding()

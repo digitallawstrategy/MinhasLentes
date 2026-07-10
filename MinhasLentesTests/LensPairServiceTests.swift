@@ -33,7 +33,7 @@ final class LensPairServiceTests: XCTestCase {
         XCTAssertEqual(pair2.name, "Par nº 2")
     }
 
-    func testMultipleActivePairsAllowedSimultaneouslyEvenOnSameSide() throws {
+    func testStartingNewPairDemotesPreviousInUsePairToReserveOnSameSide() throws {
         let pair1 = try LensPairService.startNewPair(
             name: nil, startDate: TestSupport.date(2026, 7, 10), maximumUses: 60,
             trackingMode: .pair, side: .both, context: context
@@ -42,16 +42,65 @@ final class LensPairServiceTests: XCTestCase {
             name: nil, startDate: TestSupport.date(2026, 8, 1), maximumUses: 60,
             trackingMode: .pair, side: .both, context: context
         )
-        XCTAssertEqual(pair1.status, .active, "Iniciar um novo par não deve encerrar o par anterior automaticamente")
-        XCTAssertEqual(pair2.status, .active)
-        XCTAssertEqual(try LensPairService.activePairs(context: context).count, 2)
+        XCTAssertEqual(pair1.status, .reserve, "O par anterior deve virar reserva, nunca ser encerrado automaticamente")
+        XCTAssertEqual(pair2.status, .inUse)
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 1)
+        XCTAssertEqual(try LensPairService.reservePairs(context: context).count, 1)
 
         try LensPairService.finishPair(pair1, endDate: TestSupport.date(2026, 8, 5), reason: .other, notes: nil, context: context)
         XCTAssertEqual(pair1.status, .finished)
-        XCTAssertEqual(try LensPairService.activePairs(context: context).count, 1)
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 1)
     }
 
-    func testReopenPairRestoresActiveStatusWithoutLosingUsageHistory() throws {
+    func testStartNewPairAsReserveDoesNotAffectCurrentInUsePair() throws {
+        let pair1 = try makePair()
+        let pair2 = try LensPairService.startNewPair(
+            name: nil, startDate: TestSupport.date(2026, 8, 1), maximumUses: 60,
+            trackingMode: .pair, side: .both, asReserve: true, context: context
+        )
+        XCTAssertEqual(pair1.status, .inUse)
+        XCTAssertEqual(pair2.status, .reserve)
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 1)
+    }
+
+    func testPromoteToInUseDemotesCurrentInUsePairOnSameSide() throws {
+        let pair1 = try makePair()
+        let pair2 = try LensPairService.startNewPair(
+            name: nil, startDate: TestSupport.date(2026, 8, 1), maximumUses: 60,
+            trackingMode: .pair, side: .both, asReserve: true, context: context
+        )
+        try LensPairService.promoteToInUse(pair2, context: context)
+        XCTAssertEqual(pair1.status, .reserve)
+        XCTAssertEqual(pair2.status, .inUse)
+    }
+
+    func testDemoteToReserveLeavesSideWithoutInUsePair() throws {
+        let pair = try makePair()
+        try LensPairService.demoteToReserve(pair, context: context)
+        XCTAssertEqual(pair.status, .reserve)
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 0)
+    }
+
+    func testNormalizeInUseInvariantKeepsOnlyEarliestInUsePerSide() throws {
+        // Simula dados de uma versão anterior ao conceito de reserva: dois pares "em uso" no
+        // mesmo lado ao mesmo tempo.
+        let pair1 = try makePair()
+        let pair2 = try LensPairService.startNewPair(
+            name: nil, startDate: TestSupport.date(2026, 8, 1), maximumUses: 60,
+            trackingMode: .pair, side: .both, asReserve: true, context: context
+        )
+        pair2.status = .inUse
+        try context.save()
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 2, "Pré-condição do teste: estado inconsistente simulado")
+
+        try LensPairService.normalizeInUseInvariant(context: context)
+
+        XCTAssertEqual(pair1.status, .inUse, "O par mais antigo deve permanecer em uso")
+        XCTAssertEqual(pair2.status, .reserve)
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 1)
+    }
+
+    func testReopenPairRestoresAsReserveWithoutLosingUsageHistory() throws {
         let pair = try makePair()
         _ = try LensPairService.registerUsage(
             for: pair, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
@@ -61,7 +110,7 @@ final class LensPairServiceTests: XCTestCase {
         XCTAssertEqual(pair.status, .finished)
 
         try LensPairService.reopenPair(pair, context: context)
-        XCTAssertEqual(pair.status, .active)
+        XCTAssertEqual(pair.status, .reserve, "Reabrir não deve substituir automaticamente o que já estiver em uso")
         XCTAssertNil(pair.endDate)
         XCTAssertNil(pair.discardReasonValue)
         XCTAssertEqual(pair.usesCount, 1, "Reabrir não deve apagar os usos já registrados")
@@ -241,7 +290,7 @@ final class LensPairServiceTests: XCTestCase {
         XCTAssertEqual(left.usesCount, 1)
         XCTAssertEqual(right.usesRemaining, 58)
         XCTAssertEqual(left.usesRemaining, 59)
-        XCTAssertEqual(try LensPairService.activePairs(context: context).count, 2)
+        XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 2)
     }
 
     func testRetroactiveDateRegistration() throws {

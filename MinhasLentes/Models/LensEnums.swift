@@ -1,9 +1,19 @@
 import Foundation
 
-/// Situação de um par (ou de um lado, no modo individual).
+/// Situação de um par (ou de um lado, no modo individual). No máximo um par por lado pode
+/// estar `.inUse` — os demais não encerrados ficam `.reserve` até serem promovidos.
 enum LensPairStatus: String, Codable, CaseIterable, Hashable, Sendable {
-    case active
+    case inUse
+    case reserve
     case finished
+
+    var displayName: String {
+        switch self {
+        case .inUse: return "Em uso"
+        case .reserve: return "Reserva"
+        case .finished: return "Encerrado"
+        }
+    }
 }
 
 /// Lado ao qual um registro (par ou uso) se refere.
@@ -106,9 +116,10 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
     }
 }
 
-/// Faixa de saúde de um par, derivada dos usos restantes e das faixas configuráveis em
-/// `AppSettings`. Nunca depende apenas de cor — sempre acompanhada de um rótulo textual.
-enum LensHealthStatus: String, CaseIterable, Hashable, Sendable {
+/// Faixa de status de UTILIZAÇÃO de um par, derivada apenas dos usos restantes e das faixas
+/// configuráveis em `AppSettings` — é uma leitura da contagem, não uma avaliação clínica ou de
+/// integridade física da lente. Nunca depende só de cor — sempre acompanhada de um rótulo textual.
+enum LensUsageStatus: String, CaseIterable, Hashable, Sendable {
     case excellent
     case good
     case warning
@@ -116,10 +127,10 @@ enum LensHealthStatus: String, CaseIterable, Hashable, Sendable {
 
     var label: String {
         switch self {
-        case .excellent: return "Excelente"
-        case .good: return "Boa"
-        case .warning: return "Próxima da troca"
-        case .critical: return "Trocar imediatamente"
+        case .excellent: return "Vida útil alta"
+        case .good: return "Vida útil moderada"
+        case .warning: return "Poucos usos restantes"
+        case .critical: return "Limite de usos atingido"
         }
     }
 

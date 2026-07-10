@@ -1,7 +1,7 @@
 import Foundation
 
 /// Uma entrada da "Diário das Lentes": a linha do tempo completa da vida útil de um único par,
-/// do início ao fim, incluindo os avisos de saúde cruzados ao longo do caminho.
+/// do início ao fim, incluindo os avisos de status de utilização cruzados ao longo do caminho.
 struct PairDiaryEntry: Identifiable {
     let id: String
     let date: Date

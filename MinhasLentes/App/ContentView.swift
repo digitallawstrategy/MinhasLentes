@@ -9,15 +9,15 @@ struct ContentView: View {
 
     @State private var startupError: IdentifiableError?
 
-    private var hasActivePair: Bool {
-        pairs.contains { $0.status == .active }
+    private var hasAnyPair: Bool {
+        pairs.contains { $0.status != .finished }
     }
 
     var body: some View {
         Group {
             if let startupError {
                 startupErrorView(startupError)
-            } else if hasActivePair {
+            } else if hasAnyPair {
                 mainTabs
             } else {
                 OnboardingView()
@@ -26,6 +26,9 @@ struct ContentView: View {
         .task {
             do {
                 _ = try AppSettingsStore.currentSettings(context: modelContext)
+                // Idempotente: corrige qualquer inconsistência de "mais de um par em uso por
+                // lado" residual de dados anteriores ao conceito de reserva.
+                try LensPairService.normalizeInUseInvariant(context: modelContext)
             } catch {
                 startupError = IdentifiableError(error)
             }

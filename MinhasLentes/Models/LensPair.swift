@@ -12,7 +12,7 @@ final class LensPair {
     var startDate: Date = Date()
     var endDate: Date?
     var maximumUses: Int = 60
-    var statusRawValue: String = LensPairStatus.active.rawValue
+    var statusRawValue: String = LensPairStatus.inUse.rawValue
     var discardReason: String?
     var notes: String?
     var trackingModeRawValue: String = TrackingMode.pair.rawValue
@@ -36,14 +36,14 @@ final class LensPair {
         self.sequenceNumber = sequenceNumber
         self.startDate = startDate
         self.maximumUses = maximumUses
-        self.statusRawValue = LensPairStatus.active.rawValue
+        self.statusRawValue = LensPairStatus.inUse.rawValue
         self.trackingModeRawValue = trackingMode.rawValue
         self.sideRawValue = side.rawValue
         self.createdAt = Date()
     }
 
     var status: LensPairStatus {
-        get { LensPairStatus(rawValue: statusRawValue) ?? .active }
+        get { LensPairStatus(rawValue: statusRawValue) ?? .inUse }
         set { statusRawValue = newValue.rawValue }
     }
 

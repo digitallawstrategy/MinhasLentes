@@ -30,11 +30,23 @@ final class HistoryViewModel {
         activeFilters.removeAll()
     }
 
+    /// Tipos de evento que duplicariam um registro já visível na linha do tempo — `usageAdded`
+    /// e `cleaningRegistered`/`cleaningEdited` descrevem exatamente o que o `LensUsage`/
+    /// `CaseCleaning` correspondente já mostra por si só. `usageDeleted`/`usageUndone`/
+    /// `cleaningDeleted` continuam visíveis: depois de excluído, o evento é o único registro
+    /// que sobra de que aquilo existiu.
+    private static let eventTypesHiddenFromTimeline: Set<HistoryEventType> = [
+        .usageAdded, .usageEdited, .cleaningRegistered, .cleaningEdited,
+    ]
+
     func buildTimeline(usages: [LensUsage], cleanings: [CaseCleaning], events: [HistoryEvent]) -> [HistoryItem] {
         var items: [HistoryItem] = []
         items.append(contentsOf: usages.map { HistoryItem(id: "usage-\($0.id)", date: $0.date, kind: .usage($0)) })
         items.append(contentsOf: cleanings.map { HistoryItem(id: "cleaning-\($0.id)", date: $0.cleaningDate, kind: .cleaning($0)) })
-        items.append(contentsOf: events.map { HistoryItem(id: "event-\($0.id)", date: $0.eventDate, kind: .event($0)) })
+        items.append(contentsOf: events
+            .filter { !Self.eventTypesHiddenFromTimeline.contains($0.eventType) }
+            .map { HistoryItem(id: "event-\($0.id)", date: $0.eventDate, kind: .event($0)) }
+        )
         return items.sorted { $0.date > $1.date }
     }
 

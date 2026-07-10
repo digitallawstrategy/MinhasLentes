@@ -18,10 +18,12 @@ final class AppSettings {
     var badgeEnabled: Bool = true
     var trackingModeRawValue: String = TrackingMode.pair.rawValue
 
-    /// Faixas de saúde configuráveis, expressas em percentual de usos restantes (0...100).
-    /// Abaixo de `healthGoodBelowPercent` o par deixa de ser "Excelente"; abaixo de
-    /// `healthWarningBelowPercent`, vira "Próxima da troca"; abaixo de
-    /// `healthCriticalBelowPercent`, vira "Trocar imediatamente".
+    /// Faixas do status de UTILIZAÇÃO configuráveis (leitura da contagem de usos restantes,
+    /// não uma avaliação clínica), expressas em percentual (0...100). Abaixo de
+    /// `healthGoodBelowPercent` o par deixa de ter "Vida útil alta"; abaixo de
+    /// `healthWarningBelowPercent`, vira "Poucos usos restantes"; abaixo de
+    /// `healthCriticalBelowPercent`, vira "Limite de usos atingido". Os nomes dos campos
+    /// ficaram como estavam para não exigir migração de dados já salvos.
     var healthGoodBelowPercent: Int = 80
     var healthWarningBelowPercent: Int = 40
     var healthCriticalBelowPercent: Int = 15

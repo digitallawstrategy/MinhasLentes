@@ -9,25 +9,27 @@ struct MinhasLentesWidgetLiveActivity: Widget {
                 .activityBackgroundTint(Color.black.opacity(0.8))
                 .activitySystemActionForegroundColor(Color.white)
         } dynamicIsland: { context in
+            // Só as regiões leading/trailing, sem `.bottom`: mesmo expandida (seja pelo toque
+            // do usuário, seja pelo aviso breve e automático de início/mudança que o próprio
+            // iOS mostra), a apresentação fica pequena e discreta — ícone e valor, nada de
+            // texto extra ocupando o topo da tela.
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Image(systemName: context.state.mode == .wearingSession ? "eye.circle.fill" : "checkmark.circle.fill")
-                        .font(.title2)
+                        .font(.body)
                         .foregroundStyle(.tint)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(context.state.usesRemaining)")
-                        .font(.title2.weight(.semibold))
-                        .contentTransition(.numericText())
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    ExpandedBottomView(attributes: context.attributes, state: context.state)
+                    TrailingValueView(state: context.state)
+                        .font(.body.weight(.semibold))
                 }
             } compactLeading: {
                 Image(systemName: context.state.mode == .wearingSession ? "eye.circle.fill" : "checkmark.circle.fill")
             } compactTrailing: {
-                Text("\(context.state.usesRemaining)")
-                    .contentTransition(.numericText())
+                // A pill compacta é o que fica visível o tempo todo, sem precisar segurar o
+                // dedo — e é a apresentação mais próxima do que o Apple Watch espelha. Por isso
+                // o tempo decorrido tem que aparecer aqui, não só na região expandida.
+                TrailingValueView(state: context.state)
             } minimal: {
                 Image(systemName: context.state.mode == .wearingSession ? "eye.circle.fill" : "checkmark.circle.fill")
             }
@@ -60,19 +62,18 @@ private struct LockScreenLiveActivityView: View {
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.85))
                 case .wearingSession:
-                    Text("Usando as lentes")
-                        .font(.headline)
-                        .foregroundStyle(.white)
+                    // `.timer` em vez de `.relative`: é o estilo de `Text` mais testado pela
+                    // Apple para conteúdo que se atualiza sozinho em Live Activity — o `.relative`
+                    // não estava aparecendo no mirror do Apple Watch, mesmo com a view compacta.
                     if let wearingSince = state.wearingSince {
-                        Text(wearingSince, style: .relative)
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.85))
+                        Text(wearingSince, style: .timer)
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
                     }
-                    if let reminderAt = state.reminderAt {
-                        Text("Lembrete às \(reminderAt.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
+                    Text("usando as lentes")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.85))
                 }
             }
             Spacer()
@@ -81,39 +82,35 @@ private struct LockScreenLiveActivityView: View {
     }
 }
 
-private struct ExpandedBottomView: View {
-    let attributes: LensActivityAttributes
+/// O valor de destaque nas regiões "trailing" da Dynamic Island (compacta e expandida): o
+/// número de usos restantes normalmente, ou o cronômetro ao vivo durante uma sessão de uso —
+/// a pill compacta é a apresentação padrão (sem precisar segurar o dedo) e a mais parecida com
+/// o que o Apple Watch espelha, então o tempo decorrido precisa estar aqui, não só na tela
+/// bloqueada.
+private struct TrailingValueView: View {
     let state: LensActivityAttributes.ContentState
 
     var body: some View {
-        switch state.mode {
-        case .usageConfirmation:
-            Text("Uso registrado em \(attributes.pairName)")
-                .font(.footnote)
-        case .wearingSession:
-            HStack {
-                if let wearingSince = state.wearingSince {
-                    HStack(spacing: 4) {
-                        Text("Usando há")
-                            .font(.footnote)
-                        Text(wearingSince, style: .relative)
-                            .font(.footnote.weight(.medium))
-                    }
-                }
-                Spacer()
-                if let reminderAt = state.reminderAt {
-                    Text("Lembrete às \(reminderAt.formatted(date: .omitted, time: .shortened))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
+        if state.mode == .wearingSession, let wearingSince = state.wearingSince {
+            // `.timer` conta pra cima sem um fim definido nessa sessão, o que pode fazer o
+            // sistema reservar espaço de sobra pensando no pior caso de dígitos — por isso o
+            // `frame` força um teto de largura em vez de deixar o layout decidir sozinho.
+            Text(wearingSince, style: .timer)
+                .font(.caption2)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+                .frame(maxWidth: 24)
+        } else {
+            Text("\(state.usesRemaining)")
+                .contentTransition(.numericText())
         }
     }
 }
 
 extension LensActivityAttributes {
     fileprivate static var preview: LensActivityAttributes {
-        LensActivityAttributes(pairName: "Par nº 1")
+        LensActivityAttributes(pairID: UUID(), pairName: "Par nº 1")
     }
 }
 

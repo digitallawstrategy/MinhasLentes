@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Cartão-dashboard do par: identificação, anel de progresso, indicador de saúde, estatísticas
-/// e o botão principal "Registrar uso hoje". Pensado para que a situação das lentes seja
-/// compreendida em poucos segundos.
+/// Cartão-dashboard do par em uso: identificação, anel de progresso, status de utilização,
+/// estatísticas e o botão principal "Registrar uso hoje". Pensado para que a situação das
+/// lentes seja compreendida em poucos segundos.
 struct LensPairCardView: View {
     let pair: LensPair
     let lastCleaning: CaseCleaning?
@@ -12,13 +12,14 @@ struct LensPairCardView: View {
     let onEdit: () -> Void
     let onShowDiary: () -> Void
     let onDelete: () -> Void
-    let wearingSessionPairName: String?
+    let onDemoteToReserve: () -> Void
+    let wearingSessionPairID: UUID?
     let onToggleWearingSession: () -> Void
 
     @State private var showDeleteConfirmation = false
 
     private var isWearingSessionActiveHere: Bool {
-        wearingSessionPairName == pair.name
+        wearingSessionPairID == pair.id
     }
 
     private var remainingFraction: Double {
@@ -26,8 +27,8 @@ struct LensPairCardView: View {
         return Double(pair.usesRemaining) / Double(pair.maximumUses)
     }
 
-    private var healthStatus: LensHealthStatus {
-        LensStatisticsService.healthStatus(
+    private var usageStatus: LensUsageStatus {
+        LensStatisticsService.usageStatus(
             usesRemaining: pair.usesRemaining,
             maximumUses: pair.maximumUses,
             goodBelowPercent: settings.healthGoodBelowPercent,
@@ -58,11 +59,11 @@ struct LensPairCardView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 ringAndHeadline
-                ProgressBarView(fraction: remainingFraction, tint: healthStatus.tintColor)
+                ProgressBarView(fraction: remainingFraction, tint: usageStatus.tintColor)
                     .animation(.easeInOut(duration: 0.6), value: remainingFraction)
                 stats
                 registerButton
-                if wearingSessionPairName == nil || isWearingSessionActiveHere {
+                if wearingSessionPairID == nil || isWearingSessionActiveHere {
                     wearingSessionButton
                 }
             }
@@ -83,12 +84,13 @@ struct LensPairCardView: View {
                 Text("Iniciado em \(DateFormatting.short.string(from: pair.startDate))")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                HealthBadgeView(status: healthStatus)
+                UsageStatusBadgeView(status: usageStatus)
             }
             Spacer()
             Menu {
                 Button("Editar par", systemImage: "pencil", action: onEdit)
                 Button("Ver diário do par", systemImage: "book.pages", action: onShowDiary)
+                Button("Mover para reserva", systemImage: "tray.and.arrow.down", action: onDemoteToReserve)
                 Button("Encerrar ou substituir este par", systemImage: "arrow.triangle.2.circlepath", role: .destructive, action: onFinishPair)
                 Button("Excluir par", systemImage: "trash", role: .destructive) {
                     showDeleteConfirmation = true
@@ -105,7 +107,7 @@ struct LensPairCardView: View {
     private var ringAndHeadline: some View {
         HStack(spacing: 20) {
             ZStack {
-                ProgressRingView(remainingFraction: remainingFraction, tint: healthStatus.tintColor)
+                ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tintColor)
                 VStack(spacing: 0) {
                     Text("\(pair.usesRemaining)")
                         .font(.system(size: 34, weight: .bold, design: .rounded))

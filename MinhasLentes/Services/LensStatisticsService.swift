@@ -24,15 +24,16 @@ enum LensStatisticsService {
         usesCount >= maximumUses
     }
 
-    /// Faixa de saúde do par, derivada do percentual de usos restantes e das faixas
-    /// configuráveis em `AppSettings`. Um par que já atingiu o limite é sempre `.critical`.
-    static func healthStatus(
+    /// Faixa de status de UTILIZAÇÃO do par (leitura da contagem de usos restantes, não uma
+    /// avaliação clínica ou de integridade física), derivada do percentual de usos restantes e
+    /// das faixas configuráveis em `AppSettings`. Um par que já atingiu o limite é sempre `.critical`.
+    static func usageStatus(
         usesRemaining: Int,
         maximumUses: Int,
         goodBelowPercent: Int,
         warningBelowPercent: Int,
         criticalBelowPercent: Int
-    ) -> LensHealthStatus {
+    ) -> LensUsageStatus {
         guard maximumUses > 0, usesRemaining > 0 else { return .critical }
         let remainingPercent = Int((Double(usesRemaining) / Double(maximumUses) * 100).rounded())
         if remainingPercent < criticalBelowPercent { return .critical }
@@ -47,10 +48,14 @@ enum LensStatisticsService {
         calendar.date(byAdding: .day, value: intervalDays, to: calendar.startOfDay(for: lastCleaningDate)) ?? lastCleaningDate
     }
 
-    /// Data do aviso antecipado de limpeza, sempre anterior à data-limite.
+    /// Data do aviso antecipado de limpeza, sempre anterior à data-limite. A antecedência é
+    /// sempre restringida a `0..<intervalDays`, mesmo que o valor salvo em `AppSettings` esteja
+    /// desatualizado (ex.: intervalo reduzido depois da antecedência ter sido definida) — nunca
+    /// cai antes do ciclo de limpeza anterior.
     static func advanceReminderDate(lastCleaningDate: Date, intervalDays: Int, advanceDays: Int, calendar: Calendar = .current) -> Date {
         let deadline = nextCleaningDate(lastCleaningDate: lastCleaningDate, intervalDays: intervalDays, calendar: calendar)
-        return calendar.date(byAdding: .day, value: -advanceDays, to: deadline) ?? deadline
+        let clampedAdvance = min(max(advanceDays, 0), max(intervalDays - 1, 0))
+        return calendar.date(byAdding: .day, value: -clampedAdvance, to: deadline) ?? deadline
     }
 
     /// Verifica se já existe um uso registrado no mesmo dia do calendário (fuso local).

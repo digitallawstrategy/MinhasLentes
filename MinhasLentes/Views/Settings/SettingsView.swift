@@ -181,40 +181,50 @@ struct SettingsView: View {
 
     private var healthSection: some View {
         Section {
-            Stepper("Excelente acima de \(settings.healthGoodBelowPercent)%", value: Binding(
+            Stepper("Vida útil alta acima de \(settings.healthGoodBelowPercent)%", value: Binding(
                 get: { settings.healthGoodBelowPercent },
                 set: { settings.healthGoodBelowPercent = $0; saveSettings() }
             ), in: (settings.healthWarningBelowPercent + 1)...99)
 
-            Stepper("Boa acima de \(settings.healthWarningBelowPercent)%", value: Binding(
+            Stepper("Vida útil moderada acima de \(settings.healthWarningBelowPercent)%", value: Binding(
                 get: { settings.healthWarningBelowPercent },
                 set: { settings.healthWarningBelowPercent = $0; saveSettings() }
             ), in: (settings.healthCriticalBelowPercent + 1)...(settings.healthGoodBelowPercent - 1))
 
-            Stepper("Próxima da troca acima de \(settings.healthCriticalBelowPercent)%", value: Binding(
+            Stepper("Poucos usos restantes acima de \(settings.healthCriticalBelowPercent)%", value: Binding(
                 get: { settings.healthCriticalBelowPercent },
                 set: { settings.healthCriticalBelowPercent = $0; saveSettings() }
             ), in: 1...(settings.healthWarningBelowPercent - 1))
         } header: {
-            Text("Faixas de saúde das lentes")
+            Text("Faixas de status de utilização")
         } footer: {
-            Text("Definem, pelo percentual de usos restantes, quando o indicador de saúde muda de Excelente para Boa, Próxima da troca e Trocar imediatamente.")
+            Text("Definem, pelo percentual de usos restantes, quando o status muda de Vida útil alta para Vida útil moderada, Poucos usos restantes e Limite de usos atingido. É uma leitura da contagem de usos, não uma avaliação da condição física da lente.")
         }
     }
 
     private var caseSection: some View {
-        Section("Estojo") {
+        Section {
             Stepper("Intervalo de limpeza: \(settings.cleaningIntervalDays) dias", value: Binding(
                 get: { settings.cleaningIntervalDays },
-                set: { settings.cleaningIntervalDays = $0; reschedule() }
+                set: { newValue in
+                    settings.cleaningIntervalDays = newValue
+                    if settings.advanceReminderDays >= newValue {
+                        settings.advanceReminderDays = max(0, newValue - 1)
+                    }
+                    reschedule()
+                }
             ), in: 1...90)
 
             Stepper("Antecedência do aviso: \(settings.advanceReminderDays) dias", value: Binding(
                 get: { settings.advanceReminderDays },
                 set: { settings.advanceReminderDays = $0; reschedule() }
-            ), in: 1...30)
+            ), in: 0...max(0, settings.cleaningIntervalDays - 1))
 
             DatePicker("Horário das notificações", selection: notificationTimeBinding, displayedComponents: .hourAndMinute)
+        } header: {
+            Text("Estojo")
+        } footer: {
+            Text("A antecedência do aviso nunca alcança ou ultrapassa o intervalo de limpeza — se você reduzir o intervalo, a antecedência é ajustada automaticamente.")
         }
     }
 
@@ -315,6 +325,12 @@ struct SettingsView: View {
             }
             Button("Listar notificações pendentes") {
                 Task { await viewModel.listPendingNotifications() }
+            }
+            Button("Listar Live Activities em execução") {
+                viewModel.listLiveActivities()
+            }
+            Button("Encerrar todas as Live Activities", role: .destructive) {
+                Task { await viewModel.endAllLiveActivities() }
             }
             if let message = viewModel.devToolsMessage {
                 Text(message)

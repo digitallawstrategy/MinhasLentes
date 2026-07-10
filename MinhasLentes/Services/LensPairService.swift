@@ -2,9 +2,12 @@ import Foundation
 import SwiftData
 
 /// Centraliza as regras de negócio de pares de lentes e usos, garantindo que o histórico
-/// nunca seja apagado e que o contador nunca fique negativo. Múltiplos pares podem ficar
-/// ativos ao mesmo tempo, inclusive do mesmo lado (ex.: um par reserva guardado em outro
-/// lugar) — quem decide encerrar um par é sempre o usuário, nunca uma ação automática.
+/// nunca seja apagado e que o contador nunca fique negativo.
+///
+/// No máximo um par por lado pode estar `.inUse` — é esse que acumula usos e aparece na tela
+/// Início. Quantos pares `.reserve` existirem por lado, guardados para depois, não há limite.
+/// Trocar qual par está em uso é sempre uma decisão explícita do usuário (`promoteToInUse`,
+/// ou automaticamente ao iniciar um novo par "para usar agora"), nunca implícita.
 ///
 /// Nenhuma função aqui descarta erros de persistência silenciosamente: falhas de leitura ou
 /// gravação do SwiftData são sempre propagadas como `ServiceError.persistenceFailed`, para que
@@ -31,9 +34,21 @@ enum LensPairService {
 
     // MARK: - Consultas
 
-    static func activePairs(context: ModelContext) throws -> [LensPair] {
+    static func inUsePairs(context: ModelContext) throws -> [LensPair] {
         let descriptor = FetchDescriptor<LensPair>(
-            predicate: #Predicate { $0.statusRawValue == "active" },
+            predicate: #Predicate { $0.statusRawValue == "inUse" },
+            sortBy: [SortDescriptor(\.sequenceNumber)]
+        )
+        do {
+            return try context.fetch(descriptor)
+        } catch {
+            throw ServiceError.persistenceFailed(error.localizedDescription)
+        }
+    }
+
+    static func reservePairs(context: ModelContext) throws -> [LensPair] {
+        let descriptor = FetchDescriptor<LensPair>(
+            predicate: #Predicate { $0.statusRawValue == "reserve" },
             sortBy: [SortDescriptor(\.sequenceNumber)]
         )
         do {
@@ -85,8 +100,11 @@ enum LensPairService {
 
     // MARK: - Início e encerramento de pares
 
-    /// Inicia um novo par/lado. Pares já ativos (inclusive do mesmo lado) não são afetados —
-    /// para substituir um par existente, encerre-o explicitamente antes (`finishPair`).
+    /// Inicia um novo par/lado. Por padrão (`asReserve: false`) o novo par passa a estar
+    /// `.inUse` e, se já houver outro par em uso no mesmo lado, ele é rebaixado para
+    /// `.reserve` — nunca encerrado automaticamente, permanece disponível e correto no
+    /// histórico. Com `asReserve: true`, o par entra direto como reserva, sem mexer no que já
+    /// está em uso.
     @discardableResult
     static func startNewPair(
         name: String?,
@@ -94,6 +112,7 @@ enum LensPairService {
         maximumUses: Int,
         trackingMode: TrackingMode,
         side: LensSide,
+        asReserve: Bool = false,
         context: ModelContext
     ) throws -> LensPair {
         let sequence = try nextSequenceNumber(side: side, context: context)
@@ -103,6 +122,9 @@ enum LensPairService {
         } else {
             resolvedName = defaultName(sequence: sequence, side: side)
         }
+
+        let previousInUse = asReserve ? nil : try inUsePairs(context: context).first { $0.side == side }
+
         let pair = LensPair(
             name: resolvedName,
             sequenceNumber: sequence,
@@ -111,16 +133,76 @@ enum LensPairService {
             trackingMode: trackingMode,
             side: side
         )
+        pair.status = asReserve ? .reserve : .inUse
         context.insert(pair)
+
+        if let previousInUse {
+            previousInUse.status = .reserve
+            logEvent(
+                .pairEdited,
+                date: startDate,
+                pair: previousInUse,
+                description: "\(previousInUse.name) movido para reserva ao iniciar \(pair.name).",
+                context: context
+            )
+        }
+
         logEvent(
             .pairStarted,
             date: startDate,
             pair: pair,
-            description: "\(pair.name) iniciado em \(DateFormatting.short.string(from: startDate)).",
+            description: "\(pair.name) iniciado em \(DateFormatting.short.string(from: startDate)) (\(pair.status.displayName)).",
             context: context
         )
         try save(context: context)
         return pair
+    }
+
+    /// Promove um par reserva a "em uso", rebaixando o par que estava em uso no mesmo lado
+    /// (se houver) para reserva. Não afeta o histórico de usos de nenhum dos dois.
+    static func promoteToInUse(_ pair: LensPair, context: ModelContext) throws {
+        guard pair.status == .reserve else { return }
+        if let current = try inUsePairs(context: context).first(where: { $0.side == pair.side && $0.id != pair.id }) {
+            current.status = .reserve
+            logEvent(
+                .pairEdited,
+                date: Date(),
+                pair: current,
+                description: "\(current.name) movido para reserva ao ativar \(pair.name).",
+                context: context
+            )
+        }
+        pair.status = .inUse
+        logEvent(.pairEdited, date: Date(), pair: pair, description: "\(pair.name) passou a estar em uso.", context: context)
+        try save(context: context)
+    }
+
+    /// Move um par em uso para reserva sem promover nenhum outro em seu lugar — o lado fica
+    /// temporariamente sem par em uso, até o usuário promover uma reserva ou iniciar outro.
+    static func demoteToReserve(_ pair: LensPair, context: ModelContext) throws {
+        guard pair.status == .inUse else { return }
+        pair.status = .reserve
+        logEvent(.pairEdited, date: Date(), pair: pair, description: "\(pair.name) movido para reserva.", context: context)
+        try save(context: context)
+    }
+
+    /// Corrige, em qualquer inconsistência residual (ex.: dados de uma versão anterior ao
+    /// conceito de reserva), a regra de "no máximo um par em uso por lado": mantém o par mais
+    /// antigo em uso e rebaixa os demais para reserva. Idempotente — seguro chamar toda vez
+    /// que o app abre.
+    static func normalizeInUseInvariant(context: ModelContext) throws {
+        let candidates = try inUsePairs(context: context)
+        let bySide = Dictionary(grouping: candidates, by: { $0.side })
+        var changed = false
+        for (_, group) in bySide where group.count > 1 {
+            let sorted = group.sorted { $0.startDate < $1.startDate }
+            for extra in sorted.dropFirst() {
+                extra.status = .reserve
+                changed = true
+            }
+        }
+        guard changed else { return }
+        try save(context: context)
     }
 
     static func finishPair(
@@ -168,18 +250,18 @@ enum LensPairService {
         try save(context: context)
     }
 
-    /// Desfaz um encerramento feito por engano: o par volta a ficar ativo, sem apagar o
-    /// histórico de usos que ele já tinha. Vários pares ativos simultâneos já são permitidos,
-    /// então reabrir não afeta nenhum outro par em andamento.
+    /// Desfaz um encerramento feito por engano: o par volta como reserva (nunca substitui
+    /// automaticamente o que já estiver em uso no mesmo lado), sem apagar o histórico de usos
+    /// que ele já tinha. Para voltar a usá-lo de fato, promova com `promoteToInUse`.
     static func reopenPair(_ pair: LensPair, context: ModelContext) throws {
-        pair.status = .active
+        pair.status = .reserve
         pair.endDate = nil
         pair.discardReason = nil
         logEvent(
             .pairReopened,
             date: Date(),
             pair: pair,
-            description: "\(pair.name) reaberto.",
+            description: "\(pair.name) reaberto como reserva.",
             context: context
         )
         try save(context: context)

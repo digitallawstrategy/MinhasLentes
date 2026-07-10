@@ -15,9 +15,10 @@ final class HomeViewModel {
     var showUndoToast = false
     var toastMessage: String?
     var presentedError: IdentifiableError?
-    private(set) var lastRegisteredUsage: LensUsage?
+    private(set) var lastRegisteredUsages: [LensUsage] = []
 
-    private var pendingRegistration: (pair: LensPair, date: Date, side: LensSide, notes: String?)?
+    private typealias RegistrationRequest = (pair: LensPair, date: Date, side: LensSide, notes: String?)
+    private var pendingRegistrations: [RegistrationRequest] = []
     private var undoToastTask: Task<Void, Never>?
 
     /// Quanto tempo o "Desfazer" fica disponível após um registro, antes do toast sumir sozinho.
@@ -26,67 +27,109 @@ final class HomeViewModel {
     // MARK: - Registro de uso
 
     func registerUsageToday(for pair: LensPair, side: LensSide, settings: AppSettings, context: ModelContext) {
-        register(pair: pair, date: Date(), side: side, notes: nil, settings: settings, context: context, force: false)
+        registerBatch(requests: [(pair, Date(), side, nil)], settings: settings, context: context)
     }
 
     func registerUsage(for pair: LensPair, date: Date, side: LensSide, notes: String?, settings: AppSettings, context: ModelContext) {
-        register(pair: pair, date: date, side: side, notes: notes, settings: settings, context: context, force: false)
+        registerBatch(requests: [(pair, date, side, notes)], settings: settings, context: context)
+    }
+
+    /// Registra o uso de hoje em todos os pares em uso de uma vez. É tudo ou nada: se algum
+    /// par tiver um uso duplicado no dia, uma única confirmação cobre o lote inteiro — cancelar
+    /// não deixa nenhum par parcialmente alterado (diferente do comportamento anterior, em que
+    /// cancelar a duplicidade do par B não desfazia o que já tinha sido gravado no par A).
+    func registerUsageForAllInUsePairs(_ pairs: [LensPair], settings: AppSettings, context: ModelContext) {
+        let now = Date()
+        let requests: [RegistrationRequest] = pairs
+            .filter { !$0.hasReachedLimit }
+            .map { ($0, now, $0.side, nil) }
+        registerBatch(requests: requests, settings: settings, context: context)
     }
 
     func confirmDuplicateRegistration(settings: AppSettings, context: ModelContext) {
-        guard let pending = pendingRegistration else { return }
-        register(pair: pending.pair, date: pending.date, side: pending.side, notes: pending.notes, settings: settings, context: context, force: true)
-        pendingRegistration = nil
+        let pending = pendingRegistrations
+        pendingRegistrations = []
+        registerBatch(requests: pending, settings: settings, context: context, forceAll: true)
     }
 
     func cancelDuplicateRegistration() {
-        pendingRegistration = nil
+        pendingRegistrations = []
         showDuplicateConfirmation = false
     }
 
-    private func register(
-        pair: LensPair,
-        date: Date,
-        side: LensSide,
-        notes: String?,
+    private func registerBatch(
+        requests: [RegistrationRequest],
         settings: AppSettings,
         context: ModelContext,
-        force: Bool
+        forceAll: Bool = false
     ) {
-        do {
-            let usage = try LensPairService.registerUsage(
-                for: pair,
-                date: date,
-                side: side,
-                notes: notes,
-                allowMultipleUsesPerDay: settings.allowMultipleUsesPerDay,
-                forceDuplicate: force,
-                context: context
-            )
-            lastRegisteredUsage = usage
-            toastMessage = "Uso registrado em \(DateFormatting.short.string(from: date))."
-            showUndoToast = true
-            HapticsService.success()
-            scheduleUndoToastAutoDismiss()
-            LiveActivityService.showUsageConfirmation(pairName: pair.name, usesRemaining: pair.usesRemaining, maximumUses: pair.maximumUses)
-        } catch LensPairService.ServiceError.duplicateUsageOnDate {
-            pendingRegistration = (pair, date, side, notes)
-            showDuplicateConfirmation = true
-        } catch LensPairService.ServiceError.limitReached {
+        guard !requests.isEmpty else { return }
+
+        // Pré-checagens somente-leitura, antes de qualquer gravação: garantem que o lote é
+        // tudo-ou-nada. Se qualquer par já estiver no limite, nada é registrado em nenhum par.
+        if requests.contains(where: { $0.pair.hasReachedLimit }) {
             showLimitReachedAlert = true
             HapticsService.error()
+            return
+        }
+
+        if !forceAll && !settings.allowMultipleUsesPerDay {
+            let hasDuplicate = requests.contains { request in
+                LensStatisticsService.hasUsage(onSameDayAs: request.date, in: request.pair.usages ?? [])
+            }
+            if hasDuplicate {
+                pendingRegistrations = requests
+                showDuplicateConfirmation = true
+                return
+            }
+        }
+
+        var registered: [LensUsage] = []
+        do {
+            for request in requests {
+                let usage = try LensPairService.registerUsage(
+                    for: request.pair,
+                    date: request.date,
+                    side: request.side,
+                    notes: request.notes,
+                    allowMultipleUsesPerDay: settings.allowMultipleUsesPerDay,
+                    forceDuplicate: forceAll,
+                    context: context
+                )
+                registered.append(usage)
+            }
         } catch {
             HapticsService.error()
             presentedError = IdentifiableError(message: "Não foi possível registrar o uso. \(error.localizedDescription)")
+            return
         }
+
+        for request in requests {
+            LiveActivityService.showUsageConfirmation(
+                pairID: request.pair.id,
+                pairName: request.pair.name,
+                usesRemaining: request.pair.usesRemaining,
+                maximumUses: request.pair.maximumUses
+            )
+        }
+
+        lastRegisteredUsages = registered
+        toastMessage = registered.count > 1
+            ? "Uso registrado em \(registered.count) pares."
+            : "Uso registrado em \(DateFormatting.short.string(from: registered.first?.date ?? Date()))."
+        showUndoToast = true
+        HapticsService.success()
+        scheduleUndoToastAutoDismiss()
     }
 
     func undoLastRegisteredUsage(context: ModelContext) {
-        guard let usage = lastRegisteredUsage else { return }
+        guard !lastRegisteredUsages.isEmpty else { return }
         undoToastTask?.cancel()
         do {
-            try LensPairService.deleteUsage(usage, context: context)
-            lastRegisteredUsage = nil
+            for usage in lastRegisteredUsages {
+                try LensPairService.deleteUsage(usage, context: context)
+            }
+            lastRegisteredUsages = []
             showUndoToast = false
             HapticsService.success()
         } catch {
@@ -97,7 +140,7 @@ final class HomeViewModel {
     func dismissToast() {
         undoToastTask?.cancel()
         showUndoToast = false
-        lastRegisteredUsage = nil
+        lastRegisteredUsages = []
     }
 
     private func scheduleUndoToastAutoDismiss() {
@@ -126,6 +169,7 @@ final class HomeViewModel {
         maximumUses: Int,
         trackingMode: TrackingMode,
         side: LensSide,
+        asReserve: Bool,
         context: ModelContext
     ) {
         do {
@@ -135,6 +179,7 @@ final class HomeViewModel {
                 maximumUses: maximumUses,
                 trackingMode: trackingMode,
                 side: side,
+                asReserve: asReserve,
                 context: context
             )
             HapticsService.success()
@@ -170,22 +215,41 @@ final class HomeViewModel {
         }
     }
 
+    func promoteToInUse(_ pair: LensPair, context: ModelContext) {
+        do {
+            try LensPairService.promoteToInUse(pair, context: context)
+            HapticsService.success()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível ativar o par. \(error.localizedDescription)")
+        }
+    }
+
+    func demoteToReserve(_ pair: LensPair, context: ModelContext) {
+        do {
+            try LensPairService.demoteToReserve(pair, context: context)
+            HapticsService.lightImpact()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível mover o par para reserva. \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Sessão "Estou usando as lentes"
 
-    private(set) var wearingSessionPairName: String?
+    private(set) var wearingSessionPairID: UUID?
 
     /// Deve ser chamado ao abrir a tela Início: a Live Activity sobrevive a reabertura do app
     /// (e até ao encerramento forçado), então o estado do botão precisa refletir a realidade.
     func refreshWearingSessionState() {
-        wearingSessionPairName = LiveActivityService.activeWearingSessionPairName()
+        wearingSessionPairID = LiveActivityService.activeWearingSessionPairID()
     }
 
     func toggleWearingSession(for pair: LensPair, settings: AppSettings) {
         Task {
-            if wearingSessionPairName == pair.name {
+            if wearingSessionPairID == pair.id {
                 await LiveActivityService.endWearingSession()
             } else {
                 let started = await LiveActivityService.startWearingSession(
+                    pairID: pair.id,
                     pairName: pair.name,
                     usesRemaining: pair.usesRemaining,
                     maximumUses: pair.maximumUses,

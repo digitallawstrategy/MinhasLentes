@@ -7,7 +7,7 @@ import ActivityKit
 ///
 /// Este arquivo pertence tanto ao target do app (que inicia/encerra a atividade) quanto ao da
 /// extensão de widget (que desenha a UI da Live Activity e da Dynamic Island).
-struct LensActivityAttributes: ActivityAttributes, Equatable {
+struct LensActivityAttributes: ActivityAttributes {
     enum Mode: String, Codable, Hashable {
         case usageConfirmation
         case wearingSession
@@ -23,5 +23,9 @@ struct LensActivityAttributes: ActivityAttributes, Equatable {
         var reminderAt: Date?
     }
 
+    /// Identificador estável do par — nunca comparar/buscar atividades pelo nome, que pode ser
+    /// editado ou repetido entre pares diferentes.
+    var pairID: UUID
+    /// Apenas para exibição na UI da Live Activity/Dynamic Island.
     var pairName: String
 }

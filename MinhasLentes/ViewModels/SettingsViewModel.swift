@@ -227,5 +227,14 @@ final class SettingsViewModel {
         }
         pendingNotificationsSummary = lines.joined(separator: "\n")
     }
+
+    func listLiveActivities() {
+        devToolsMessage = LiveActivityService.debugActivitiesSummary()
+    }
+
+    func endAllLiveActivities() async {
+        await LiveActivityService.endAllActivitiesForDebugging()
+        devToolsMessage = "Todas as Live Activities foram encerradas."
+    }
     #endif
 }
