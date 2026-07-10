@@ -14,8 +14,12 @@ struct MinhasLentesApp: App {
             AppSettings.self,
             HistoryEvent.self,
         ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
+            // O banco vive no App Group, não no contêiner privado do app, para que o widget e
+            // a Live Activity (processos separados) consigam ler os mesmos dados.
+            let url = try AppGroup.storeURL()
+            AppGroup.migrateLegacyStoreIfNeeded(to: url)
+            let configuration = ModelConfiguration(schema: schema, url: url)
             modelContainer = try ModelContainer(for: schema, configurations: [configuration])
             initializationErrorMessage = nil
         } catch {

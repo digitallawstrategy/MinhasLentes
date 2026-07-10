@@ -6,7 +6,20 @@
 	objectVersion = 70;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4F6506EC300163FE00908E3A /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F6506EB300163FE00908E3A /* WidgetKit.framework */; };
+		4F6506EE300163FE00908E3A /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F6506ED300163FE00908E3A /* SwiftUI.framework */; };
+		4F6506FF300163FF00908E3A /* MinhasLentesWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F6506E9300163FE00908E3A /* MinhasLentesWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		4F6506FD300163FF00908E3A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2D7BBC954C8DEA1947CE48E5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4F6506E8300163FE00908E3A;
+			remoteInfo = MinhasLentesWidgetExtension;
+		};
 		E72FA96577D82DBC97C0DDA6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2D7BBC954C8DEA1947CE48E5 /* Project object */;
@@ -16,14 +29,57 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		4F650700300163FF00908E3A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4F6506FF300163FF00908E3A /* MinhasLentesWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		1A44A2DD5CC917857F47BFEB /* MinhasLentes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MinhasLentes.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F6506E9300163FE00908E3A /* MinhasLentesWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MinhasLentesWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F6506EB300163FE00908E3A /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		4F6506ED300163FE00908E3A /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		4F6507063001653F00908E3A /* MinhasLentesWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MinhasLentesWidgetExtension.entitlements; sourceTree = "<group>"; };
 		C9094A243BB7D185AB2D49B6 /* MinhasLentesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MinhasLentesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4F650703300163FF00908E3A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4F6506E8300163FE00908E3A /* MinhasLentesWidgetExtension */;
+		};
+		4F6507AC3001698E00908E3A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Models/AppSettings.swift,
+				Models/CaseCleaning.swift,
+				Models/HistoryEvent.swift,
+				Models/LensEnums.swift,
+				Models/LensPair.swift,
+				Models/LensUsage.swift,
+				Support/AppGroup.swift,
+				Support/LensActivityAttributes.swift,
+			);
+			target = 4F6506E8300163FE00908E3A /* MinhasLentesWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3D9B7CEB10791450DF609C28 /* MinhasLentesTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MinhasLentesTests; sourceTree = "<group>"; };
-		C556A867B2349B87BCB103A6 /* MinhasLentes */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MinhasLentes; sourceTree = "<group>"; };
+		4F6506EF300163FE00908E3A /* MinhasLentesWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4F650703300163FF00908E3A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MinhasLentesWidget; sourceTree = "<group>"; };
+		C556A867B2349B87BCB103A6 /* MinhasLentes */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4F6507AC3001698E00908E3A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MinhasLentes; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,14 +97,26 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4F6506E6300163FE00908E3A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4F6506EE300163FE00908E3A /* SwiftUI.framework in Frameworks */,
+				4F6506EC300163FE00908E3A /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		12A458EFC313617287AB3AE3 = {
 			isa = PBXGroup;
 			children = (
+				4F6507063001653F00908E3A /* MinhasLentesWidgetExtension.entitlements */,
 				C556A867B2349B87BCB103A6 /* MinhasLentes */,
 				3D9B7CEB10791450DF609C28 /* MinhasLentesTests */,
+				4F6506EF300163FE00908E3A /* MinhasLentesWidget */,
+				4F6506EA300163FE00908E3A /* Frameworks */,
 				3146151E6EBB4396FEB437BD /* Products */,
 			);
 			sourceTree = "<group>";
@@ -58,13 +126,45 @@
 			children = (
 				1A44A2DD5CC917857F47BFEB /* MinhasLentes.app */,
 				C9094A243BB7D185AB2D49B6 /* MinhasLentesTests.xctest */,
+				4F6506E9300163FE00908E3A /* MinhasLentesWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		4F6506EA300163FE00908E3A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4F6506EB300163FE00908E3A /* WidgetKit.framework */,
+				4F6506ED300163FE00908E3A /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4F6506E8300163FE00908E3A /* MinhasLentesWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F650704300163FF00908E3A /* Build configuration list for PBXNativeTarget "MinhasLentesWidgetExtension" */;
+			buildPhases = (
+				4F6506E5300163FE00908E3A /* Sources */,
+				4F6506E6300163FE00908E3A /* Frameworks */,
+				4F6506E7300163FE00908E3A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4F6506EF300163FE00908E3A /* MinhasLentesWidget */,
+			);
+			name = MinhasLentesWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = MinhasLentesWidgetExtension;
+			productReference = 4F6506E9300163FE00908E3A /* MinhasLentesWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		57C42C7989A008811A3D7563 /* MinhasLentes */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 5C9F0A6AFCF258B401DB8B0F /* Build configuration list for PBXNativeTarget "MinhasLentes" */;
@@ -72,10 +172,12 @@
 				0F749CF9E7486AB12DEE3D0D /* Sources */,
 				432C09959CBDD40217ECB351 /* Frameworks */,
 				1242B446A91D9AFCC6A161AA /* Resources */,
+				4F650700300163FF00908E3A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4F6506FE300163FF00908E3A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				C556A867B2349B87BCB103A6 /* MinhasLentes */,
@@ -112,9 +214,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					4F6506E8300163FE00908E3A = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					57C42C7989A008811A3D7563 = {
 						CreatedOnToolsVersion = 26.0;
 					};
@@ -140,6 +245,7 @@
 			targets = (
 				57C42C7989A008811A3D7563 /* MinhasLentes */,
 				8BD82CEDA84E249BC8DEA2ED /* MinhasLentesTests */,
+				4F6506E8300163FE00908E3A /* MinhasLentesWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -152,10 +258,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4F6506E7300163FE00908E3A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0F749CF9E7486AB12DEE3D0D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4F6506E5300163FE00908E3A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -176,6 +296,11 @@
 			isa = PBXTargetDependency;
 			target = 57C42C7989A008811A3D7563 /* MinhasLentes */;
 			targetProxy = E72FA96577D82DBC97C0DDA6 /* PBXContainerItemProxy */;
+		};
+		4F6506FE300163FF00908E3A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4F6506E8300163FE00908E3A /* MinhasLentesWidgetExtension */;
+			targetProxy = 4F6506FD300163FF00908E3A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -204,6 +329,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MinhasLentes/MinhasLentes.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -213,6 +339,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Minhas Lentes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
@@ -301,6 +428,70 @@
 			};
 			name = Debug;
 		};
+		4F650701300163FF00908E3A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MinhasLentesWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YX9GVUF79Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MinhasLentesWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MinhasLentesWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.raonny.minhaslentes.MinhasLentesWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4F650702300163FF00908E3A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MinhasLentesWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YX9GVUF79Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MinhasLentesWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MinhasLentesWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.raonny.minhaslentes.MinhasLentesWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		B3A4DCEBE2E7B0AAA409B01C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -383,6 +574,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MinhasLentes/MinhasLentes.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -392,6 +584,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Minhas Lentes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
@@ -418,6 +611,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4F650704300163FF00908E3A /* Build configuration list for PBXNativeTarget "MinhasLentesWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4F650701300163FF00908E3A /* Debug */,
+				4F650702300163FF00908E3A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		5C9F0A6AFCF258B401DB8B0F /* Build configuration list for PBXNativeTarget "MinhasLentes" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

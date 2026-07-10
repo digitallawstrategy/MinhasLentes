@@ -12,8 +12,14 @@ struct LensPairCardView: View {
     let onEdit: () -> Void
     let onShowDiary: () -> Void
     let onDelete: () -> Void
+    let wearingSessionPairName: String?
+    let onToggleWearingSession: () -> Void
 
     @State private var showDeleteConfirmation = false
+
+    private var isWearingSessionActiveHere: Bool {
+        wearingSessionPairName == pair.name
+    }
 
     private var remainingFraction: Double {
         guard pair.maximumUses > 0 else { return 0 }
@@ -56,6 +62,9 @@ struct LensPairCardView: View {
                     .animation(.easeInOut(duration: 0.6), value: remainingFraction)
                 stats
                 registerButton
+                if wearingSessionPairName == nil || isWearingSessionActiveHere {
+                    wearingSessionButton
+                }
             }
         }
         .alert("Excluir \(pair.name)?", isPresented: $showDeleteConfirmation) {
@@ -152,5 +161,23 @@ struct LensPairCardView: View {
         .controlSize(.large)
         .disabled(pair.hasReachedLimit)
         .accessibilityHint(pair.hasReachedLimit ? "Limite de usos atingido" : "Registra uma utilização na data de hoje")
+    }
+
+    private var wearingSessionButton: some View {
+        Button(action: onToggleWearingSession) {
+            Label(
+                isWearingSessionActiveHere ? "Parar sessão de uso" : "Estou usando as lentes",
+                systemImage: isWearingSessionActiveHere ? "stop.circle" : "eye.circle"
+            )
+            .font(.subheadline.weight(.medium))
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(isWearingSessionActiveHere ? .red : .accentColor)
+        .accessibilityHint(
+            isWearingSessionActiveHere
+                ? "Encerra a Live Activity e o lembrete de remoção"
+                : "Inicia uma Live Activity e agenda um lembrete para remover as lentes depois de algumas horas"
+        )
     }
 }

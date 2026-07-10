@@ -26,6 +26,9 @@ final class AppSettings {
     var healthWarningBelowPercent: Int = 40
     var healthCriticalBelowPercent: Int = 15
 
+    /// Após quantas horas de sessão "Estou usando as lentes" o lembrete de remoção é enviado.
+    var wearingReminderHours: Int = 8
+
     init(id: UUID = UUID()) {
         self.id = id
     }
@@ -51,5 +54,6 @@ final class AppSettings {
         healthGoodBelowPercent = 80
         healthWarningBelowPercent = 40
         healthCriticalBelowPercent = 15
+        wearingReminderHours = 8
     }
 }

@@ -15,6 +15,7 @@ final class NotificationManager {
 
     static let advanceIdentifier = "estojo.aviso-antecipado"
     static let deadlineIdentifier = "estojo.prazo"
+    static let wearingReminderIdentifier = "lentes.remover-lembrete"
 
     #if DEBUG
     static let testOneMinuteIdentifier = "dev.teste.aviso-1min"
@@ -165,6 +166,38 @@ final class NotificationManager {
         } catch {
             throw NotificationError.schedulingFailed(error.localizedDescription)
         }
+    }
+
+    // MARK: - Lembrete de remoção ("Estou usando as lentes")
+
+    /// Agenda o lembrete "Hora de remover as lentes?" para o fim de uma sessão de uso. Ao
+    /// contrário do ciclo de limpeza, este lembrete é único (não repete) e é cancelado
+    /// automaticamente se a sessão for encerrada manualmente antes do horário.
+    func scheduleWearingReminder(at date: Date, settings: AppSettings) async throws {
+        guard await authorizationStatus() == .authorized else {
+            throw NotificationError.authorizationDenied
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "Hora de remover as lentes?"
+        content.body = "Você ativou \"Estou usando as lentes\" há um bom tempo. Considere removê-las para descansar os olhos."
+        if settings.soundEnabled {
+            content.sound = .default
+        }
+        if settings.badgeEnabled {
+            content.badge = 1
+        }
+        let interval = max(60, date.timeIntervalSinceNow)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        let request = UNNotificationRequest(identifier: Self.wearingReminderIdentifier, content: content, trigger: trigger)
+        do {
+            try await center.add(request)
+        } catch {
+            throw NotificationError.schedulingFailed(error.localizedDescription)
+        }
+    }
+
+    func cancelWearingReminder() {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.wearingReminderIdentifier])
     }
 
     /// Abre a tela de Ajustes do aplicativo no iOS, usada quando as notificações do sistema

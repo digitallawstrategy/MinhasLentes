@@ -82,7 +82,9 @@ struct HomeView: View {
                                 onFinishPair: { pairToFinish = pair },
                                 onEdit: { pairToEdit = pair },
                                 onShowDiary: { pairForDiary = pair },
-                                onDelete: { viewModel.deletePair(pair, context: modelContext) }
+                                onDelete: { viewModel.deletePair(pair, context: modelContext) },
+                                wearingSessionPairName: viewModel.wearingSessionPairName,
+                                onToggleWearingSession: { viewModel.toggleWearingSession(for: pair, settings: settings) }
                             )
                         }
                     }
@@ -92,6 +94,7 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .navigationTitle("Minhas Lentes")
+            .task { viewModel.refreshWearingSessionState() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

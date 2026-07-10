@@ -68,6 +68,7 @@ final class HomeViewModel {
             showUndoToast = true
             HapticsService.success()
             scheduleUndoToastAutoDismiss()
+            LiveActivityService.showUsageConfirmation(pairName: pair.name, usesRemaining: pair.usesRemaining, maximumUses: pair.maximumUses)
         } catch LensPairService.ServiceError.duplicateUsageOnDate {
             pendingRegistration = (pair, date, side, notes)
             showDuplicateConfirmation = true
@@ -166,6 +167,35 @@ final class HomeViewModel {
             HapticsService.lightImpact()
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível excluir o par. \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Sessão "Estou usando as lentes"
+
+    private(set) var wearingSessionPairName: String?
+
+    /// Deve ser chamado ao abrir a tela Início: a Live Activity sobrevive a reabertura do app
+    /// (e até ao encerramento forçado), então o estado do botão precisa refletir a realidade.
+    func refreshWearingSessionState() {
+        wearingSessionPairName = LiveActivityService.activeWearingSessionPairName()
+    }
+
+    func toggleWearingSession(for pair: LensPair, settings: AppSettings) {
+        Task {
+            if wearingSessionPairName == pair.name {
+                await LiveActivityService.endWearingSession()
+            } else {
+                let started = await LiveActivityService.startWearingSession(
+                    pairName: pair.name,
+                    usesRemaining: pair.usesRemaining,
+                    maximumUses: pair.maximumUses,
+                    settings: settings
+                )
+                if started {
+                    HapticsService.success()
+                }
+            }
+            refreshWearingSessionState()
         }
     }
 }

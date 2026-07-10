@@ -131,6 +131,7 @@ enum BackupService {
         var healthGoodBelowPercent: Int? = nil
         var healthWarningBelowPercent: Int? = nil
         var healthCriticalBelowPercent: Int? = nil
+        var wearingReminderHours: Int? = nil
     }
 
     // MARK: - Exportação
@@ -217,7 +218,8 @@ enum BackupService {
                     trackingMode: s.trackingModeRawValue,
                     healthGoodBelowPercent: s.healthGoodBelowPercent,
                     healthWarningBelowPercent: s.healthWarningBelowPercent,
-                    healthCriticalBelowPercent: s.healthCriticalBelowPercent
+                    healthCriticalBelowPercent: s.healthCriticalBelowPercent,
+                    wearingReminderHours: s.wearingReminderHours
                 )
             }
         )
@@ -425,5 +427,6 @@ enum BackupService {
         settings.healthGoodBelowPercent = dto.healthGoodBelowPercent ?? 80
         settings.healthWarningBelowPercent = dto.healthWarningBelowPercent ?? 40
         settings.healthCriticalBelowPercent = dto.healthCriticalBelowPercent ?? 15
+        settings.wearingReminderHours = dto.wearingReminderHours ?? 8
     }
 }

@@ -148,7 +148,7 @@ struct SettingsView: View {
     }
 
     private var lentesSection: some View {
-        Section("Lentes") {
+        Section {
             Stepper("Limite máximo de usos: \(settings.maximumUses)", value: Binding(
                 get: { settings.maximumUses },
                 set: { settings.maximumUses = $0; saveSettings() }
@@ -167,6 +167,15 @@ struct SettingsView: View {
                     Text(mode.displayName).tag(mode)
                 }
             }
+
+            Stepper("Lembrete de remoção: \(settings.wearingReminderHours)h", value: Binding(
+                get: { settings.wearingReminderHours },
+                set: { settings.wearingReminderHours = $0; saveSettings() }
+            ), in: 1...24)
+        } header: {
+            Text("Lentes")
+        } footer: {
+            Text("O lembrete de remoção vale para a sessão \"Estou usando as lentes\", iniciada pela tela Início.")
         }
     }
 
