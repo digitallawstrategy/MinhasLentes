@@ -1,0 +1,26 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Obj-C/Swift specific
+*.hmap
+
+## App packaging
+build/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods (não utilizado neste projeto, mantido por segurança)
+Pods/
+
+.DS_Store
