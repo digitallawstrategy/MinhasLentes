@@ -8,6 +8,10 @@ struct StatusBadge: View {
     var tone: AppStatusTone = .neutral
     var systemImage: String?
     var emoji: String?
+    /// Quando o selo divide uma linha com um botão de peso equivalente (ex.: "Uso registrado
+    /// hoje" ao lado de "Retirei as lentes") — sem isto, o selo fica compacto de propósito, do
+    /// tamanho do próprio texto, como em todo o resto do app.
+    var fullWidth: Bool = false
 
     var body: some View {
         Group {
@@ -24,8 +28,9 @@ struct StatusBadge: View {
             }
         }
         .font(AppTypography.captionMedium)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
         .padding(.horizontal, AppSpacing.sm)
-        .padding(.vertical, AppSpacing.xxs)
+        .padding(.vertical, fullWidth ? AppSpacing.xs : AppSpacing.xxs)
         .background(tone.color.opacity(0.15), in: Capsule())
         .foregroundStyle(tone.color)
         .accessibilityElement(children: .combine)

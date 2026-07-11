@@ -7,7 +7,6 @@ import SwiftData
 /// cada par e se administra o que existe.
 struct LensPairsView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
     @Query private var allSettings: [AppSettings]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -77,7 +76,7 @@ struct LensPairsView: View {
                 .padding(.top, AppSpacing.xs)
                 .padding(.bottom, AppSpacing.xxl)
             }
-            .background(AppGradient.ambientBackground(colorScheme: colorScheme).ignoresSafeArea())
+            .background(AmbientBackground())
             .navigationTitle("Lentes")
             .task {
                 viewModel.refreshWearingSessionState(context: modelContext)

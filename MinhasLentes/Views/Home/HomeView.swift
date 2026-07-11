@@ -9,7 +9,6 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
     @Query private var allSettings: [AppSettings]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -104,7 +103,9 @@ struct HomeView: View {
     private var mainContent: some View {
         ScrollView {
             VStack(spacing: AppSpacing.md) {
-                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle)
+                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle) {
+                    router.selectedTab = .settings
+                }
 
                 if inUsePairs.isEmpty && reservePairs.isEmpty {
                     EmptyStateView(
@@ -151,7 +152,7 @@ struct HomeView: View {
             .padding(.top, AppSpacing.xs)
             .padding(.bottom, AppSpacing.xxl)
         }
-        .background(AppGradient.ambientBackground(colorScheme: colorScheme).ignoresSafeArea())
+        .background(AmbientBackground())
         .navigationTitle("Início")
         .toolbar(.hidden, for: .navigationBar)
         .task {
@@ -400,13 +401,18 @@ struct HomeView: View {
             } label: {
                 HStack(spacing: AppSpacing.md) {
                     ZStack {
-                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color, lineWidth: 9)
-                        Text("\(pair.usesRemaining)")
-                            .font(AppTypography.metricValue)
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(1)
+                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color)
+                        VStack(spacing: 0) {
+                            Text("\(pair.usesRemaining)")
+                                .font(AppTypography.metricValue)
+                                .minimumScaleFactor(0.5)
+                                .lineLimit(1)
+                            Text("restantes")
+                                .font(AppTypography.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .frame(width: 84, height: 84)
+                    .frame(width: 108, height: 108)
                     .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: AppSpacing.xxs) {
@@ -451,15 +457,17 @@ struct HomeView: View {
         }
     }
 
+    /// Selo e botões dividem a linha com peso visual equivalente (duas "pílulas" de largura
+    /// igual, como no cartão "Em uso" da referência) — não um selo compacto ao lado de um botão
+    /// de tamanho cheio.
     @ViewBuilder
     private func pairActionRowContent(for pair: LensPair, usedToday: Bool, isWearingHere: Bool) -> some View {
         if usedToday {
-            StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill")
+            StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill", fullWidth: true)
         } else {
-            PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit, fullWidth: false) {
+            PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit) {
                 pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
             }
-            .controlSize(.small)
         }
         if pairsViewModel.wearingSessionPairID == nil || isWearingHere {
             // Mesma família de cor (indigo) nos dois estados — a hierarquia vem do estilo
@@ -470,15 +478,13 @@ struct HomeView: View {
             // só um botão preenchido por vez, para não competir consigo mesmo.
             let title = isWearingHere ? "Retirei as lentes" : "Estou usando as lentes"
             if usedToday {
-                PrimaryActionButton(title: title, fullWidth: false) {
+                PrimaryActionButton(title: title) {
                     handleWearingSessionToggle(for: pair)
                 }
-                .controlSize(.small)
             } else {
-                SecondaryActionButton(title: title, fullWidth: false) {
+                SecondaryActionButton(title: title) {
                     handleWearingSessionToggle(for: pair)
                 }
-                .controlSize(.small)
             }
         }
     }

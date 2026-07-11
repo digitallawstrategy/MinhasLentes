@@ -6,7 +6,6 @@ import SwiftData
 /// registros rápidos do dia a dia (uso das lentes, cuidado diário) ficam na aba Início; aqui é
 /// onde se olha o panorama e se administra o que já foi registrado.
 struct CuidadosView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
     @Query(sort: \CleaningSolution.openedDate, order: .reverse) private var solutions: [CleaningSolution]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -52,7 +51,7 @@ struct CuidadosView: View {
                 .padding(.top, AppSpacing.xs)
                 .padding(.bottom, AppSpacing.xxl)
             }
-            .background(AppGradient.ambientBackground(colorScheme: colorScheme).ignoresSafeArea())
+            .background(AmbientBackground())
             .navigationTitle("Cuidados")
         }
     }

@@ -71,12 +71,16 @@ struct TodayCareCardView: View {
                 StatRow(label: "Último cuidado diário", value: "Nenhum registrado")
             }
             if hasRoutineCareToday {
-                StatusBadge(text: "Cuidado diário já registrado hoje", tone: .success, systemImage: "checkmark.circle.fill")
+                StatusBadge(text: "Cuidado diário já registrado hoje", tone: .success, systemImage: "checkmark.circle.fill", fullWidth: true)
+                // Única ação restante nesta seção quando o cuidado diário já foi registrado —
+                // ganha o mesmo destaque preenchido que "Retirei as lentes" ganha no cartão "Em
+                // uso" pelo mesmo motivo.
+                PrimaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.plus", action: onRegisterRoutineCareForOtherDay)
             } else {
                 PrimaryActionButton(title: "Registrar cuidado diário", systemImage: "drop.circle", action: onRegisterRoutineCareToday)
+                SecondaryActionButton(title: "Registrar em outro dia", action: onRegisterRoutineCareForOtherDay)
+                    .controlSize(.small)
             }
-            SecondaryActionButton(title: "Registrar em outro dia", fullWidth: false, action: onRegisterRoutineCareForOtherDay)
-                .controlSize(.small)
         }
     }
 
