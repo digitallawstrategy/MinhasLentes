@@ -22,6 +22,8 @@ struct PrimaryActionButton: View {
         Button(action: action) {
             actionLabel(title, systemImage: systemImage)
                 .font(AppTypography.subheadlineMedium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
         }
         .buttonStyle(.borderedProminent)
@@ -44,6 +46,8 @@ struct SecondaryActionButton: View {
         Button(action: action) {
             actionLabel(title, systemImage: systemImage)
                 .font(AppTypography.subheadlineMedium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
         }
         .buttonStyle(.bordered)

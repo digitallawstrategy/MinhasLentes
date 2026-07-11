@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// Só dois papéis existem hoje: o cartão comum e o cartão de maior destaque de uma tela (no
+/// Início, o cartão "Em uso" — só um por tela, ou deixa de ser destaque). Nenhuma tela hoje
+/// precisa de um terceiro tratamento, então um caso `.navigation` especulativo não foi criado.
+enum AppCardVariant {
+    case standard, featured
+}
+
 /// Cartão-base do design system: toda superfície elevada da UI deriva daqui. Substitui
 /// `SectionCard` gradualmente, tela por tela — as duas convivem até a migração terminar.
 ///
@@ -9,25 +16,27 @@ import SwiftUI
 /// varia de aparência conforme o que está atrás, e muda bastante com "Reduzir transparência".
 struct AppCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
-    var elevated: Bool = false
+    var variant: AppCardVariant = .standard
     @ViewBuilder var content: () -> Content
+
+    private var isFeatured: Bool { variant == .featured }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm, content: content)
-            .padding(AppSpacing.md)
+            .padding(isFeatured ? AppSpacing.lg : AppSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
-                    .fill(AppGradient.cardBackground(elevated: elevated))
+                    .fill(AppGradient.cardBackground())
             )
             .overlay(
                 RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
-                    .strokeBorder(AppGradient.cardBorder(colorScheme: colorScheme), lineWidth: 1)
+                    .strokeBorder(AppGradient.cardBorder(colorScheme: colorScheme, featured: isFeatured), lineWidth: isFeatured ? 1.25 : 1)
             )
             .shadow(
-                color: AppShadow.floatingColor,
-                radius: elevated ? 16 : 8,
-                y: elevated ? 6 : 3
+                color: isFeatured ? AppColor.secondary.opacity(colorScheme == .dark ? 0.18 : 0.10) : AppShadow.floatingColor,
+                radius: isFeatured ? 20 : 8,
+                y: isFeatured ? 8 : 3
             )
     }
 }
@@ -37,8 +46,8 @@ struct AppCard<Content: View>: View {
         AppCard {
             Text("Cartão padrão")
         }
-        AppCard(elevated: true) {
-            Text("Cartão elevado")
+        AppCard(variant: .featured) {
+            Text("Cartão em destaque")
         }
     }
     .padding()

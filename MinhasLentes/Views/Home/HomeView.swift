@@ -150,7 +150,10 @@ struct HomeView: View {
             }
             .padding(.horizontal)
             .padding(.top, AppSpacing.xs)
-            .padding(.bottom, AppSpacing.xxl)
+            // Folga generosa abaixo do último cartão: a barra de abas nativa já reserva sua
+            // própria altura via safe area, mas em telas menores/Dynamic Type maior o último
+            // cartão cresce o bastante para ficar rente a ela sem essa margem extra.
+            .padding(.bottom, AppSpacing.xxl + AppSpacing.lg)
         }
         .background(AmbientBackground())
         .navigationTitle("Início")
@@ -336,7 +339,7 @@ struct HomeView: View {
     @ViewBuilder
     private var summaryContent: some View {
         if !inUsePairs.isEmpty {
-            AppCard {
+            AppCard(variant: .featured) {
                 SectionHeader("Em uso") {
                     if pairsNeedingUsageToday.isEmpty {
                         StatusBadge(text: "Tudo certo", tone: .success, systemImage: "checkmark.circle.fill")
@@ -401,16 +404,23 @@ struct HomeView: View {
             } label: {
                 HStack(spacing: AppSpacing.md) {
                     ZStack {
-                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color)
+                        // Traço mais fino que o padrão (14pt) neste anel especificamente: a
+                        // 84x84 fixo, o padrão deixaria só 56pt de diâmetro interno para duas
+                        // linhas de texto — apertado o bastante para sobrepor em Dynamic Type
+                        // maior. 8pt libera 68pt internos, com folga real.
+                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color, lineWidth: 8)
                         VStack(spacing: 0) {
                             Text("\(pair.usesRemaining)")
                                 .font(AppTypography.metricValue)
-                                .minimumScaleFactor(0.5)
+                                .minimumScaleFactor(0.4)
                                 .lineLimit(1)
                             Text("restantes")
                                 .font(AppTypography.caption)
                                 .foregroundStyle(.secondary)
+                                .minimumScaleFactor(0.7)
+                                .lineLimit(1)
                         }
+                        .padding(.horizontal, 4)
                     }
                     .frame(width: 84, height: 84)
                     .accessibilityHidden(true)

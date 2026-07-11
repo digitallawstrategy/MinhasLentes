@@ -14,11 +14,15 @@ struct FeaturedReminderRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: AppSpacing.md) {
+            // `.top`, não o `.center` padrão: quando `detail` quebra em 2-3 linhas (comum com
+            // Dynamic Type maior), ícone e anel ficam ancorados no topo em vez de flutuar
+            // centralizados contra um bloco de texto mais alto — é isso que lia como
+            // "desalinhado" antes.
+            HStack(alignment: .top, spacing: AppSpacing.sm) {
                 Image(systemName: systemImage)
                     .font(.title2)
                     .foregroundStyle(tone.color)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 48, height: 48)
                     .background(tone.color.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
                     .accessibilityHidden(true)
 
@@ -28,18 +32,26 @@ struct FeaturedReminderRow: View {
                     Text(detail)
                         .font(AppTypography.footnote)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 ZStack {
-                    ProgressRingView(remainingFraction: ringFraction, tint: tone.color, lineWidth: 4)
-                    Text(ringValue)
-                        .font(AppTypography.headline)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
+                    ProgressRingView(remainingFraction: ringFraction, tint: tone.color, lineWidth: 5)
+                    VStack(spacing: 0) {
+                        Text(ringValue)
+                            .font(AppTypography.headline)
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                        Text("dias")
+                            .font(AppTypography.caption)
+                            .foregroundStyle(.secondary)
+                            .minimumScaleFactor(0.7)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 2)
                 }
-                .frame(width: 52, height: 52)
+                .frame(width: 72, height: 72)
                 .accessibilityHidden(true)
             }
         }

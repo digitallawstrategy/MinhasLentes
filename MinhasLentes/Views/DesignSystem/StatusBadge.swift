@@ -28,6 +28,8 @@ struct StatusBadge: View {
             }
         }
         .font(AppTypography.badge)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .frame(maxWidth: fullWidth ? .infinity : nil)
         .padding(.horizontal, AppSpacing.sm)
         .padding(.vertical, fullWidth ? AppSpacing.xs : AppSpacing.xxs)

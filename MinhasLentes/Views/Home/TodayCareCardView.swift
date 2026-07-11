@@ -65,10 +65,17 @@ struct TodayCareCardView: View {
 
     private var routineCareSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            if let lastRoutineCare {
-                StatRow(label: "Último cuidado diário", value: DateFormatting.shortWithTime.string(from: lastRoutineCare.date))
-            } else {
-                StatRow(label: "Último cuidado diário", value: "Nenhum registrado")
+            // Rótulo em cima do valor, não lado a lado como o `StatRow` genérico usa — "Último
+            // cuidado diário" mais uma data com hora não cabem confortavelmente numa linha só em
+            // tela estreita ou Dynamic Type maior, e espremer os dois nunca é aceitável aqui.
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Último cuidado diário")
+                    .font(AppTypography.footnote)
+                    .foregroundStyle(.secondary)
+                Text(lastRoutineCare.map { DateFormatting.shortWithTime.string(from: $0.date) } ?? "Nenhum registrado")
+                    .font(AppTypography.subheadlineMedium)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             if hasRoutineCareToday {
                 StatusBadge(text: "Cuidado diário já registrado hoje", tone: .success, systemImage: "checkmark.circle.fill", fullWidth: true)

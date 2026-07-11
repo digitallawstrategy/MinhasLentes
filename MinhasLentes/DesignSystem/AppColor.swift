@@ -29,5 +29,9 @@ enum AppColor {
     static let surface = Color("AppBackground")
     /// Fundo de cartão/superfície elevada.
     static let surfaceElevated = Color("AppSurfaceElevated")
+    /// Segundo ponto do gradiente vertical de `AppGradient.cardBackground` — levemente mais
+    /// escuro que `surfaceElevated` no escuro (`#14141A`), levemente mais fosco que branco no
+    /// claro. Sozinho não é usado em nenhuma View; só existe para compor esse gradiente.
+    static let surfaceElevatedEnd = Color("AppSurfaceElevatedEnd")
     static let divider = Color(uiColor: .separator)
 }
