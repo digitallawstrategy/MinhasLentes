@@ -719,7 +719,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
             await Self.endWearingSessionDirectly()
             await MainActor.run {
                 AppRouter.shared.pendingEndWearingSession = true
-                AppRouter.shared.openLentes()
+                AppRouter.shared.openHome()
             }
             return
         }
@@ -739,7 +739,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 // Identificadores de consulta são por consulta (`consulta.<uuid>.<marco>`).
                 AppRouter.shared.openConsultas()
             case let id where wearingIdentifiers.contains(id):
-                AppRouter.shared.openLentes()
+                AppRouter.shared.openHome()
             default:
                 break
             }

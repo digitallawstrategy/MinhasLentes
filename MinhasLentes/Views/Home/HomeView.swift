@@ -1,9 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// Aba Início: resumo somente-leitura do estado atual — par(es) em uso e estojo. Nenhuma ação
-/// de gerenciamento mora aqui; registrar uso, editar ou encerrar um par acontece na aba Lentes,
-/// tocar num par aqui leva direto ao diário dele lá.
+/// Aba Início: o hub de ações do dia — registrar o uso de hoje, alternar a sessão "estou
+/// usando as lentes", registrar o cuidado diário do estojo e, quando pertinente, a limpeza
+/// periódica. Edição, encerramento e detalhe administrativo ficam em Lentes/Cuidados; tocar
+/// num par aqui leva direto ao diário dele lá.
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
@@ -12,9 +13,20 @@ struct HomeView: View {
     @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
     @Query(sort: \CleaningSolution.openedDate, order: .reverse) private var solutions: [CleaningSolution]
     @Query(sort: \EyeAppointment.date) private var appointments: [EyeAppointment]
+    @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
+    @Query(sort: \LensInventoryItem.createdAt, order: .reverse) private var inventoryItems: [LensInventoryItem]
 
     @State private var caseViewModel = CaseCleaningViewModel()
+    @State private var pairsViewModel = LensPairsViewModel()
+    @State private var routineCareViewModel = RoutineCareViewModel()
     @State private var router = AppRouter.shared
+    @State private var showRoutineCarePrompt = false
+    @State private var showRegisterRoutineCareDetails = false
+    @State private var routineDate = Date()
+    @State private var routineDiscardedSolution = true
+    @State private var routineCleanedCase = true
+    @State private var routineAirDried = true
+    @State private var routineNotes = ""
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -29,14 +41,24 @@ struct HomeView: View {
     }
 
     private var lastCleaning: CaseCleaning? { cleanings.first }
+    private var lastRoutineCare: RoutineCareLog? { routineCareLogs.first }
     private var activeCase: LensCase? { cases.first { $0.status == .active } }
     private var activeSolution: CleaningSolution? { solutions.first { $0.status == .active } }
     private var nextAppointment: EyeAppointment? {
         appointments.first { $0.status == .scheduled && $0.date >= Date() }
     }
 
-    private var hasReminders: Bool {
-        activeCase != nil || activeSolution != nil || nextAppointment != nil
+    private var availableInventoryItems: [LensInventoryItem] {
+        inventoryItems.filter { $0.status == .available }
+    }
+
+    private var expiringInventoryItems: [LensInventoryItem] {
+        LensInventoryStatisticsService.itemsNearExpiry(items: availableInventoryItems, withinDays: 30)
+    }
+
+    private var hasRoutineCareToday: Bool {
+        guard let lastRoutineCare else { return false }
+        return Calendar.current.isDate(lastRoutineCare.date, inSameDayAs: Date())
     }
 
     private var greeting: String {
@@ -61,13 +83,25 @@ struct HomeView: View {
                         summaryContent
                     }
 
-                    if hasReminders {
+                    if !reminderItems.isEmpty {
                         remindersCard
                     }
 
-                    CaseSummaryCardView(
+                    TodayCareCardView(
+                        lastRoutineCare: lastRoutineCare,
                         lastCleaning: lastCleaning,
                         settings: settings,
+                        onRegisterRoutineCareToday: {
+                            routineCareViewModel.registerRoutineCareToday(context: modelContext)
+                        },
+                        onRegisterRoutineCareForOtherDay: {
+                            routineDate = Date()
+                            routineDiscardedSolution = true
+                            routineCleanedCase = true
+                            routineAirDried = true
+                            routineNotes = ""
+                            showRegisterRoutineCareDetails = true
+                        },
                         onRegisterCleaningToday: {
                             Task { await caseViewModel.registerCleaningToday(settings: settings, context: modelContext) }
                         }
@@ -78,6 +112,13 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .navigationTitle("Minhas Lentes")
+            .task {
+                pairsViewModel.refreshWearingSessionState(context: modelContext)
+                await endPendingWearingSessionIfNeeded()
+            }
+            .onChange(of: router.pendingEndWearingSession) { _, _ in
+                Task { await endPendingWearingSessionIfNeeded() }
+            }
             .overlay(alignment: .bottom) {
                 if caseViewModel.showUndoToast, let message = caseViewModel.toastMessage {
                     ConfirmationToast(message: message, actionTitle: "Desfazer") {
@@ -85,9 +126,16 @@ struct HomeView: View {
                     }
                     .padding(.bottom, 8)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if pairsViewModel.showUndoToast, let message = pairsViewModel.toastMessage {
+                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                        pairsViewModel.undoLastRegisteredUsage(context: modelContext)
+                    }
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.snappy, value: caseViewModel.showUndoToast)
+            .animation(.snappy, value: pairsViewModel.showUndoToast)
             .alert(
                 "Não foi possível concluir a ação",
                 isPresented: Binding(
@@ -100,16 +148,103 @@ struct HomeView: View {
             } message: { error in
                 Text(error.message)
             }
+            .alert(
+                "Não foi possível concluir a ação",
+                isPresented: Binding(
+                    get: { pairsViewModel.presentedError != nil },
+                    set: { if !$0 { pairsViewModel.presentedError = nil } }
+                ),
+                presenting: pairsViewModel.presentedError
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { error in
+                Text(error.message)
+            }
+            .alert(
+                "Não foi possível concluir a ação",
+                isPresented: Binding(
+                    get: { routineCareViewModel.presentedError != nil },
+                    set: { if !$0 { routineCareViewModel.presentedError = nil } }
+                ),
+                presenting: routineCareViewModel.presentedError
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { error in
+                Text(error.message)
+            }
+            .alert("Limite atingido", isPresented: $pairsViewModel.showLimitReachedAlert) {
+                Button("Entendi", role: .cancel) {}
+            } message: {
+                Text("O limite de utilizações de um dos pares foi atingido. Nada foi registrado — substitua as lentes antes de tentar de novo.")
+            }
+            .confirmationDialog(
+                "Já existe uma utilização registrada nesta data em pelo menos um par. Registrar mesmo assim, em todos os pares deste lote?",
+                isPresented: $pairsViewModel.showDuplicateConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Registrar mesmo assim") {
+                    pairsViewModel.confirmDuplicateRegistration(settings: settings, context: modelContext)
+                }
+                Button("Cancelar", role: .cancel) {
+                    pairsViewModel.cancelDuplicateRegistration()
+                }
+            }
+            .confirmationDialog(
+                "Registrar cuidado diário do estojo?",
+                isPresented: $showRoutineCarePrompt,
+                titleVisibility: .visible
+            ) {
+                Button("Registrar") {
+                    routineCareViewModel.registerRoutineCareToday(context: modelContext)
+                }
+                Button("Depois", role: .cancel) {}
+            }
+            .sheet(isPresented: $showRegisterRoutineCareDetails) {
+                NavigationStack {
+                    Form {
+                        DatePicker("Data", selection: $routineDate, displayedComponents: [.date, .hourAndMinute])
+                        Toggle("Descartei a solução usada", isOn: $routineDiscardedSolution)
+                        Toggle("Limpei o estojo", isOn: $routineCleanedCase)
+                        Toggle("Deixei secar ao ar livre", isOn: $routineAirDried)
+                        TextField("Observação (opcional)", text: $routineNotes, axis: .vertical)
+                            .lineLimit(2...4)
+                    }
+                    .navigationTitle("Cuidado diário")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancelar") { showRegisterRoutineCareDetails = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Salvar") {
+                                routineCareViewModel.registerRoutineCare(
+                                    date: routineDate, discardedSolution: routineDiscardedSolution,
+                                    cleanedCase: routineCleanedCase, airDried: routineAirDried,
+                                    notes: routineNotes.isEmpty ? nil : routineNotes, context: modelContext
+                                )
+                                showRegisterRoutineCareDetails = false
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+            }
         }
     }
+
+    // MARK: - Em uso
 
     @ViewBuilder
     private var summaryContent: some View {
         if !inUsePairs.isEmpty {
             SectionCard(title: "Em uso") {
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
+                    if pairsNeedingUsageToday.count > 1 {
+                        registerAllUsageButton
+                        Divider()
+                    }
                     ForEach(inUsePairs) { pair in
-                        pairSummaryRow(for: pair)
+                        pairActionCard(for: pair)
                         if pair.id != inUsePairs.last?.id {
                             Divider()
                         }
@@ -135,38 +270,137 @@ struct HomeView: View {
         }
     }
 
+    private func hasUsageToday(_ pair: LensPair) -> Bool {
+        LensStatisticsService.hasUsage(onSameDayAs: Date(), in: pair.usages ?? [])
+    }
+
+    private var pairsNeedingUsageToday: [LensPair] {
+        inUsePairs.filter { !hasUsageToday($0) && !$0.hasReachedLimit }
+    }
+
+    private var registerAllUsageButton: some View {
+        Button {
+            pairsViewModel.registerUsageForAllInUsePairs(inUsePairs, settings: settings, context: modelContext)
+        } label: {
+            Label("Registrar uso hoje (todos os pares)", systemImage: "checkmark.circle.fill")
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+    }
+
+    private func pairActionCard(for pair: LensPair) -> some View {
+        let status = LensStatisticsService.usageStatus(
+            usesRemaining: pair.usesRemaining,
+            maximumUses: pair.maximumUses,
+            goodBelowPercent: settings.healthGoodBelowPercent,
+            warningBelowPercent: settings.healthWarningBelowPercent,
+            criticalBelowPercent: settings.healthCriticalBelowPercent
+        )
+        let isWearingHere = pairsViewModel.wearingSessionPairID == pair.id
+        let usedToday = hasUsageToday(pair)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                router.openPair(pair.id)
+            } label: {
+                HStack(spacing: 10) {
+                    Text(status.emoji)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pair.name)
+                            .font(.subheadline.weight(.medium))
+                        Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes — \(status.label)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 8) {
+                if usedToday {
+                    Label("Uso registrado hoje", systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.green)
+                } else {
+                    Button {
+                        pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
+                    } label: {
+                        Text("Registrar uso hoje")
+                            .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(pair.hasReachedLimit)
+                }
+                if pairsViewModel.wearingSessionPairID == nil || isWearingHere {
+                    Spacer()
+                    Button {
+                        handleWearingSessionToggle(for: pair)
+                    } label: {
+                        Text(isWearingHere ? "Retirei as lentes" : "Estou usando as lentes")
+                            .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(isWearingHere ? .red : .accentColor)
+                }
+            }
+        }
+    }
+
+    private func handleWearingSessionToggle(for pair: LensPair) {
+        if pairsViewModel.wearingSessionPairID == pair.id {
+            Task {
+                await pairsViewModel.endWearingSession(context: modelContext)
+                if !hasRoutineCareToday {
+                    showRoutineCarePrompt = true
+                }
+            }
+        } else {
+            pairsViewModel.toggleWearingSession(for: pair, settings: settings, context: modelContext)
+        }
+    }
+
+    // MARK: - Lembretes
+
+    private struct ReminderItem: Identifiable {
+        let id = UUID()
+        let icon: String
+        let title: String
+        let detail: String
+        let tab: AppTab
+    }
+
+    private var reminderItems: [ReminderItem] {
+        var items: [ReminderItem] = []
+        if let activeCase {
+            items.append(ReminderItem(icon: "shippingbox", title: "Estojo", detail: caseReminderDetail(activeCase), tab: .cuidados))
+        }
+        if let activeSolution {
+            items.append(ReminderItem(icon: "flask", title: "Solução", detail: solutionReminderDetail(activeSolution), tab: .cuidados))
+        }
+        if let nextAppointment {
+            items.append(ReminderItem(icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas))
+        }
+        if !expiringInventoryItems.isEmpty {
+            items.append(ReminderItem(icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes))
+        }
+        return items
+    }
+
     private var remindersCard: some View {
         SectionCard(title: "Lembretes") {
             VStack(spacing: 10) {
-                if let activeCase {
-                    reminderRow(
-                        icon: "shippingbox",
-                        title: "Estojo",
-                        detail: caseReminderDetail(activeCase),
-                        tab: .cuidados
-                    )
-                }
-                if activeCase != nil && (activeSolution != nil || nextAppointment != nil) {
-                    Divider()
-                }
-                if let activeSolution {
-                    reminderRow(
-                        icon: "flask",
-                        title: "Solução",
-                        detail: solutionReminderDetail(activeSolution),
-                        tab: .cuidados
-                    )
-                }
-                if activeSolution != nil && nextAppointment != nil {
-                    Divider()
-                }
-                if let nextAppointment {
-                    reminderRow(
-                        icon: "stethoscope",
-                        title: "Consulta",
-                        detail: appointmentReminderDetail(nextAppointment),
-                        tab: .consultas
-                    )
+                ForEach(Array(reminderItems.enumerated()), id: \.element.id) { index, item in
+                    reminderRow(icon: item.icon, title: item.title, detail: item.detail, tab: item.tab)
+                    if index != reminderItems.count - 1 {
+                        Divider()
+                    }
                 }
             }
         }
@@ -214,33 +448,18 @@ struct HomeView: View {
         return dateText
     }
 
-    private func pairSummaryRow(for pair: LensPair) -> some View {
-        let status = LensStatisticsService.usageStatus(
-            usesRemaining: pair.usesRemaining,
-            maximumUses: pair.maximumUses,
-            goodBelowPercent: settings.healthGoodBelowPercent,
-            warningBelowPercent: settings.healthWarningBelowPercent,
-            criticalBelowPercent: settings.healthCriticalBelowPercent
-        )
-        return Button {
-            router.openPair(pair.id)
-        } label: {
-            HStack(spacing: 10) {
-                Text(status.emoji)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(pair.name)
-                        .font(.subheadline.weight(.medium))
-                    Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes — \(status.label)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .buttonStyle(.plain)
+    private var inventoryReminderDetail: String {
+        expiringInventoryItems.count == 1 ? "1 caixa perto da validade" : "\(expiringInventoryItems.count) caixas perto da validade"
+    }
+
+    /// Encerra a sessão de uso ativa quando o usuário toca "Retirei agora" numa notificação —
+    /// a sessão em si já foi encerrada no banco por `NotificationManager`; isto só sincroniza o
+    /// estado local (`wearingSessionPairID`) e funciona mesmo que o app tenha sido reaberto do
+    /// zero por causa do toque.
+    private func endPendingWearingSessionIfNeeded() async {
+        guard router.pendingEndWearingSession else { return }
+        router.pendingEndWearingSession = false
+        await pairsViewModel.endWearingSession(context: modelContext)
     }
 
     private var emptyState: some View {

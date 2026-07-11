@@ -159,4 +159,60 @@ final class LensStatisticsServiceTests: XCTestCase {
         XCTAssertTrue(LensStatisticsService.hasUsage(onSameDayAs: TestSupport.date(2026, 7, 10, hour: 20), in: [usage], calendar: calendar))
         XCTAssertFalse(LensStatisticsService.hasUsage(onSameDayAs: TestSupport.date(2026, 7, 11), in: [usage], calendar: calendar))
     }
+
+    func testAverageIntervalDaysNeedsAtLeastTwoDates() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        XCTAssertNil(LensStatisticsService.averageIntervalDays(betweenUsageDates: [], calendar: calendar))
+        XCTAssertNil(LensStatisticsService.averageIntervalDays(betweenUsageDates: [TestSupport.date(2026, 7, 10)], calendar: calendar))
+    }
+
+    func testAverageIntervalDaysComputesMeanSpacing() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        // 10, 12, 14 de julho: dois intervalos de 2 dias, média 2.
+        let dates = [
+            TestSupport.date(2026, 7, 10),
+            TestSupport.date(2026, 7, 14),
+            TestSupport.date(2026, 7, 12),
+        ]
+        let average = LensStatisticsService.averageIntervalDays(betweenUsageDates: dates, calendar: calendar)
+        XCTAssertNotNil(average)
+        XCTAssertEqual(average!, 2.0, accuracy: 0.0001)
+    }
+
+    func testProjectedDepletionDateNilWithoutAverageOrRemaining() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        XCTAssertNil(LensStatisticsService.projectedDepletionDate(usesRemaining: 5, averageIntervalDays: nil, calendar: calendar))
+        XCTAssertNil(LensStatisticsService.projectedDepletionDate(usesRemaining: 0, averageIntervalDays: 2, calendar: calendar))
+    }
+
+    func testProjectedDepletionDateProjectsForward() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        let reference = TestSupport.date(2026, 7, 10)
+        let projected = LensStatisticsService.projectedDepletionDate(
+            usesRemaining: 5, averageIntervalDays: 2, referenceDate: reference, calendar: calendar
+        )
+        XCTAssertNotNil(projected)
+        XCTAssertTrue(calendar.isDate(projected!, inSameDayAs: TestSupport.date(2026, 7, 20)))
+    }
+
+    func testAverageSessionDurationIgnoresActiveSessions() {
+        let ended1 = WearSession(startedAt: TestSupport.date(2026, 7, 10, hour: 8), lensPair: nil)
+        ended1.endedAt = TestSupport.date(2026, 7, 10, hour: 10)
+        let ended2 = WearSession(startedAt: TestSupport.date(2026, 7, 11, hour: 8), lensPair: nil)
+        ended2.endedAt = TestSupport.date(2026, 7, 11, hour: 12)
+        let active = WearSession(startedAt: TestSupport.date(2026, 7, 12, hour: 8), lensPair: nil)
+
+        let average = LensStatisticsService.averageSessionDuration(sessions: [ended1, ended2, active])
+        XCTAssertNotNil(average)
+        XCTAssertEqual(average!, 3 * 3600, accuracy: 1)
+    }
+
+    func testAverageSessionDurationNilWithoutCompletedSessions() {
+        let active = WearSession(startedAt: TestSupport.date(2026, 7, 12, hour: 8), lensPair: nil)
+        XCTAssertNil(LensStatisticsService.averageSessionDuration(sessions: [active]))
+    }
 }

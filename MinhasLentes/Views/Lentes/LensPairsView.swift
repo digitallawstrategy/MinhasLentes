@@ -1,9 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// Aba Lentes: gerenciamento completo dos pares — em uso, reservas, início, edição,
-/// encerramento, lixeira e diário. A aba Início mostra apenas um resumo; toda ação sobre um
-/// par específico acontece aqui.
+/// Aba Lentes: informações detalhadas e gerenciamento completo dos pares — em uso, reservas,
+/// estoque, edição, encerramento, lixeira, diário e histórico. O registro rápido de "uso hoje"
+/// e a sessão "estou usando as lentes" moram na aba Início; aqui é onde se olha o detalhe de
+/// cada par e se administra o que existe.
 struct LensPairsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
@@ -36,6 +37,10 @@ struct LensPairsView: View {
         allPairs.filter { $0.status == .reserve && $0.deletedAt == nil }
     }
 
+    private var finishedPairsCount: Int {
+        allPairs.filter { $0.status == .finished && $0.deletedAt == nil }.count
+    }
+
     /// Lados disponíveis para iniciar um novo par — sempre todos os do modo atual, já que dá
     /// para escolher entre usar agora (rebaixa o par em uso do mesmo lado para reserva) ou
     /// guardar como reserva.
@@ -48,6 +53,9 @@ struct LensPairsView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     inventoryLink
+                    if finishedPairsCount > 0 {
+                        pairHistoryLink
+                    }
                     if inUsePairs.isEmpty && reservePairs.isEmpty {
                         emptyState
                     } else {
@@ -62,13 +70,9 @@ struct LensPairsView: View {
             .task {
                 viewModel.refreshWearingSessionState(context: modelContext)
                 openPendingPairIfNeeded()
-                await endPendingWearingSessionIfNeeded()
             }
             .onChange(of: router.pendingPairID) { _, _ in
                 openPendingPairIfNeeded()
-            }
-            .onChange(of: router.pendingEndWearingSession) { _, _ in
-                Task { await endPendingWearingSessionIfNeeded() }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -81,21 +85,6 @@ struct LensPairsView: View {
                     .accessibilityLabel("Iniciar novo par")
                 }
             }
-            .overlay(alignment: .bottom) {
-                if viewModel.showUndoToast, let message = viewModel.toastMessage {
-                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
-                        viewModel.undoLastRegisteredUsage(context: modelContext)
-                    }
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .animation(.snappy, value: viewModel.showUndoToast)
-            .alert("Limite atingido", isPresented: $viewModel.showLimitReachedAlert) {
-                Button("Entendi", role: .cancel) {}
-            } message: {
-                Text("O limite de utilizações de um dos pares foi atingido. Nada foi registrado — substitua as lentes antes de tentar de novo.")
-            }
             .alert(
                 "Não foi possível concluir a ação",
                 isPresented: Binding(
@@ -107,18 +96,6 @@ struct LensPairsView: View {
                 Button("OK", role: .cancel) {}
             } message: { error in
                 Text(error.message)
-            }
-            .confirmationDialog(
-                "Já existe uma utilização registrada nesta data em pelo menos um par. Registrar mesmo assim, em todos os pares deste lote?",
-                isPresented: $viewModel.showDuplicateConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Registrar mesmo assim") {
-                    viewModel.confirmDuplicateRegistration(settings: settings, context: modelContext)
-                }
-                Button("Cancelar", role: .cancel) {
-                    viewModel.cancelDuplicateRegistration()
-                }
             }
             .alert("Mover \(pairToTrash?.name ?? "par") para a lixeira?", isPresented: Binding(
                 get: { pairToTrash != nil },
@@ -178,15 +155,46 @@ struct LensPairsView: View {
         NavigationLink {
             LensInventoryView()
         } label: {
-            HStack {
-                Label("Estoque de lentes", systemImage: "shippingbox")
-                    .font(.subheadline.weight(.medium))
-                Spacer()
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Label("Estoque de lentes", systemImage: "shippingbox")
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
                 if !availableInventoryItems.isEmpty {
-                    Text("\(availableInventoryItems.count)")
-                        .font(.footnote)
+                    Text(inventorySummaryText)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+    }
+
+    private var inventorySummaryText: String {
+        var parts = [availableInventoryItems.count == 1 ? "1 disponível" : "\(availableInventoryItems.count) disponíveis"]
+        let nearExpiry = LensInventoryStatisticsService.itemsNearExpiry(items: availableInventoryItems, withinDays: 30)
+        if !nearExpiry.isEmpty {
+            parts.append(nearExpiry.count == 1 ? "1 vencendo em breve" : "\(nearExpiry.count) vencendo em breve")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var pairHistoryLink: some View {
+        NavigationLink {
+            LensPairHistoryView()
+        } label: {
+            HStack {
+                Label("Histórico de pares", systemImage: "clock.arrow.circlepath")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text("\(finishedPairsCount)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
@@ -210,21 +218,16 @@ struct LensPairsView: View {
 
     @ViewBuilder
     private var inUsePairsContent: some View {
-        if inUsePairs.count > 1 {
-            registerAllButton
-        }
         ForEach(inUsePairs) { pair in
             LensPairCardView(
                 pair: pair,
                 settings: settings,
-                onRegisterUsage: { registerUsage(for: pair) },
                 onFinishPair: { pairToFinish = pair },
                 onEdit: { pairToEdit = pair },
                 onShowDiary: { pairForDiary = pair },
                 onMoveToTrash: { viewModel.moveToTrash(pair, context: modelContext) },
                 onDemoteToReserve: { viewModel.demoteToReserve(pair, context: modelContext) },
-                wearingSessionPairID: viewModel.wearingSessionPairID,
-                onToggleWearingSession: { viewModel.toggleWearingSession(for: pair, settings: settings, context: modelContext) }
+                wearingSessionPairID: viewModel.wearingSessionPairID
             )
         }
     }
@@ -262,18 +265,6 @@ struct LensPairsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-    }
-
-    private var registerAllButton: some View {
-        Button {
-            viewModel.registerUsageForAllInUsePairs(inUsePairs, settings: settings, context: modelContext)
-        } label: {
-            Label("Registrar uso hoje (todos os pares)", systemImage: "checkmark.circle.fill")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
     }
 
     private var reservesSection: some View {
@@ -317,10 +308,6 @@ struct LensPairsView: View {
         }
     }
 
-    private func registerUsage(for pair: LensPair) {
-        viewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
-    }
-
     /// Abre o Diário do par indicado por um deep link do widget (`minhaslentes://pair/<uuid>`),
     /// se houver um pendente e o par ainda existir.
     private func openPendingPairIfNeeded() {
@@ -328,14 +315,6 @@ struct LensPairsView: View {
         router.pendingPairID = nil
         guard let pair = allPairs.first(where: { $0.id == pendingID }) else { return }
         pairForDiary = pair
-    }
-
-    /// Encerra a sessão de uso ativa quando o usuário toca "Retirei agora" numa notificação —
-    /// funciona mesmo que o app tenha sido reaberto do zero por causa do toque.
-    private func endPendingWearingSessionIfNeeded() async {
-        guard router.pendingEndWearingSession else { return }
-        router.pendingEndWearingSession = false
-        await viewModel.endWearingSession(context: modelContext)
     }
 }
 

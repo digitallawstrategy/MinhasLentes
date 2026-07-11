@@ -17,7 +17,8 @@ final class AppRouter {
     var selectedTab: AppTab = .home
     var pendingPairID: UUID?
     /// Setado pelo botão "Retirei agora" de uma notificação de tempo de uso excessivo — a aba
-    /// Lentes observa isso e encerra a sessão ativa assim que a view aparece.
+    /// Início observa isso e sincroniza o estado local da sessão assim que a view aparece (a
+    /// sessão em si já foi encerrada no banco antes disso, ver `NotificationManager`).
     var pendingEndWearingSession = false
 
     private init() {}

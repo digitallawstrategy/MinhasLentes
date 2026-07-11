@@ -1,20 +1,19 @@
 import SwiftUI
 
-/// Cartão-dashboard do par em uso: identificação, anel de progresso, status de utilização e o
-/// botão principal "Registrar uso hoje". Mostra só o que pertence à lente — informações do
-/// estojo (limpeza, prazo) ficam no cartão compacto separado da Home, não aqui, para não
-/// repetir o mesmo conteúdo em cada par quando há mais de um em uso.
+/// Cartão-dashboard do par em uso: identificação, anel de progresso, status de utilização e
+/// detalhes de uso (frequência média, projeção de término, duração média de sessão). O registro
+/// rápido de "uso hoje" e a sessão "estou usando as lentes" moram na aba Início — aqui é onde
+/// se olha o detalhe do par e se faz a gestão dele (editar, mover para reserva, encerrar,
+/// lixeira). O emblema "Em uso agora" é só informativo, não uma ação.
 struct LensPairCardView: View {
     let pair: LensPair
     let settings: AppSettings
-    let onRegisterUsage: () -> Void
     let onFinishPair: () -> Void
     let onEdit: () -> Void
     let onShowDiary: () -> Void
     let onMoveToTrash: () -> Void
     let onDemoteToReserve: () -> Void
     let wearingSessionPairID: UUID?
-    let onToggleWearingSession: () -> Void
 
     @State private var showTrashConfirmation = false
 
@@ -37,6 +36,18 @@ struct LensPairCardView: View {
         )
     }
 
+    private var averageIntervalDays: Double? {
+        LensStatisticsService.averageIntervalDays(betweenUsageDates: (pair.usages ?? []).map(\.date))
+    }
+
+    private var projectedDepletionDate: Date? {
+        LensStatisticsService.projectedDepletionDate(usesRemaining: pair.usesRemaining, averageIntervalDays: averageIntervalDays)
+    }
+
+    private var averageSessionDuration: TimeInterval? {
+        LensStatisticsService.averageSessionDuration(sessions: pair.wearSessions ?? [])
+    }
+
     var body: some View {
         SectionCard {
             VStack(alignment: .leading, spacing: 16) {
@@ -44,13 +55,7 @@ struct LensPairCardView: View {
                 ringAndHeadline
                 ProgressBarView(fraction: remainingFraction, tint: usageStatus.tintColor)
                     .animation(.easeInOut(duration: 0.6), value: remainingFraction)
-                if let lastUsage = pair.lastUsageDate {
-                    StatRow(label: "Último uso", value: DateFormatting.short.string(from: lastUsage))
-                }
-                registerButton
-                if wearingSessionPairID == nil || isWearingSessionActiveHere {
-                    wearingSessionButton
-                }
+                detailStats
             }
         }
         .alert("Mover \(pair.name) para a lixeira?", isPresented: $showTrashConfirmation) {
@@ -69,7 +74,14 @@ struct LensPairCardView: View {
                 Text("Iniciado em \(DateFormatting.short.string(from: pair.startDate))")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                UsageStatusBadgeView(status: usageStatus)
+                HStack(spacing: 6) {
+                    UsageStatusBadgeView(status: usageStatus)
+                    if isWearingSessionActiveHere {
+                        Label("Em uso agora", systemImage: "eye.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
             }
             Spacer()
             Menu {
@@ -121,33 +133,19 @@ struct LensPairCardView: View {
         }
     }
 
-    private var registerButton: some View {
-        Button(action: onRegisterUsage) {
-            Label("Registrar uso hoje", systemImage: "checkmark.circle.fill")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
+    @ViewBuilder
+    private var detailStats: some View {
+        if let lastUsage = pair.lastUsageDate {
+            StatRow(label: "Último uso", value: DateFormatting.short.string(from: lastUsage))
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .disabled(pair.hasReachedLimit)
-        .accessibilityHint(pair.hasReachedLimit ? "Limite de usos atingido" : "Registra uma utilização na data de hoje")
-    }
-
-    private var wearingSessionButton: some View {
-        Button(action: onToggleWearingSession) {
-            Label(
-                isWearingSessionActiveHere ? "Parar sessão de uso" : "Estou usando as lentes",
-                systemImage: isWearingSessionActiveHere ? "stop.circle" : "eye.circle"
-            )
-            .font(.subheadline.weight(.medium))
-            .frame(maxWidth: .infinity)
+        if let averageIntervalDays {
+            StatRow(label: "Frequência média", value: "a cada \(String(format: "%.1f", averageIntervalDays)) dia(s)")
         }
-        .buttonStyle(.bordered)
-        .tint(isWearingSessionActiveHere ? .red : .accentColor)
-        .accessibilityHint(
-            isWearingSessionActiveHere
-                ? "Encerra a Live Activity e o lembrete de remoção"
-                : "Inicia uma Live Activity e agenda um lembrete para remover as lentes depois de algumas horas"
-        )
+        if let projectedDepletionDate {
+            StatRow(label: "Previsão de término", value: DateFormatting.short.string(from: projectedDepletionDate))
+        }
+        if let averageSessionDuration {
+            StatRow(label: "Duração média de uso", value: DateFormatting.durationShort(averageSessionDuration))
+        }
     }
 }

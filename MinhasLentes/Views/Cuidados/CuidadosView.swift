@@ -1,60 +1,143 @@
 import SwiftUI
 import SwiftData
 
-/// Aba Cuidados: ponto de entrada para Estojo e Solução de limpeza — os dois cuidados do
-/// material físico das lentes, agrupados aqui para não disputar espaço na barra de abas com
-/// Lentes e Consultas, que são destinos usados com mais frequência.
+/// Aba Cuidados: dashboard do estojo e da solução de limpeza em profundidade — resumo de cada
+/// um, calendário consolidado de cuidado diário/limpeza periódica e orientações gerais. Os
+/// registros rápidos do dia a dia (uso das lentes, cuidado diário) ficam na aba Início; aqui é
+/// onde se olha o panorama e se administra o que já foi registrado.
 struct CuidadosView: View {
     @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
     @Query(sort: \CleaningSolution.openedDate, order: .reverse) private var solutions: [CleaningSolution]
+    @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
+    @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
 
     private var activeCase: LensCase? { cases.first { $0.status == .active } }
     private var activeSolution: CleaningSolution? { solutions.first { $0.status == .active } }
+    private var lastCleaning: CaseCleaning? { cleanings.first }
+    private var lastRoutineCare: RoutineCareLog? { routineCareLogs.first }
 
-    private var caseDetail: String {
-        guard let activeCase else { return "Nenhum ciclo iniciado ainda" }
-        let days = LensStatisticsService.daysUntil(activeCase.nextRecommendedReplacementDate)
-        return days <= 0 ? "Substituição recomendada já se aproximou" : "Substituição recomendada em \(days) dia(s)"
+    private var daysUntilCaseReplacement: Int? {
+        guard let activeCase else { return nil }
+        return LensStatisticsService.daysUntil(activeCase.nextRecommendedReplacementDate)
     }
 
-    private var solutionDetail: String {
-        guard let activeSolution else { return "Nenhum frasco registrado ainda" }
-        let days = LensStatisticsService.daysUntil(activeSolution.discardDate)
-        return days <= 0 ? "Validade recomendada já se aproximou" : "Descarte recomendado em \(days) dia(s)"
+    private var daysUntilSolutionDiscard: Int? {
+        guard let activeSolution else { return nil }
+        return LensStatisticsService.daysUntil(activeSolution.discardDate)
     }
 
     var body: some View {
         NavigationStack {
-            List {
-                NavigationLink {
-                    CaseView()
-                } label: {
-                    row(icon: "shippingbox", title: "Estojo", detail: caseDetail)
+            ScrollView {
+                VStack(spacing: 16) {
+                    caseSummaryCard
+                    solutionSummaryCard
+                    calendarCard
+                    orientationsCard
                 }
-                NavigationLink {
-                    CleaningSolutionView()
-                } label: {
-                    row(icon: "flask", title: "Solução de limpeza", detail: solutionDetail)
-                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
             .navigationTitle("Cuidados")
         }
     }
 
-    private func row(icon: String, title: String, detail: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var caseSummaryCard: some View {
+        SectionCard(title: "Estojo") {
+            VStack(alignment: .leading, spacing: 6) {
+                if let activeCase {
+                    StatRow(label: "Ciclo atual iniciado em", value: DateFormatting.short.string(from: activeCase.startDate))
+                    StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
+                    if let daysUntilCaseReplacement {
+                        StatRow(
+                            label: "Situação",
+                            value: daysUntilCaseReplacement <= 0
+                                ? "Substituição recomendada já se aproximou"
+                                : "Faltam \(daysUntilCaseReplacement) dia(s)"
+                        )
+                    }
+                } else {
+                    Text("Nenhum ciclo de estojo iniciado ainda.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                if let lastCleaning {
+                    StatRow(label: "Última limpeza periódica", value: DateFormatting.short.string(from: lastCleaning.cleaningDate))
+                }
+                if let lastRoutineCare {
+                    StatRow(label: "Último cuidado diário", value: DateFormatting.shortWithTime.string(from: lastRoutineCare.date))
+                }
+            }
+            NavigationLink {
+                CaseView()
+            } label: {
+                Text("Ver detalhes do estojo")
+            }
+            .font(.subheadline)
+            .padding(.top, 4)
+        }
+    }
+
+    private var solutionSummaryCard: some View {
+        SectionCard(title: "Solução de limpeza") {
+            VStack(alignment: .leading, spacing: 6) {
+                if let activeSolution {
+                    StatRow(label: "Aberto em", value: DateFormatting.short.string(from: activeSolution.openedDate))
+                    StatRow(label: "Descarte recomendado", value: DateFormatting.short.string(from: activeSolution.discardDate))
+                    if let daysUntilSolutionDiscard {
+                        StatRow(
+                            label: "Situação",
+                            value: daysUntilSolutionDiscard <= 0
+                                ? "Validade recomendada já se aproximou"
+                                : "Faltam \(daysUntilSolutionDiscard) dia(s)"
+                        )
+                    }
+                } else {
+                    Text("Nenhum frasco de solução registrado ainda.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            NavigationLink {
+                CleaningSolutionView()
+            } label: {
+                Text("Ver detalhes da solução")
+            }
+            .font(.subheadline)
+            .padding(.top, 4)
+        }
+    }
+
+    private var calendarCard: some View {
+        SectionCard(title: "Calendário de cuidados") {
+            MonthlyCareCalendarView(
+                loggedDates: routineCareLogs.map(\.date),
+                secondaryLoggedDates: cleanings.map(\.cleaningDate)
+            )
+        }
+    }
+
+    private var orientationsCard: some View {
+        SectionCard(title: "Orientações") {
+            VStack(alignment: .leading, spacing: 8) {
+                orientationRow("Nunca complete solução antiga com solução nova — descarte e use sempre solução fresca.")
+                orientationRow("Deixe o estojo secar ao ar livre depois de cada uso, sem tampar molhado.")
+                orientationRow("Siga sempre a validade e as instruções do fabricante das lentes e da solução.")
+                orientationRow("Procure um oftalmologista em caso de dor, vermelhidão ou alteração na visão.")
             }
         }
-        .padding(.vertical, 2)
+    }
+
+    private func orientationRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(Color.accentColor)
+                .font(.footnote)
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

@@ -21,8 +21,39 @@ struct LensInventoryView: View {
     private var availableItems: [LensInventoryItem] { items.filter { $0.status == .available } }
     private var exhaustedItems: [LensInventoryItem] { items.filter { $0.status == .exhausted } }
 
+    private var totalRight: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableItems, side: .right) }
+    private var totalLeft: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableItems, side: .left) }
+    private var totalBoth: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableItems, side: .both) }
+    private var nearestExpiry: Date? { LensInventoryStatisticsService.nearestExpiry(items: availableItems) }
+    private var lowStockItems: [LensInventoryItem] { availableItems.filter(LensInventoryStatisticsService.isLowStock) }
+    private var itemsNearExpiry: [LensInventoryItem] {
+        LensInventoryStatisticsService.itemsNearExpiry(items: availableItems, withinDays: 30)
+    }
+
     var body: some View {
         List {
+            if !availableItems.isEmpty {
+                Section("Resumo") {
+                    if totalRight > 0 {
+                        StatRow(label: "Olho direito", value: "\(totalRight) lente(s)")
+                    }
+                    if totalLeft > 0 {
+                        StatRow(label: "Olho esquerdo", value: "\(totalLeft) lente(s)")
+                    }
+                    if totalBoth > 0 {
+                        StatRow(label: "Ambos os olhos", value: "\(totalBoth) lente(s)")
+                    }
+                    if let nearestExpiry {
+                        StatRow(label: "Validade mais próxima", value: DateFormatting.short.string(from: nearestExpiry))
+                    }
+                    if !itemsNearExpiry.isEmpty {
+                        StatRow(label: "Caixas perto da validade", value: "\(itemsNearExpiry.count)")
+                    }
+                    if !lowStockItems.isEmpty {
+                        StatRow(label: "Estoque baixo", value: "\(lowStockItems.count) item(ns)")
+                    }
+                }
+            }
             Section("Disponível") {
                 if availableItems.isEmpty {
                     Text("Nenhum item disponível no estoque.")

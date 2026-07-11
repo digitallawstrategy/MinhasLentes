@@ -138,31 +138,19 @@ struct CaseView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Text("Descartar a solução usada, limpar o estojo e deixá-lo secar ao ar livre, todos os dias após remover as lentes.")
+            Text("Descartar a solução usada, limpar o estojo e deixá-lo secar ao ar livre, todos os dias após remover as lentes. O registro rápido do dia fica na aba Início — aqui dá para registrar com mais detalhes ou revisar o histórico.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
-            VStack(spacing: 10) {
-                Button {
-                    routineCareViewModel.registerRoutineCareToday(context: modelContext)
-                } label: {
-                    Label("Registrar cuidado de hoje", systemImage: "drop.circle")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-                Button("Registrar com detalhes") {
-                    routineDate = Date()
-                    routineDiscardedSolution = true
-                    routineCleanedCase = true
-                    routineAirDried = true
-                    routineNotes = ""
-                    showRegisterRoutineCareDetails = true
-                }
-                .font(.subheadline)
+            Button("Registrar em outro dia") {
+                routineDate = Date()
+                routineDiscardedSolution = true
+                routineCleanedCase = true
+                routineAirDried = true
+                routineNotes = ""
+                showRegisterRoutineCareDetails = true
             }
+            .buttonStyle(.bordered)
             .padding(.top, 4)
 
             Divider()

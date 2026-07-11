@@ -107,4 +107,37 @@ enum LensStatisticsService {
     static func calendarDaySet(from dates: [Date], calendar: Calendar = .current) -> Set<Date> {
         Set(dates.map { calendar.startOfDay(for: $0) })
     }
+
+    /// Intervalo médio, em dias, entre usos consecutivos de um par — a base da projeção de
+    /// término. `nil` com menos de dois registros: nunca inventa uma média a partir de um único
+    /// ponto de dado.
+    static func averageIntervalDays(betweenUsageDates dates: [Date], calendar: Calendar = .current) -> Double? {
+        guard dates.count >= 2 else { return nil }
+        let sortedDays = dates.map { calendar.startOfDay(for: $0) }.sorted()
+        let totalDays = calendar.dateComponents([.day], from: sortedDays.first!, to: sortedDays.last!).day ?? 0
+        guard totalDays > 0 else { return nil }
+        return Double(totalDays) / Double(sortedDays.count - 1)
+    }
+
+    /// Data aproximada em que os usos restantes se esgotariam, mantido o ritmo médio observado.
+    /// `nil` sem intervalo médio disponível ou sem usos restantes — é uma projeção, não uma
+    /// promessa, então só aparece quando há dado real o suficiente para sustentá-la.
+    static func projectedDepletionDate(
+        usesRemaining: Int,
+        averageIntervalDays: Double?,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date? {
+        guard let averageIntervalDays, averageIntervalDays > 0, usesRemaining > 0 else { return nil }
+        let daysAhead = Int((Double(usesRemaining) * averageIntervalDays).rounded())
+        return calendar.date(byAdding: .day, value: daysAhead, to: calendar.startOfDay(for: referenceDate))
+    }
+
+    /// Duração média de sessões de uso já encerradas (`endedAt != nil`) — ignora deliberadamente
+    /// qualquer sessão ainda ativa, que inflaria a média com uma duração parcial e crescente.
+    static func averageSessionDuration(sessions: [WearSession]) -> TimeInterval? {
+        let completed = sessions.filter { $0.endedAt != nil }
+        guard !completed.isEmpty else { return nil }
+        return completed.reduce(0) { $0 + $1.duration } / Double(completed.count)
+    }
 }
