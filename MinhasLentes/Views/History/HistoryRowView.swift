@@ -13,25 +13,25 @@ struct HistoryRowView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.typeLabel)
-                    .font(.subheadline.weight(.semibold))
+                    .font(AppTypography.subheadline.weight(.semibold))
                 HStack(spacing: 6) {
                     Text(DateFormatting.shortWithTime.string(from: item.date))
-                        .font(.footnote)
+                        .font(AppTypography.footnote)
                         .foregroundStyle(.secondary)
                     if let side = item.side {
                         Text("• \(side.displayName)")
-                            .font(.footnote)
+                            .font(AppTypography.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
                 if let pairName = item.pairName {
                     Text(pairName)
-                        .font(.footnote)
+                        .font(AppTypography.footnote)
                         .foregroundStyle(.secondary)
                 }
                 if let notes = item.notes, !notes.isEmpty {
                     Text(notes)
-                        .font(.footnote)
+                        .font(AppTypography.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                 }

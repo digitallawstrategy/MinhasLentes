@@ -19,13 +19,13 @@ struct PairDiaryView: View {
                         .frame(width: 28)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(entry.title)
-                            .font(.subheadline.weight(.semibold))
+                            .font(AppTypography.subheadline.weight(.semibold))
                         Text(DateFormatting.short.string(from: entry.date))
-                            .font(.footnote)
+                            .font(AppTypography.footnote)
                             .foregroundStyle(.secondary)
                         if let subtitle = entry.subtitle, !subtitle.isEmpty {
                             Text(subtitle)
-                                .font(.footnote)
+                                .font(AppTypography.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
