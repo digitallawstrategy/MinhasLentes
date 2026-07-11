@@ -62,6 +62,14 @@ struct ContentView: View {
         }
     }
 
+    /// Avaliado e descartado: uma `FloatingTabBar` totalmente customizada (substituindo a
+    /// `TabView` nativa) perderia comportamentos automáticos do sistema — rolar ao topo com
+    /// duplo toque, convenções de VoiceOver/rotor para navegação por abas — só para conseguir um
+    /// brilho decorativo atrás do ícone selecionado. No iOS desta base, a `TabView` nativa já
+    /// renderiza como uma barra flutuante arredondada por conta própria (visível nos prints do
+    /// aparelho real); o `.tint` abaixo só deixa explícito, em código, que a cor de seleção é a
+    /// mesma cor de marca do resto do app, em vez de depender implicitamente do accent color
+    /// global do projeto.
     private var mainTabs: some View {
         TabView(selection: $router.selectedTab) {
             HomeView()
@@ -80,6 +88,7 @@ struct ContentView: View {
                 .tabItem { Label("Mais", systemImage: "ellipsis.circle") }
                 .tag(AppTab.settings)
         }
+        .tint(AppColor.primary)
     }
 
     private func startupErrorView(_ error: IdentifiableError) -> some View {

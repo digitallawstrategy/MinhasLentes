@@ -33,7 +33,17 @@ struct StatusBadge: View {
         .frame(maxWidth: fullWidth ? .infinity : nil)
         .padding(.horizontal, AppSpacing.sm)
         .padding(.vertical, fullWidth ? AppSpacing.xs : AppSpacing.xxs)
-        .background(tone.color.opacity(0.15), in: Capsule())
+        .background {
+            // Sucesso usa o gradiente dedicado (dois tons de verde, não uma opacidade só) —
+            // é o selo de "já registrado hoje" que mais aparece na Home, então é o único que
+            // vale a pena destacar com esse tratamento; os demais tons continuam com uma
+            // opacidade chapada simples.
+            if case .success = tone {
+                Capsule().fill(AppGradient.successPillBackground)
+            } else {
+                Capsule().fill(tone.color.opacity(0.15))
+            }
+        }
         .foregroundStyle(tone.color)
         .accessibilityElement(children: .combine)
     }
