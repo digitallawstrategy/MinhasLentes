@@ -3,12 +3,12 @@ import SwiftUI
 /// Cartão-base do design system: toda superfície elevada da UI deriva daqui. Substitui
 /// `SectionCard` gradualmente, tela por tela — as duas convivem até a migração terminar.
 ///
-/// O padrão usa uma cor de superfície opaca (`AppColor.surfaceElevated`), não `Material` — um
-/// cartão translúcido em toda tela fica "vítreo demais" quando repetido dezenas de vezes, varia
-/// de aparência conforme o que está atrás, e muda bastante com "Reduzir transparência" ativado.
-/// `Material` fica reservado para `elevated: true`, quando uma superfície realmente precisa se
-/// destacar sobre outros cartões (não usado em nenhuma tela hoje).
+/// Fundo em gradiente sutil (não `Material`) com uma borda fina de luz e sombra suave — o efeito
+/// "elevado" da referência visual (`modelodesign.png`) vem da borda/sombra, não de transparência:
+/// um cartão translúcido em toda tela fica "vítreo demais" quando repetido dezenas de vezes,
+/// varia de aparência conforme o que está atrás, e muda bastante com "Reduzir transparência".
 struct AppCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
     var elevated: Bool = false
     @ViewBuilder var content: () -> Content
 
@@ -16,15 +16,19 @@ struct AppCard<Content: View>: View {
         VStack(alignment: .leading, spacing: AppSpacing.sm, content: content)
             .padding(AppSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                if elevated {
-                    RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
-                        .fill(AppElevation.surface)
-                } else {
-                    RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
-                        .fill(AppColor.surfaceElevated)
-                }
-            }
+            .background(
+                RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
+                    .fill(AppGradient.cardBackground(elevated: elevated))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
+                    .strokeBorder(AppGradient.cardBorder(colorScheme: colorScheme), lineWidth: 1)
+            )
+            .shadow(
+                color: AppShadow.floatingColor,
+                radius: elevated ? 16 : 8,
+                y: elevated ? 6 : 3
+            )
     }
 }
 

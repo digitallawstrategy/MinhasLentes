@@ -26,6 +26,7 @@ struct PrimaryActionButton: View {
         }
         .buttonStyle(.borderedProminent)
         .disabled(isDisabled)
+        .pressScale()
     }
 }
 
@@ -48,6 +49,7 @@ struct SecondaryActionButton: View {
         .buttonStyle(.bordered)
         .tint(tint)
         .disabled(isDisabled)
+        .pressScale()
     }
 }
 

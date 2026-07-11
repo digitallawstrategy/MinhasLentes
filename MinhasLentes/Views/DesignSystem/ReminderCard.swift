@@ -30,6 +30,7 @@ struct ReminderCard: View {
             }
         }
         .buttonStyle(.plain)
+        .pressScale()
         .accessibilityElement(children: .combine)
     }
 
