@@ -42,6 +42,9 @@ struct SettingsView: View {
                 healthSection
                 caseSection
                 caseLifecycleSection
+                solutionSection
+                inventorySection
+                appointmentSection
                 notificationStatusSection
                 notificationPreferencesSection
                 backupSection
@@ -129,6 +132,11 @@ struct SettingsView: View {
         lines.append("Eventos de histórico: \(report.eventsImported) importado(s), \(report.eventsSkippedAsDuplicate) ignorado(s) por já existir.")
         lines.append("Ciclos do estojo: \(report.casesImported) importado(s), \(report.casesSkippedAsDuplicate) ignorado(s) por já existir.")
         lines.append("Cuidados diários: \(report.routineCareLogsImported) importado(s), \(report.routineCareLogsSkippedAsDuplicate) ignorado(s) por já existir.")
+        lines.append("Soluções de limpeza: \(report.solutionsImported) importado(s), \(report.solutionsSkippedAsDuplicate) ignorado(s) por já existir.")
+        lines.append("Itens de estoque: \(report.inventoryItemsImported) importado(s), \(report.inventoryItemsSkippedAsDuplicate) ignorado(s) por já existir.")
+        lines.append("Profissionais: \(report.professionalsImported) importado(s), \(report.professionalsSkippedAsDuplicate) ignorado(s) por já existir.")
+        lines.append("Consultas: \(report.appointmentsImported) importada(s), \(report.appointmentsSkippedAsDuplicate) ignorada(s) por já existir.")
+        lines.append("Sessões de uso: \(report.wearSessionsImported) importada(s), \(report.wearSessionsSkippedAsDuplicate) ignorada(s) por já existir.")
         lines.append("Configurações: \(report.settingsImported ? "importadas" : "mantidas as atuais").")
         return lines.joined(separator: "\n")
     }
@@ -171,14 +179,19 @@ struct SettingsView: View {
                 }
             }
 
-            Stepper("Lembrete de remoção: \(settings.wearingReminderHours)h", value: Binding(
+            Stepper("Tempo considerado excessivo: \(settings.wearingReminderHours)h", value: Binding(
                 get: { settings.wearingReminderHours },
                 set: { settings.wearingReminderHours = $0; saveSettings() }
             ), in: 1...24)
+
+            Stepper("Repetir a cada: \(settings.wearingExcessiveRepeatIntervalHours)h", value: Binding(
+                get: { settings.wearingExcessiveRepeatIntervalHours },
+                set: { settings.wearingExcessiveRepeatIntervalHours = $0; saveSettings() }
+            ), in: 1...12)
         } header: {
             Text("Lentes")
         } footer: {
-            Text("O lembrete de remoção vale para a sessão \"Estou usando as lentes\", iniciada pela tela Início.")
+            Text("Na sessão \"Estou usando as lentes\", dispara três avisos (o tempo acima, +1h, +2h) e depois repete no intervalo configurado aqui. Só vale para a próxima sessão iniciada — não reagenda uma sessão já em andamento.")
         }
     }
 
@@ -251,6 +264,54 @@ struct SettingsView: View {
             Text("Ciclo de vida do estojo")
         } footer: {
             Text("Usado apenas para o próximo ciclo iniciado — não altera o prazo de um ciclo já em andamento. Os avisos de 15 e 7 dias antes e no dia recomendado usam sempre uma linguagem sem alarme; o lembrete periódico só começa depois que o prazo já passou.")
+        }
+    }
+
+    private var solutionSection: some View {
+        Section {
+            Toggle("Avisos de validade da solução de limpeza", isOn: Binding(
+                get: { settings.solutionReminderEnabled },
+                set: { settings.solutionReminderEnabled = $0; rescheduleCleaningSolutionNotifications() }
+            ))
+
+            Stepper("Repetir lembrete a cada: \(settings.solutionOverdueReminderIntervalDays) dias", value: Binding(
+                get: { settings.solutionOverdueReminderIntervalDays },
+                set: { settings.solutionOverdueReminderIntervalDays = $0; rescheduleCleaningSolutionNotifications() }
+            ), in: 1...30)
+        } header: {
+            Text("Solução de limpeza")
+        } footer: {
+            Text("A validade após aberto e a data impressa no rótulo são sempre informadas por frasco — nunca um prazo padrão do aplicativo.")
+        }
+    }
+
+    private var inventorySection: some View {
+        Section {
+            Toggle("Avisos de validade do estoque", isOn: Binding(
+                get: { settings.inventoryReminderEnabled },
+                set: { settings.inventoryReminderEnabled = $0; rescheduleInventoryNotifications() }
+            ))
+        } header: {
+            Text("Estoque de lentes")
+        } footer: {
+            Text("Avisos de 60, 30 e 7 dias antes e no dia da validade de cada item. Diferente de um item já vencido não usado, não há lembrete repetido — o app apenas impede selecioná-lo sem confirmação explícita ao iniciar um novo par.")
+        }
+    }
+
+    private var appointmentSection: some View {
+        Section {
+            Toggle("Lembretes de consulta", isOn: Binding(
+                get: { settings.appointmentReminderEnabled },
+                set: { settings.appointmentReminderEnabled = $0; rescheduleAppointmentNotifications() }
+            ))
+            Stepper("Prazo padrão até a próxima: \(settings.defaultAppointmentIntervalMonths) meses", value: Binding(
+                get: { settings.defaultAppointmentIntervalMonths },
+                set: { settings.defaultAppointmentIntervalMonths = $0; saveSettings() }
+            ), in: 1...24)
+        } header: {
+            Text("Consultas")
+        } footer: {
+            Text("Avisos de 30, 7 e 1 dia antes, e 2 horas antes de cada consulta. O prazo padrão só vale para novas consultas — siga sempre a recomendação do seu oftalmologista quanto ao retorno.")
         }
     }
 
@@ -329,6 +390,11 @@ struct SettingsView: View {
     private var dataSection: some View {
         Section("Dados") {
             NavigationLink {
+                HistoryView()
+            } label: {
+                Label("Histórico", systemImage: "clock")
+            }
+            NavigationLink {
                 TrashView()
             } label: {
                 LabeledContent("Lixeira") {
@@ -400,6 +466,18 @@ struct SettingsView: View {
 
     private func rescheduleLensCaseNotifications() {
         Task { await viewModel.rescheduleLensCaseNotifications(settings: settings, context: modelContext) }
+    }
+
+    private func rescheduleCleaningSolutionNotifications() {
+        Task { await viewModel.rescheduleCleaningSolutionNotifications(settings: settings, context: modelContext) }
+    }
+
+    private func rescheduleInventoryNotifications() {
+        Task { await viewModel.rescheduleLensInventoryNotifications(settings: settings, context: modelContext) }
+    }
+
+    private func rescheduleAppointmentNotifications() {
+        Task { await viewModel.rescheduleEyeAppointmentNotifications(settings: settings, context: modelContext) }
     }
 }
 

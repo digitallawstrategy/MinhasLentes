@@ -83,6 +83,69 @@ final class SettingsViewModel {
         )
     }
 
+    /// Deve ser chamado após alterar `solutionReminderEnabled` ou
+    /// `solutionOverdueReminderIntervalDays`, para que a mudança valha imediatamente para o
+    /// frasco ativo de solução (se houver).
+    func rescheduleCleaningSolutionNotifications(settings: AppSettings, context: ModelContext) async {
+        do {
+            try context.save()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível salvar a preferência. \(error.localizedDescription)")
+            return
+        }
+        guard let activeSolution = try? CleaningSolutionService.activeSolution(context: context) else { return }
+        await NotificationManager.shared.cancelCleaningSolutionNotifications()
+        do {
+            try await NotificationManager.shared.scheduleCleaningSolutionNotifications(discardDate: activeSolution.discardDate, settings: settings)
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível reagendar as notificações da solução. \(error.localizedDescription)")
+            return
+        }
+        await NotificationManager.shared.refreshOverdueSolutionReminder(discardDate: activeSolution.discardDate, settings: settings)
+    }
+
+    /// Deve ser chamado após alterar `inventoryReminderEnabled`. Como pode haver vários itens
+    /// de estoque simultaneamente (diferente de estojo/solução), reagenda item por item.
+    func rescheduleLensInventoryNotifications(settings: AppSettings, context: ModelContext) async {
+        do {
+            try context.save()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível salvar a preferência. \(error.localizedDescription)")
+            return
+        }
+        guard let items = try? LensInventoryService.availableItems(context: context) else { return }
+        for item in items {
+            await NotificationManager.shared.cancelLensInventoryNotifications(for: item.id)
+            do {
+                try await NotificationManager.shared.scheduleLensInventoryNotifications(for: item, settings: settings)
+            } catch {
+                presentedError = IdentifiableError(message: "Não foi possível reagendar as notificações do estoque. \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Deve ser chamado após alterar `appointmentReminderEnabled`. Como pode haver várias
+    /// consultas agendadas simultaneamente, reagenda uma a uma.
+    func rescheduleEyeAppointmentNotifications(settings: AppSettings, context: ModelContext) async {
+        do {
+            try context.save()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível salvar a preferência. \(error.localizedDescription)")
+            return
+        }
+        guard let appointments = try? EyeAppointmentService.allAppointments(context: context) else { return }
+        for appointment in appointments where appointment.status == .scheduled {
+            await NotificationManager.shared.cancelEyeAppointmentNotifications(for: appointment.id)
+            do {
+                try await NotificationManager.shared.scheduleEyeAppointmentNotifications(
+                    for: appointment, professionalName: appointment.professional?.name, settings: settings
+                )
+            } catch {
+                presentedError = IdentifiableError(message: "Não foi possível reagendar as notificações de consulta. \(error.localizedDescription)")
+            }
+        }
+    }
+
     func requestTrackingModeChange(to newMode: TrackingMode, current: TrackingMode) {
         guard newMode != current else { return }
         pendingTrackingMode = newMode
@@ -109,6 +172,8 @@ final class SettingsViewModel {
     /// Apaga todos os dados de forma "tudo ou nada": se qualquer etapa falhar, a operação é
     /// desfeita por completo (`context.rollback()`) e nenhum dado é perdido.
     func eraseAllData(context: ModelContext) async {
+        let inventoryItemIDs = (try? LensInventoryService.allItems(context: context).map(\.id)) ?? []
+        let appointmentIDs = (try? EyeAppointmentService.allAppointments(context: context).map(\.id)) ?? []
         do {
             for usage in try context.fetch(FetchDescriptor<LensUsage>()) { context.delete(usage) }
             for pair in try context.fetch(FetchDescriptor<LensPair>()) { context.delete(pair) }
@@ -117,6 +182,11 @@ final class SettingsViewModel {
             for settings in try context.fetch(FetchDescriptor<AppSettings>()) { context.delete(settings) }
             for lensCase in try context.fetch(FetchDescriptor<LensCase>()) { context.delete(lensCase) }
             for log in try context.fetch(FetchDescriptor<RoutineCareLog>()) { context.delete(log) }
+            for solution in try context.fetch(FetchDescriptor<CleaningSolution>()) { context.delete(solution) }
+            for item in try context.fetch(FetchDescriptor<LensInventoryItem>()) { context.delete(item) }
+            for appointment in try context.fetch(FetchDescriptor<EyeAppointment>()) { context.delete(appointment) }
+            for professional in try context.fetch(FetchDescriptor<EyeCareProfessional>()) { context.delete(professional) }
+            for session in try context.fetch(FetchDescriptor<WearSession>()) { context.delete(session) }
             try context.save()
         } catch {
             context.rollback()
@@ -125,6 +195,15 @@ final class SettingsViewModel {
         }
         await NotificationManager.shared.cancelCaseCleaningNotifications()
         await NotificationManager.shared.cancelLensCaseNotifications()
+        await NotificationManager.shared.cancelCleaningSolutionNotifications()
+        for itemID in inventoryItemIDs {
+            await NotificationManager.shared.cancelLensInventoryNotifications(for: itemID)
+        }
+        for appointmentID in appointmentIDs {
+            await NotificationManager.shared.cancelEyeAppointmentNotifications(for: appointmentID)
+        }
+        NotificationManager.shared.cancelWearingExcessiveNotifications()
+        await LiveActivityService.endWearingSession()
         #if DEBUG
         await NotificationManager.shared.cancelTestNotifications()
         #endif

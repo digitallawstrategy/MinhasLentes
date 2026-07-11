@@ -9,7 +9,9 @@ struct CaseView: View {
     @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
     @Query private var allSettings: [AppSettings]
 
-    @State private var viewModel = CaseViewModel()
+    @State private var cleaningViewModel = CaseCleaningViewModel()
+    @State private var lensCaseViewModel = LensCaseViewModel()
+    @State private var routineCareViewModel = RoutineCareViewModel()
     @State private var showRegisterOtherDate = false
     @State private var customDate = Date()
     @State private var customNotes = ""
@@ -141,7 +143,7 @@ struct CaseView: View {
 
             VStack(spacing: 10) {
                 Button {
-                    viewModel.registerRoutineCareToday(context: modelContext)
+                    routineCareViewModel.registerRoutineCareToday(context: modelContext)
                 } label: {
                     Label("Registrar cuidado de hoje", systemImage: "drop.circle")
                         .font(.headline)
@@ -161,6 +163,10 @@ struct CaseView: View {
                 .font(.subheadline)
             }
             .padding(.top, 4)
+
+            Divider()
+                .padding(.vertical, 4)
+            MonthlyCareCalendarView(loggedDates: routineCareLogs.map(\.date))
         }
     }
 
@@ -203,7 +209,7 @@ struct CaseView: View {
 
                         VStack(spacing: 10) {
                             Button {
-                                Task { await viewModel.registerCleaningToday(settings: settings, context: modelContext) }
+                                Task { await cleaningViewModel.registerCleaningToday(settings: settings, context: modelContext) }
                             } label: {
                                 Label("Limpei o estojo hoje", systemImage: "sparkles")
                                     .font(.headline)
@@ -272,15 +278,15 @@ struct CaseView: View {
             }
             .navigationTitle("Estojo")
             .overlay(alignment: .bottom) {
-                if viewModel.showUndoToast, let message = viewModel.toastMessage {
+                if cleaningViewModel.showUndoToast, let message = cleaningViewModel.toastMessage {
                     ConfirmationToast(message: message, actionTitle: "Desfazer") {
-                        Task { await viewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
+                        Task { await cleaningViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
                     }
                     .padding(.bottom, 8)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.snappy, value: viewModel.showUndoToast)
+            .animation(.snappy, value: cleaningViewModel.showUndoToast)
             .sheet(isPresented: $showRegisterOtherDate) {
                 NavigationStack {
                     Form {
@@ -297,7 +303,7 @@ struct CaseView: View {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Salvar") {
                                 Task {
-                                    await viewModel.registerCleaning(
+                                    await cleaningViewModel.registerCleaning(
                                         date: customDate,
                                         notes: customNotes.isEmpty ? nil : customNotes,
                                         settings: settings,
@@ -313,7 +319,7 @@ struct CaseView: View {
             }
             .sheet(item: $cleaningToEdit) { cleaning in
                 EditCleaningSheet(cleaning: cleaning) { date, notes in
-                    Task { await viewModel.editCleaning(cleaning, newDate: date, newNotes: notes, settings: settings, context: modelContext) }
+                    Task { await cleaningViewModel.editCleaning(cleaning, newDate: date, newNotes: notes, settings: settings, context: modelContext) }
                 }
             }
             .sheet(isPresented: $showStartOrReplaceCase) {
@@ -321,7 +327,7 @@ struct CaseView: View {
                     isReplacing: activeCase != nil,
                     defaultIntervalDays: settings.caseReplacementIntervalDays
                 ) { startDate, intervalDays, notes in
-                    Task { await viewModel.startOrReplaceCase(startDate: startDate, intervalDays: intervalDays, notes: notes, settings: settings, context: modelContext) }
+                    Task { await lensCaseViewModel.startOrReplaceCase(startDate: startDate, intervalDays: intervalDays, notes: notes, settings: settings, context: modelContext) }
                 }
             }
             .sheet(isPresented: $showRegisterRoutineCareDetails) {
@@ -342,7 +348,7 @@ struct CaseView: View {
                         }
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Salvar") {
-                                viewModel.registerRoutineCare(
+                                routineCareViewModel.registerRoutineCare(
                                     date: routineDate, discardedSolution: routineDiscardedSolution,
                                     cleanedCase: routineCleanedCase, airDried: routineAirDried,
                                     notes: routineNotes.isEmpty ? nil : routineNotes, context: modelContext
@@ -357,10 +363,34 @@ struct CaseView: View {
             .alert(
                 "Não foi possível concluir a ação",
                 isPresented: Binding(
-                    get: { viewModel.presentedError != nil },
-                    set: { if !$0 { viewModel.presentedError = nil } }
+                    get: { cleaningViewModel.presentedError != nil },
+                    set: { if !$0 { cleaningViewModel.presentedError = nil } }
                 ),
-                presenting: viewModel.presentedError
+                presenting: cleaningViewModel.presentedError
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { error in
+                Text(error.message)
+            }
+            .alert(
+                "Não foi possível concluir a ação",
+                isPresented: Binding(
+                    get: { lensCaseViewModel.presentedError != nil },
+                    set: { if !$0 { lensCaseViewModel.presentedError = nil } }
+                ),
+                presenting: lensCaseViewModel.presentedError
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { error in
+                Text(error.message)
+            }
+            .alert(
+                "Não foi possível concluir a ação",
+                isPresented: Binding(
+                    get: { routineCareViewModel.presentedError != nil },
+                    set: { if !$0 { routineCareViewModel.presentedError = nil } }
+                ),
+                presenting: routineCareViewModel.presentedError
             ) { _ in
                 Button("OK", role: .cancel) {}
             } message: { error in
@@ -376,7 +406,7 @@ struct CaseView: View {
                 Button("Cancelar", role: .cancel) { cleaningToDelete = nil }
                 Button("Excluir", role: .destructive) {
                     if let cleaning = cleaningToDelete {
-                        Task { await viewModel.deleteCleaning(cleaning, settings: settings, context: modelContext) }
+                        Task { await cleaningViewModel.deleteCleaning(cleaning, settings: settings, context: modelContext) }
                     }
                     cleaningToDelete = nil
                 }

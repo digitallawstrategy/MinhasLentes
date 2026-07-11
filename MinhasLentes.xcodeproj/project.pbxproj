@@ -65,10 +65,16 @@
 			membershipExceptions = (
 				Models/AppSettings.swift,
 				Models/CaseCleaning.swift,
+				Models/CleaningSolution.swift,
+				Models/EyeAppointment.swift,
+				Models/EyeCareProfessional.swift,
 				Models/HistoryEvent.swift,
+				Models/LensCase.swift,
 				Models/LensEnums.swift,
 				Models/LensPair.swift,
 				Models/LensUsage.swift,
+				Models/WearSession.swift,
+				Services/LensStatisticsService.swift,
 				Support/AppGroup.swift,
 				Support/LensActivityAttributes.swift,
 			);

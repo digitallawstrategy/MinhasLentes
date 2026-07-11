@@ -105,6 +105,25 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
     case routineCareRegistered
     case routineCareDeleted
     case routineCareEdited
+    case solutionOpened
+    case solutionClosed
+    case solutionEdited
+    case solutionDeleted
+    case inventoryItemAdded
+    case inventoryItemEdited
+    case inventoryItemDeleted
+    case inventoryItemExhausted
+    case inventoryItemUsed
+    case professionalAdded
+    case professionalEdited
+    case professionalDeleted
+    case appointmentScheduled
+    case appointmentEdited
+    case appointmentCompleted
+    case appointmentCanceled
+    case appointmentDeleted
+    case wearSessionStarted
+    case wearSessionEnded
 
     var displayName: String {
         switch self {
@@ -130,6 +149,25 @@ enum HistoryEventType: String, Codable, CaseIterable, Hashable, Sendable {
         case .routineCareRegistered: return "Cuidado diário registrado"
         case .routineCareDeleted: return "Cuidado diário excluído"
         case .routineCareEdited: return "Cuidado diário editado"
+        case .solutionOpened: return "Novo frasco de solução"
+        case .solutionClosed: return "Frasco de solução finalizado"
+        case .solutionEdited: return "Solução de limpeza editada"
+        case .solutionDeleted: return "Solução de limpeza excluída"
+        case .inventoryItemAdded: return "Item adicionado ao estoque"
+        case .inventoryItemEdited: return "Item do estoque editado"
+        case .inventoryItemDeleted: return "Item do estoque excluído"
+        case .inventoryItemExhausted: return "Item do estoque esgotado"
+        case .inventoryItemUsed: return "Lente do estoque utilizada"
+        case .professionalAdded: return "Profissional adicionado"
+        case .professionalEdited: return "Profissional editado"
+        case .professionalDeleted: return "Profissional excluído"
+        case .appointmentScheduled: return "Consulta agendada"
+        case .appointmentEdited: return "Consulta editada"
+        case .appointmentCompleted: return "Consulta realizada"
+        case .appointmentCanceled: return "Consulta cancelada"
+        case .appointmentDeleted: return "Consulta excluída"
+        case .wearSessionStarted: return "Sessão de uso iniciada"
+        case .wearSessionEnded: return "Sessão de uso encerrada"
         }
     }
 }

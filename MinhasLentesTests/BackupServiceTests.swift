@@ -31,6 +31,25 @@ final class BackupServiceTests: XCTestCase {
         _ = try RoutineCareService.registerCare(
             date: TestSupport.date(2026, 7, 10), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context
         )
+        _ = try await CleaningSolutionService.startNewSolution(
+            brand: "Marca", product: "Multiuso", lot: nil, purchaseDate: nil, openedDate: TestSupport.date(2026, 7, 10),
+            printedExpiryDate: nil, postOpeningShelfLifeDays: 90, initialVolumeML: 120, notes: nil,
+            settings: settings, context: context
+        )
+        _ = try await LensInventoryService.addItem(
+            brand: "Marca", model: "Modelo", prescriptionOD: nil, prescriptionOS: nil, side: .both,
+            lot: nil, expiryDate: nil, initialQuantity: 2, photoData: nil, notes: nil,
+            settings: settings, context: context
+        )
+        let professional = try EyeCareProfessionalService.addProfessional(
+            name: "Dra. Ana", clinic: nil, phone: nil, whatsapp: nil, email: nil, address: nil, notes: nil, context: context
+        )
+        _ = try await EyeAppointmentService.scheduleAppointment(
+            date: TestSupport.date(2026, 8, 10), type: .routine, notes: nil, prescription: nil, attachmentData: nil,
+            recommendedFollowUpMonths: 12, professional: professional, settings: settings, context: context
+        )
+        let wearSession = try WearSessionService.startSession(for: pair, startedAt: TestSupport.date(2026, 7, 10, hour: 8), context: context)
+        try WearSessionService.endSession(wearSession, endedAt: TestSupport.date(2026, 7, 10, hour: 16), context: context)
 
         try context.save()
         return context
@@ -54,6 +73,11 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(envelope.cleanings.count, 1)
         XCTAssertEqual(envelope.cases?.count, 1)
         XCTAssertEqual(envelope.routineCareLogs?.count, 1)
+        XCTAssertEqual(envelope.solutions?.count, 1)
+        XCTAssertEqual(envelope.inventoryItems?.count, 1)
+        XCTAssertEqual(envelope.professionals?.count, 1)
+        XCTAssertEqual(envelope.appointments?.count, 1)
+        XCTAssertEqual(envelope.wearSessions?.count, 1)
         XCTAssertNotNil(envelope.settings)
     }
 
@@ -77,11 +101,21 @@ final class BackupServiceTests: XCTestCase {
         let envelope = try BackupService.validate(url: url)
         XCTAssertNil(envelope.cases)
         XCTAssertNil(envelope.routineCareLogs)
+        XCTAssertNil(envelope.solutions)
+        XCTAssertNil(envelope.inventoryItems)
+        XCTAssertNil(envelope.professionals)
+        XCTAssertNil(envelope.appointments)
+        XCTAssertNil(envelope.wearSessions)
 
         let context = TestSupport.makeContext()
         let report = try BackupService.importBackup(from: url, mode: .replace, context: context)
         XCTAssertEqual(report.casesImported, 0)
         XCTAssertEqual(report.routineCareLogsImported, 0)
+        XCTAssertEqual(report.solutionsImported, 0)
+        XCTAssertEqual(report.inventoryItemsImported, 0)
+        XCTAssertEqual(report.professionalsImported, 0)
+        XCTAssertEqual(report.appointmentsImported, 0)
+        XCTAssertEqual(report.wearSessionsImported, 0)
         XCTAssertTrue(report.settingsImported)
     }
 
@@ -159,6 +193,11 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(report.cleaningsImported, 1)
         XCTAssertEqual(report.casesImported, 1)
         XCTAssertEqual(report.routineCareLogsImported, 1)
+        XCTAssertEqual(report.solutionsImported, 1)
+        XCTAssertEqual(report.inventoryItemsImported, 1)
+        XCTAssertEqual(report.professionalsImported, 1)
+        XCTAssertEqual(report.appointmentsImported, 1)
+        XCTAssertEqual(report.wearSessionsImported, 1)
         XCTAssertTrue(report.settingsImported)
 
         let importedPairs = try LensPairService.allPairs(context: targetContext)
@@ -167,6 +206,15 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(importedPairs.first?.usesCount, 2)
         XCTAssertEqual(try LensCaseService.allCases(context: targetContext).count, 1)
         XCTAssertEqual(try RoutineCareService.allLogs(context: targetContext).count, 1)
+        XCTAssertEqual(try CleaningSolutionService.allSolutions(context: targetContext).count, 1)
+        XCTAssertEqual(try LensInventoryService.allItems(context: targetContext).count, 1)
+        XCTAssertEqual(try EyeCareProfessionalService.allProfessionals(context: targetContext).count, 1)
+        let importedAppointments = try EyeAppointmentService.allAppointments(context: targetContext)
+        XCTAssertEqual(importedAppointments.count, 1)
+        XCTAssertNotNil(importedAppointments.first?.professional, "A consulta importada deve religar ao profissional importado")
+        let importedSessions = try WearSessionService.allSessions(context: targetContext)
+        XCTAssertEqual(importedSessions.count, 1)
+        XCTAssertNotNil(importedSessions.first?.lensPair, "A sessão importada deve religar ao par importado")
     }
 
     func testMergeImportDoesNotDuplicateExistingRecords() async throws {
@@ -189,6 +237,11 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(secondReport.cleaningsSkippedAsDuplicate, 1)
         XCTAssertEqual(secondReport.casesSkippedAsDuplicate, 1)
         XCTAssertEqual(secondReport.routineCareLogsSkippedAsDuplicate, 1)
+        XCTAssertEqual(secondReport.solutionsSkippedAsDuplicate, 1)
+        XCTAssertEqual(secondReport.inventoryItemsSkippedAsDuplicate, 1)
+        XCTAssertEqual(secondReport.professionalsSkippedAsDuplicate, 1)
+        XCTAssertEqual(secondReport.appointmentsSkippedAsDuplicate, 1)
+        XCTAssertEqual(secondReport.wearSessionsSkippedAsDuplicate, 1)
 
         let pairs = try LensPairService.allPairs(context: targetContext)
         XCTAssertEqual(pairs.count, 1, "A mesclagem repetida não deve duplicar pares")

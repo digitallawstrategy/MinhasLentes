@@ -64,6 +64,16 @@ enum BackupService {
         var casesSkippedAsDuplicate = 0
         var routineCareLogsImported = 0
         var routineCareLogsSkippedAsDuplicate = 0
+        var solutionsImported = 0
+        var solutionsSkippedAsDuplicate = 0
+        var inventoryItemsImported = 0
+        var inventoryItemsSkippedAsDuplicate = 0
+        var professionalsImported = 0
+        var professionalsSkippedAsDuplicate = 0
+        var appointmentsImported = 0
+        var appointmentsSkippedAsDuplicate = 0
+        var wearSessionsImported = 0
+        var wearSessionsSkippedAsDuplicate = 0
     }
 
     // MARK: - Estrutura do arquivo (versionada)
@@ -80,6 +90,79 @@ enum BackupService {
         /// introduziu o ciclo de vida do estojo (ausente = nenhum registro, não "erro").
         var cases: [CaseDTO]? = nil
         var routineCareLogs: [RoutineCareLogDTO]? = nil
+        var solutions: [SolutionDTO]? = nil
+        var inventoryItems: [InventoryItemDTO]? = nil
+        var professionals: [ProfessionalDTO]? = nil
+        var appointments: [AppointmentDTO]? = nil
+        var wearSessions: [WearSessionDTO]? = nil
+    }
+
+    struct WearSessionDTO: Codable {
+        var id: UUID
+        var lensPairID: UUID?
+        var startedAt: Date
+        var endedAt: Date?
+        var status: String
+        var createdAt: Date
+    }
+
+    struct ProfessionalDTO: Codable {
+        var id: UUID
+        var name: String
+        var clinic: String?
+        var phone: String?
+        var whatsapp: String?
+        var email: String?
+        var address: String?
+        var notes: String?
+        var createdAt: Date
+    }
+
+    struct AppointmentDTO: Codable {
+        var id: UUID
+        var professionalID: UUID?
+        var date: Date
+        var type: String
+        var notes: String?
+        var prescription: String?
+        var attachmentData: Data?
+        var recommendedFollowUpMonths: Int
+        var status: String
+        var createdAt: Date
+    }
+
+    struct InventoryItemDTO: Codable {
+        var id: UUID
+        var brand: String
+        var model: String
+        var prescriptionOD: String?
+        var prescriptionOS: String?
+        var side: String
+        var lot: String?
+        var expiryDate: Date?
+        var initialQuantity: Int
+        var remainingQuantity: Int
+        var photoData: Data?
+        var notes: String?
+        var status: String
+        var createdAt: Date
+    }
+
+    struct SolutionDTO: Codable {
+        var id: UUID
+        var brand: String
+        var product: String
+        var lot: String?
+        var purchaseDate: Date?
+        var openedDate: Date
+        var printedExpiryDate: Date?
+        var postOpeningShelfLifeDays: Int
+        var initialVolumeML: Int?
+        var remainingVolumeML: Int?
+        var notes: String?
+        var status: String
+        var finishedAt: Date?
+        var createdAt: Date
     }
 
     struct CaseDTO: Codable {
@@ -160,6 +243,15 @@ enum BackupService {
         var healthWarningBelowPercent: Int? = nil
         var healthCriticalBelowPercent: Int? = nil
         var wearingReminderHours: Int? = nil
+        var wearingExcessiveRepeatIntervalHours: Int? = nil
+        var caseReplacementIntervalDays: Int? = nil
+        var caseReminderEnabled: Bool? = nil
+        var caseOverdueReminderIntervalDays: Int? = nil
+        var solutionReminderEnabled: Bool? = nil
+        var solutionOverdueReminderIntervalDays: Int? = nil
+        var inventoryReminderEnabled: Bool? = nil
+        var appointmentReminderEnabled: Bool? = nil
+        var defaultAppointmentIntervalMonths: Int? = nil
     }
 
     // MARK: - Exportação
@@ -169,6 +261,11 @@ enum BackupService {
         let cleanings = try CaseCleaningService.allCleanings(context: context)
         let cases = try LensCaseService.allCases(context: context)
         let routineCareLogs = try RoutineCareService.allLogs(context: context)
+        let solutions = try CleaningSolutionService.allSolutions(context: context)
+        let inventoryItems = try LensInventoryService.allItems(context: context)
+        let professionals = try EyeCareProfessionalService.allProfessionals(context: context)
+        let appointments = try EyeAppointmentService.allAppointments(context: context)
+        let wearSessions = try WearSessionService.allSessions(context: context)
 
         let events: [HistoryEvent]
         do {
@@ -249,7 +346,16 @@ enum BackupService {
                     healthGoodBelowPercent: s.healthGoodBelowPercent,
                     healthWarningBelowPercent: s.healthWarningBelowPercent,
                     healthCriticalBelowPercent: s.healthCriticalBelowPercent,
-                    wearingReminderHours: s.wearingReminderHours
+                    wearingReminderHours: s.wearingReminderHours,
+                    wearingExcessiveRepeatIntervalHours: s.wearingExcessiveRepeatIntervalHours,
+                    caseReplacementIntervalDays: s.caseReplacementIntervalDays,
+                    caseReminderEnabled: s.caseReminderEnabled,
+                    caseOverdueReminderIntervalDays: s.caseOverdueReminderIntervalDays,
+                    solutionReminderEnabled: s.solutionReminderEnabled,
+                    solutionOverdueReminderIntervalDays: s.solutionOverdueReminderIntervalDays,
+                    inventoryReminderEnabled: s.inventoryReminderEnabled,
+                    appointmentReminderEnabled: s.appointmentReminderEnabled,
+                    defaultAppointmentIntervalMonths: s.defaultAppointmentIntervalMonths
                 )
             },
             cases: cases.map {
@@ -262,6 +368,43 @@ enum BackupService {
                 RoutineCareLogDTO(
                     id: $0.id, date: $0.date, discardedSolution: $0.discardedSolution, cleanedCase: $0.cleanedCase,
                     airDried: $0.airDried, notes: $0.notes, createdAt: $0.createdAt
+                )
+            },
+            solutions: solutions.map {
+                SolutionDTO(
+                    id: $0.id, brand: $0.brand, product: $0.product, lot: $0.lot, purchaseDate: $0.purchaseDate,
+                    openedDate: $0.openedDate, printedExpiryDate: $0.printedExpiryDate,
+                    postOpeningShelfLifeDays: $0.postOpeningShelfLifeDays, initialVolumeML: $0.initialVolumeML,
+                    remainingVolumeML: $0.remainingVolumeML, notes: $0.notes, status: $0.statusRawValue,
+                    finishedAt: $0.finishedAt, createdAt: $0.createdAt
+                )
+            },
+            inventoryItems: inventoryItems.map {
+                InventoryItemDTO(
+                    id: $0.id, brand: $0.brand, model: $0.model, prescriptionOD: $0.prescriptionOD,
+                    prescriptionOS: $0.prescriptionOS, side: $0.sideRawValue, lot: $0.lot, expiryDate: $0.expiryDate,
+                    initialQuantity: $0.initialQuantity, remainingQuantity: $0.remainingQuantity,
+                    photoData: $0.photoData, notes: $0.notes, status: $0.statusRawValue, createdAt: $0.createdAt
+                )
+            },
+            professionals: professionals.map {
+                ProfessionalDTO(
+                    id: $0.id, name: $0.name, clinic: $0.clinic, phone: $0.phone, whatsapp: $0.whatsapp,
+                    email: $0.email, address: $0.address, notes: $0.notes, createdAt: $0.createdAt
+                )
+            },
+            appointments: appointments.map {
+                AppointmentDTO(
+                    id: $0.id, professionalID: $0.professional?.id, date: $0.date, type: $0.typeRawValue,
+                    notes: $0.notes, prescription: $0.prescription, attachmentData: $0.attachmentData,
+                    recommendedFollowUpMonths: $0.recommendedFollowUpMonths, status: $0.statusRawValue,
+                    createdAt: $0.createdAt
+                )
+            },
+            wearSessions: wearSessions.map {
+                WearSessionDTO(
+                    id: $0.id, lensPairID: $0.lensPair?.id, startedAt: $0.startedAt, endedAt: $0.endedAt,
+                    status: $0.statusRawValue, createdAt: $0.createdAt
                 )
             }
         )
@@ -310,7 +453,9 @@ enum BackupService {
             throw BackupError.unsupportedSchemaVersion(envelope.schemaVersion)
         }
         guard !envelope.pairs.isEmpty || !envelope.cleanings.isEmpty || envelope.settings != nil
-            || !(envelope.cases ?? []).isEmpty || !(envelope.routineCareLogs ?? []).isEmpty
+            || !(envelope.cases ?? []).isEmpty || !(envelope.routineCareLogs ?? []).isEmpty || !(envelope.solutions ?? []).isEmpty
+            || !(envelope.inventoryItems ?? []).isEmpty || !(envelope.professionals ?? []).isEmpty
+            || !(envelope.wearSessions ?? []).isEmpty
         else {
             throw BackupError.invalidFile("O arquivo não contém nenhum dado reconhecível.")
         }
@@ -344,6 +489,11 @@ enum BackupService {
                 for settings in try context.fetch(FetchDescriptor<AppSettings>()) { context.delete(settings) }
                 for lensCase in try context.fetch(FetchDescriptor<LensCase>()) { context.delete(lensCase) }
                 for log in try context.fetch(FetchDescriptor<RoutineCareLog>()) { context.delete(log) }
+                for solution in try context.fetch(FetchDescriptor<CleaningSolution>()) { context.delete(solution) }
+                for item in try context.fetch(FetchDescriptor<LensInventoryItem>()) { context.delete(item) }
+                for appointment in try context.fetch(FetchDescriptor<EyeAppointment>()) { context.delete(appointment) }
+                for professional in try context.fetch(FetchDescriptor<EyeCareProfessional>()) { context.delete(professional) }
+                for session in try context.fetch(FetchDescriptor<WearSession>()) { context.delete(session) }
             }
 
             // Pares — mantém um mapa id → LensPair (novo ou já existente) para religar os usos.
@@ -468,6 +618,110 @@ enum BackupService {
                 report.routineCareLogsImported += 1
             }
 
+            // Soluções de limpeza
+            let existingSolutionIDs: Set<UUID> = mode == .merge
+                ? Set(try context.fetch(FetchDescriptor<CleaningSolution>()).map(\.id))
+                : []
+            for dto in envelope.solutions ?? [] {
+                if mode == .merge, existingSolutionIDs.contains(dto.id) {
+                    report.solutionsSkippedAsDuplicate += 1
+                    continue
+                }
+                let solution = CleaningSolution(
+                    id: dto.id, brand: dto.brand, product: dto.product, lot: dto.lot, purchaseDate: dto.purchaseDate,
+                    openedDate: dto.openedDate, printedExpiryDate: dto.printedExpiryDate,
+                    postOpeningShelfLifeDays: dto.postOpeningShelfLifeDays, initialVolumeML: dto.initialVolumeML,
+                    remainingVolumeML: dto.remainingVolumeML, notes: dto.notes
+                )
+                solution.statusRawValue = dto.status
+                solution.finishedAt = dto.finishedAt
+                solution.createdAt = dto.createdAt
+                context.insert(solution)
+                report.solutionsImported += 1
+            }
+
+            // Itens do estoque
+            let existingInventoryIDs: Set<UUID> = mode == .merge
+                ? Set(try context.fetch(FetchDescriptor<LensInventoryItem>()).map(\.id))
+                : []
+            for dto in envelope.inventoryItems ?? [] {
+                if mode == .merge, existingInventoryIDs.contains(dto.id) {
+                    report.inventoryItemsSkippedAsDuplicate += 1
+                    continue
+                }
+                let item = LensInventoryItem(
+                    id: dto.id, brand: dto.brand, model: dto.model, prescriptionOD: dto.prescriptionOD,
+                    prescriptionOS: dto.prescriptionOS, side: LensSide(rawValue: dto.side) ?? .both, lot: dto.lot,
+                    expiryDate: dto.expiryDate, initialQuantity: dto.initialQuantity, photoData: dto.photoData,
+                    notes: dto.notes
+                )
+                item.remainingQuantity = dto.remainingQuantity
+                item.statusRawValue = dto.status
+                item.createdAt = dto.createdAt
+                context.insert(item)
+                report.inventoryItemsImported += 1
+            }
+
+            // Profissionais — mantém um mapa id → EyeCareProfessional (novo ou já existente)
+            // para religar as consultas.
+            let existingProfessionals = mode == .merge ? try EyeCareProfessionalService.allProfessionals(context: context) : []
+            let existingProfessionalsByID = Dictionary(uniqueKeysWithValues: existingProfessionals.map { ($0.id, $0) })
+            var professionalsByID: [UUID: EyeCareProfessional] = [:]
+            for dto in envelope.professionals ?? [] {
+                if mode == .merge, let existing = existingProfessionalsByID[dto.id] {
+                    report.professionalsSkippedAsDuplicate += 1
+                    professionalsByID[dto.id] = existing
+                    continue
+                }
+                let professional = EyeCareProfessional(
+                    id: dto.id, name: dto.name, clinic: dto.clinic, phone: dto.phone, whatsapp: dto.whatsapp,
+                    email: dto.email, address: dto.address, notes: dto.notes
+                )
+                professional.createdAt = dto.createdAt
+                context.insert(professional)
+                professionalsByID[dto.id] = professional
+                report.professionalsImported += 1
+            }
+
+            // Consultas
+            let existingAppointmentIDs: Set<UUID> = mode == .merge
+                ? Set(try context.fetch(FetchDescriptor<EyeAppointment>()).map(\.id))
+                : []
+            for dto in envelope.appointments ?? [] {
+                if mode == .merge, existingAppointmentIDs.contains(dto.id) {
+                    report.appointmentsSkippedAsDuplicate += 1
+                    continue
+                }
+                let professional = dto.professionalID.flatMap { professionalsByID[$0] }
+                let appointment = EyeAppointment(
+                    id: dto.id, date: dto.date, type: EyeAppointmentType(rawValue: dto.type) ?? .routine,
+                    notes: dto.notes, prescription: dto.prescription, attachmentData: dto.attachmentData,
+                    recommendedFollowUpMonths: dto.recommendedFollowUpMonths, professional: professional
+                )
+                appointment.statusRawValue = dto.status
+                appointment.createdAt = dto.createdAt
+                context.insert(appointment)
+                report.appointmentsImported += 1
+            }
+
+            // Sessões de uso — religa ao par pelo mesmo mapa usado pelos usos.
+            let existingWearSessionIDs: Set<UUID> = mode == .merge
+                ? Set(try context.fetch(FetchDescriptor<WearSession>()).map(\.id))
+                : []
+            for dto in envelope.wearSessions ?? [] {
+                if mode == .merge, existingWearSessionIDs.contains(dto.id) {
+                    report.wearSessionsSkippedAsDuplicate += 1
+                    continue
+                }
+                let pair = dto.lensPairID.flatMap { pairsByID[$0] }
+                let session = WearSession(id: dto.id, startedAt: dto.startedAt, lensPair: pair)
+                session.endedAt = dto.endedAt
+                session.statusRawValue = dto.status
+                session.createdAt = dto.createdAt
+                context.insert(session)
+                report.wearSessionsImported += 1
+            }
+
             // Configurações — substitui em modo replace; em modo merge, só aplica se ainda não
             // houver nenhuma configuração local (preferências existentes nunca são sobrescritas
             // silenciosamente por uma mesclagem).
@@ -509,5 +763,14 @@ enum BackupService {
         settings.healthWarningBelowPercent = dto.healthWarningBelowPercent ?? 40
         settings.healthCriticalBelowPercent = dto.healthCriticalBelowPercent ?? 15
         settings.wearingReminderHours = dto.wearingReminderHours ?? 8
+        settings.wearingExcessiveRepeatIntervalHours = dto.wearingExcessiveRepeatIntervalHours ?? 1
+        settings.caseReplacementIntervalDays = dto.caseReplacementIntervalDays ?? 90
+        settings.caseReminderEnabled = dto.caseReminderEnabled ?? true
+        settings.caseOverdueReminderIntervalDays = dto.caseOverdueReminderIntervalDays ?? 7
+        settings.solutionReminderEnabled = dto.solutionReminderEnabled ?? true
+        settings.solutionOverdueReminderIntervalDays = dto.solutionOverdueReminderIntervalDays ?? 7
+        settings.inventoryReminderEnabled = dto.inventoryReminderEnabled ?? true
+        settings.appointmentReminderEnabled = dto.appointmentReminderEnabled ?? true
+        settings.defaultAppointmentIntervalMonths = dto.defaultAppointmentIntervalMonths ?? 12
     }
 }

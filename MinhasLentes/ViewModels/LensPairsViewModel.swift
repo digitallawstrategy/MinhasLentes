@@ -2,14 +2,14 @@ import Foundation
 import Observation
 import SwiftData
 
-/// Estado e ações da tela Início: registrar uso com um toque, desfazer o último lançamento
+/// Estado e ações da aba Lentes: registrar uso com um toque, desfazer o último lançamento
 /// e orquestrar o encerramento/início de pares.
 ///
 /// Toda falha de persistência é capturada e exposta em `presentedError` para que a View
 /// mostre um alerta compreensível — nenhuma operação crítica falha silenciosamente.
 @MainActor
 @Observable
-final class HomeViewModel {
+final class LensPairsViewModel {
     var showDuplicateConfirmation = false
     var showLimitReachedAlert = false
     var showUndoToast = false
@@ -158,11 +158,15 @@ final class HomeViewModel {
         do {
             try LensPairService.finishPair(pair, endDate: endDate, reason: reason, notes: notes, context: context)
             HapticsService.lightImpact()
+            endWearingSessionIfActive(for: pair, context: context)
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível encerrar o par. \(error.localizedDescription)")
         }
     }
 
+    /// Se `inventoryItem` for informado, uma unidade dele é descontada do estoque após o par
+    /// ser criado com sucesso — a falha em descontar o estoque nunca desfaz o par já criado,
+    /// apenas é reportada como erro (o par é o registro que importa mais).
     func startNewPair(
         name: String?,
         startDate: Date,
@@ -170,10 +174,12 @@ final class HomeViewModel {
         trackingMode: TrackingMode,
         side: LensSide,
         asReserve: Bool,
+        inventoryItem: LensInventoryItem?,
         context: ModelContext
-    ) {
+    ) async {
+        let newPair: LensPair
         do {
-            try LensPairService.startNewPair(
+            newPair = try LensPairService.startNewPair(
                 name: name,
                 startDate: startDate,
                 maximumUses: maximumUses,
@@ -185,6 +191,14 @@ final class HomeViewModel {
             HapticsService.success()
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível iniciar um novo par. \(error.localizedDescription)")
+            return
+        }
+
+        guard let inventoryItem else { return }
+        do {
+            try await LensInventoryService.consumeOne(inventoryItem, forPairNamed: newPair.name, context: context)
+        } catch {
+            presentedError = IdentifiableError(message: "O par foi criado, mas não foi possível descontar a unidade do estoque. \(error.localizedDescription)")
         }
     }
 
@@ -210,6 +224,7 @@ final class HomeViewModel {
         do {
             try LensPairService.moveToTrash(pair, context: context)
             HapticsService.lightImpact()
+            endWearingSessionIfActive(for: pair, context: context)
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível mover o par para a lixeira. \(error.localizedDescription)")
         }
@@ -237,29 +252,67 @@ final class HomeViewModel {
 
     private(set) var wearingSessionPairID: UUID?
 
-    /// Deve ser chamado ao abrir a tela Início: a Live Activity sobrevive a reabertura do app
-    /// (e até ao encerramento forçado), então o estado do botão precisa refletir a realidade.
-    func refreshWearingSessionState() {
-        wearingSessionPairID = LiveActivityService.activeWearingSessionPairID()
+    /// Chamado ao encerrar ou mover um par para a lixeira: se a sessão de uso ativa (se houver)
+    /// pertencer a este par, encerra ela também — sem isso, a sessão ficaria órfã, presa a um
+    /// par que não existe mais em uso, e nenhuma sessão nova poderia ser iniciada (o início é
+    /// idempotente enquanto qualquer sessão continuar ativa).
+    private func endWearingSessionIfActive(for pair: LensPair, context: ModelContext) {
+        guard let activeSession = try? WearSessionService.activeSession(context: context),
+              activeSession.lensPair?.id == pair.id else { return }
+        Task { await endWearingSession(context: context) }
     }
 
-    func toggleWearingSession(for pair: LensPair, settings: AppSettings) {
+    /// Deve ser chamado ao abrir a aba Lentes. A fonte de verdade é o `WearSession` persistido,
+    /// não a Live Activity — que pode ter sido encerrada pelo sistema, sobrevivido a um reinício
+    /// do iPhone de forma diferente do esperado, ou simplesmente não existir ainda neste
+    /// lançamento do app (a restauração dela é feita separadamente, ver `ContentView`).
+    func refreshWearingSessionState(context: ModelContext) {
+        wearingSessionPairID = (try? WearSessionService.activeSession(context: context))?.lensPair?.id
+    }
+
+    func toggleWearingSession(for pair: LensPair, settings: AppSettings, context: ModelContext) {
         Task {
             if wearingSessionPairID == pair.id {
-                await LiveActivityService.endWearingSession()
+                await endWearingSession(context: context)
             } else {
-                let started = await LiveActivityService.startWearingSession(
-                    pairID: pair.id,
-                    pairName: pair.name,
-                    usesRemaining: pair.usesRemaining,
-                    maximumUses: pair.maximumUses,
-                    settings: settings
-                )
-                if started {
-                    HapticsService.success()
-                }
+                await startWearingSession(for: pair, settings: settings, context: context)
             }
-            refreshWearingSessionState()
         }
+    }
+
+    private func startWearingSession(for pair: LensPair, settings: AppSettings, context: ModelContext) async {
+        do {
+            let session = try WearSessionService.startSession(for: pair, startedAt: Date(), context: context)
+            let presented = await LiveActivityService.presentWearingSession(
+                pairID: pair.id, pairName: pair.name, usesRemaining: pair.usesRemaining, maximumUses: pair.maximumUses,
+                wearingSince: session.startedAt, settings: settings
+            )
+            if presented {
+                HapticsService.success()
+            }
+            // Melhor esforço: se os avisos não puderem ser agendados (ex.: notificações não
+            // autorizadas), a sessão continua ativa normalmente — só os alertas extras são perdidos.
+            try? await NotificationManager.shared.scheduleWearingExcessiveNotifications(wearingSince: session.startedAt, settings: settings)
+            // Usa o par da sessão retornada, não `pair`: se `startSession` foi idempotente (já
+            // havia uma sessão ativa para outro par), `pair` seria o par errado aqui.
+            wearingSessionPairID = session.lensPair?.id
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível iniciar a sessão de uso. \(error.localizedDescription)")
+        }
+    }
+
+    /// Chamado tanto pelo botão na tela quanto pelo botão "Retirei agora" de uma notificação
+    /// (via `AppRouter.pendingEndWearingSession`) — os dois caminhos precisam do mesmo
+    /// comportamento: encerrar a sessão persistida, a Live Activity e os avisos pendentes.
+    func endWearingSession(context: ModelContext) async {
+        if let session = try? WearSessionService.activeSession(context: context) {
+            do {
+                try WearSessionService.endSession(session, endedAt: Date(), context: context)
+            } catch {
+                presentedError = IdentifiableError(message: "Não foi possível encerrar a sessão de uso. \(error.localizedDescription)")
+            }
+        }
+        await LiveActivityService.endWearingSession()
+        wearingSessionPairID = nil
     }
 }

@@ -111,6 +111,47 @@ final class LensStatisticsServiceTests: XCTestCase {
         XCTAssertTrue(calendar.isDate(next, inSameDayAs: TestSupport.date(2026, 10, 8)))
     }
 
+    func testSolutionDiscardDateUsesEarlierOfShelfLifeAndPrintedExpiry() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        let opened = TestSupport.date(2026, 7, 10)
+
+        // Validade pós-abertura (90 dias) cai antes da validade impressa (bem no futuro).
+        let discard1 = LensStatisticsService.solutionDiscardDate(
+            openedDate: opened, postOpeningShelfLifeDays: 90, printedExpiryDate: TestSupport.date(2027, 12, 31), calendar: calendar
+        )
+        XCTAssertTrue(calendar.isDate(discard1, inSameDayAs: TestSupport.date(2026, 10, 8)))
+
+        // Validade impressa cai antes da validade pós-abertura.
+        let discard2 = LensStatisticsService.solutionDiscardDate(
+            openedDate: opened, postOpeningShelfLifeDays: 90, printedExpiryDate: TestSupport.date(2026, 8, 1), calendar: calendar
+        )
+        XCTAssertTrue(calendar.isDate(discard2, inSameDayAs: TestSupport.date(2026, 8, 1)))
+    }
+
+    func testSolutionDiscardDateWithoutPrintedExpiryUsesShelfLifeOnly() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        let opened = TestSupport.date(2026, 7, 10)
+        let discard = LensStatisticsService.solutionDiscardDate(
+            openedDate: opened, postOpeningShelfLifeDays: 30, printedExpiryDate: nil, calendar: calendar
+        )
+        XCTAssertTrue(calendar.isDate(discard, inSameDayAs: TestSupport.date(2026, 8, 9)))
+    }
+
+    func testCalendarDaySetIgnoresTimeOfDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        let morning = TestSupport.date(2026, 7, 10, hour: 7)
+        let night = TestSupport.date(2026, 7, 10, hour: 23)
+        let otherDay = TestSupport.date(2026, 7, 11, hour: 7)
+
+        let set = LensStatisticsService.calendarDaySet(from: [morning, night, otherDay], calendar: calendar)
+        XCTAssertEqual(set.count, 2, "Manhã e noite do mesmo dia devem colapsar num único dia do calendário")
+        XCTAssertTrue(set.contains(calendar.dateComponents([.year, .month, .day], from: morning)))
+        XCTAssertTrue(set.contains(calendar.dateComponents([.year, .month, .day], from: otherDay)))
+    }
+
     func testHasUsageOnSameDay() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!

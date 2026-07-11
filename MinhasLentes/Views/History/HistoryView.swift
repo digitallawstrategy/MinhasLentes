@@ -50,7 +50,6 @@ struct HistoryView: View {
     }
 
     var body: some View {
-        NavigationStack {
             VStack(spacing: 0) {
                 HistoryFilterBar(activeFilters: viewModel.activeFilters) { filter in
                     viewModel.toggleFilter(filter)
@@ -225,11 +224,12 @@ struct HistoryView: View {
             } message: { error in
                 Text(error.message)
             }
-        }
     }
 }
 
 #Preview {
-    HistoryView()
-        .modelContainer(PreviewData.container)
+    NavigationStack {
+        HistoryView()
+    }
+    .modelContainer(PreviewData.container)
 }

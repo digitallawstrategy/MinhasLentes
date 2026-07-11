@@ -14,6 +14,11 @@ enum TestSupport {
             HistoryEvent.self,
             LensCase.self,
             RoutineCareLog.self,
+            CleaningSolution.self,
+            LensInventoryItem.self,
+            EyeCareProfessional.self,
+            EyeAppointment.self,
+            WearSession.self,
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [configuration])

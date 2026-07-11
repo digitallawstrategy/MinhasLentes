@@ -80,4 +80,26 @@ enum LensStatisticsService {
     static func nextCaseReplacementDate(startDate: Date, intervalDays: Int, calendar: Calendar = .current) -> Date {
         calendar.date(byAdding: .day, value: intervalDays, to: calendar.startOfDay(for: startDate)) ?? startDate
     }
+
+    /// Data de descarte de uma solução de limpeza aberta: sempre a menor entre a validade
+    /// pós-abertura (contada a partir de `openedDate`) e a validade impressa pelo fabricante,
+    /// quando informada. Nunca inventa um prazo médico universal — os dois valores vêm sempre
+    /// do próprio produto.
+    static func solutionDiscardDate(
+        openedDate: Date,
+        postOpeningShelfLifeDays: Int,
+        printedExpiryDate: Date?,
+        calendar: Calendar = .current
+    ) -> Date {
+        let shelfLifeDate = calendar.date(byAdding: .day, value: postOpeningShelfLifeDays, to: calendar.startOfDay(for: openedDate)) ?? openedDate
+        guard let printedExpiryDate else { return shelfLifeDate }
+        return min(shelfLifeDate, printedExpiryDate)
+    }
+
+    /// Reduz uma lista de datas de registro a um conjunto de "dias do calendário" (início do
+    /// dia, no fuso informado), para que marcar um dia no calendário de hábito seja uma simples
+    /// verificação de pertencimento a um `Set`, sem comparar horários.
+    static func calendarDaySet(from dates: [Date], calendar: Calendar = .current) -> Set<DateComponents> {
+        Set(dates.map { calendar.dateComponents([.year, .month, .day], from: $0) })
+    }
 }

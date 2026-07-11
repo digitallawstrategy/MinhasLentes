@@ -102,6 +102,11 @@ final class HistoryViewModel {
         case .routineCare:
             if case .routineCare = item.kind { return true }
             return false
+        case .solutionLifecycle:
+            if case .event(let event) = item.kind {
+                return event.eventType == .solutionOpened || event.eventType == .solutionClosed
+            }
+            return false
         case .right:
             return item.side == .right
         case .left:

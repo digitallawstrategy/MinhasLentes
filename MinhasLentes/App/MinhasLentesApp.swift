@@ -15,6 +15,11 @@ struct MinhasLentesApp: App {
             HistoryEvent.self,
             LensCase.self,
             RoutineCareLog.self,
+            CleaningSolution.self,
+            LensInventoryItem.self,
+            EyeCareProfessional.self,
+            EyeAppointment.self,
+            WearSession.self,
         ])
         do {
             // O banco vive no App Group, não no contêiner privado do app, para que o widget e

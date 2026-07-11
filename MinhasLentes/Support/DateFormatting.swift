@@ -38,4 +38,14 @@ enum DateFormatting {
         formatter.dateFormat = "yyyy-MM-dd_HHmm"
         return formatter
     }()
+
+    /// Formata uma duração como "08h 17min" — usado na Dynamic Island e no histórico de
+    /// sessões de uso. Nunca negativo, mesmo que `duration` chegue levemente abaixo de zero por
+    /// imprecisão de ponto flutuante.
+    static func durationShort(_ duration: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(duration / 60))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        return String(format: "%02dh %02dmin", hours, minutes)
+    }
 }

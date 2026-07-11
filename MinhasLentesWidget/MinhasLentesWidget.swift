@@ -86,6 +86,14 @@ private struct MediumLensWidgetView: View {
                     Text("\(snapshot.usesCount) de \(snapshot.maximumUses) usados")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let wearingSince = snapshot.wearingSince {
+                        Label {
+                            Text(wearingSince, style: .timer)
+                        } icon: {
+                            Text("👁️")
+                        }
+                        .font(.caption.weight(.medium))
+                    }
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
@@ -97,6 +105,15 @@ private struct MediumLensWidgetView: View {
                             daysUntilNextCleaning <= 0 ? "Limpeza atrasada" : "Limpeza em \(daysUntilNextCleaning)d",
                             systemImage: "calendar"
                         )
+                    }
+                    if let daysUntilCaseReplacement = snapshot.daysUntilCaseReplacement {
+                        Label("Estojo: \(daysUntilCaseReplacement)d", systemImage: "shippingbox")
+                    }
+                    if let daysUntilSolutionDiscard = snapshot.daysUntilSolutionDiscard {
+                        Label("Solução: \(daysUntilSolutionDiscard)d", systemImage: "flask")
+                    }
+                    if let daysUntilNextAppointment = snapshot.daysUntilNextAppointment {
+                        Label("Consulta: \(daysUntilNextAppointment)d", systemImage: "stethoscope")
                     }
                 }
                 .font(.caption)

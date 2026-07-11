@@ -28,8 +28,12 @@ final class AppSettings {
     var healthWarningBelowPercent: Int = 40
     var healthCriticalBelowPercent: Int = 15
 
-    /// Após quantas horas de sessão "Estou usando as lentes" o lembrete de remoção é enviado.
+    /// Após quantas horas de sessão "Estou usando as lentes" o uso passa a ser considerado
+    /// excessivo — dispara o primeiro de três lembretes progressivos (este valor, +1h, +2h).
     var wearingReminderHours: Int = 8
+    /// De quantas em quantas horas o lembrete se repete depois do terceiro aviso progressivo,
+    /// enquanto a sessão continuar ativa.
+    var wearingExcessiveRepeatIntervalHours: Int = 1
 
     /// Intervalo recomendado, em dias, para substituição do estojo físico. Copiado para cada
     /// `LensCase` no momento em que o ciclo começa — mudar aqui não altera ciclos já iniciados.
@@ -40,6 +44,22 @@ final class AppSettings {
     /// De quantos em quantos dias o lembrete se repete depois que o prazo recomendado já passou
     /// e nenhuma substituição foi registrada.
     var caseOverdueReminderIntervalDays: Int = 7
+
+    /// Liga/desliga os avisos de validade da solução de limpeza (30 e 7 dias antes, no dia do
+    /// descarte recomendado e o lembrete periódico após o prazo).
+    var solutionReminderEnabled: Bool = true
+    /// De quantos em quantos dias o lembrete de troca da solução se repete depois que o prazo
+    /// recomendado já passou e nenhuma troca foi registrada.
+    var solutionOverdueReminderIntervalDays: Int = 7
+
+    /// Liga/desliga os avisos de validade dos itens em estoque (60/30/7 dias antes e no dia).
+    var inventoryReminderEnabled: Bool = true
+
+    /// Liga/desliga os lembretes de consulta (30/7/1 dias antes e 2 horas antes).
+    var appointmentReminderEnabled: Bool = true
+    /// Prazo padrão até a próxima consulta, em meses — copiado para cada `EyeAppointment` no
+    /// momento do agendamento, ajustável por consulta.
+    var defaultAppointmentIntervalMonths: Int = 12
 
     init(id: UUID = UUID()) {
         self.id = id
@@ -67,8 +87,14 @@ final class AppSettings {
         healthWarningBelowPercent = 40
         healthCriticalBelowPercent = 15
         wearingReminderHours = 8
+        wearingExcessiveRepeatIntervalHours = 1
         caseReplacementIntervalDays = 90
         caseReminderEnabled = true
         caseOverdueReminderIntervalDays = 7
+        solutionReminderEnabled = true
+        solutionOverdueReminderIntervalDays = 7
+        inventoryReminderEnabled = true
+        appointmentReminderEnabled = true
+        defaultAppointmentIntervalMonths = 12
     }
 }

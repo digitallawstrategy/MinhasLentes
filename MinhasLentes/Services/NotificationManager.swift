@@ -15,12 +15,22 @@ final class NotificationManager: NSObject {
 
     nonisolated static let advanceIdentifier = "estojo.aviso-antecipado"
     nonisolated static let deadlineIdentifier = "estojo.prazo"
-    nonisolated static let wearingReminderIdentifier = "lentes.remover-lembrete"
+    nonisolated static let wearingFirstIdentifier = "lentes.excessivo.aviso1"
+    nonisolated static let wearingSecondIdentifier = "lentes.excessivo.aviso2"
+    nonisolated static let wearingThirdIdentifier = "lentes.excessivo.aviso3"
+    nonisolated static let wearingRepeatIdentifier = "lentes.excessivo.repetitivo"
+    nonisolated static let wearingCategoryIdentifier = "lentes.excessivo.categoria"
+    nonisolated static let wearingEndSessionActionIdentifier = "lentes.excessivo.retirei-agora"
 
     nonisolated static let case15DayIdentifier = "estojo.substituicao.aviso-15dias"
     nonisolated static let case7DayIdentifier = "estojo.substituicao.aviso-7dias"
     nonisolated static let caseDueIdentifier = "estojo.substituicao.dia-recomendado"
     nonisolated static let caseOverdueRepeatIdentifier = "estojo.substituicao.lembrete-periodico"
+
+    nonisolated static let solution30DayIdentifier = "solucao.aviso-30dias"
+    nonisolated static let solution7DayIdentifier = "solucao.aviso-7dias"
+    nonisolated static let solutionDueIdentifier = "solucao.dia-descarte"
+    nonisolated static let solutionOverdueRepeatIdentifier = "solucao.lembrete-periodico"
 
     #if DEBUG
     static let testOneMinuteIdentifier = "dev.teste.aviso-1min"
@@ -32,6 +42,18 @@ final class NotificationManager: NSObject {
     private override init() {
         super.init()
         center.delegate = self
+        let endSessionAction = UNNotificationAction(
+            identifier: Self.wearingEndSessionActionIdentifier,
+            title: "Retirei agora",
+            options: []
+        )
+        let category = UNNotificationCategory(
+            identifier: Self.wearingCategoryIdentifier,
+            actions: [endSessionAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
     }
 
     enum NotificationError: LocalizedError {
@@ -279,27 +301,248 @@ final class NotificationManager: NSObject {
         try? await center.add(request)
     }
 
-    // MARK: - Lembrete de remoção ("Estou usando as lentes")
+    // MARK: - Validade da solução de limpeza (ciclo de vida do CleaningSolution)
 
-    /// Agenda o lembrete "Hora de remover as lentes?" para o fim de uma sessão de uso. Ao
-    /// contrário do ciclo de limpeza, este lembrete é único (não repete) e é cancelado
-    /// automaticamente se a sessão for encerrada manualmente antes do horário.
-    func scheduleWearingReminder(at date: Date, settings: AppSettings) async throws {
+    /// Cancela apenas as notificações REAIS de validade da solução — os quatro identificadores
+    /// (30 dias antes, 7 dias antes, no dia, e o lembrete periódico após o prazo).
+    func cancelCleaningSolutionNotifications() async {
+        center.removePendingNotificationRequests(withIdentifiers: [
+            Self.solution30DayIdentifier, Self.solution7DayIdentifier, Self.solutionDueIdentifier, Self.solutionOverdueRepeatIdentifier,
+        ])
+        _ = await center.pendingNotificationRequests()
+    }
+
+    /// Agenda os avisos de validade da solução de limpeza (30 dias antes, 7 dias antes e no dia
+    /// de descarte recomendado) a partir da data de descarte já calculada
+    /// (`LensStatisticsService.solutionDiscardDate`). O lembrete periódico pós-prazo segue o
+    /// mesmo raciocínio do estojo: só é agendado quando o prazo já passou de fato, por
+    /// `refreshOverdueSolutionReminder`.
+    @discardableResult
+    func scheduleCleaningSolutionNotifications(discardDate: Date, settings: AppSettings) async throws -> [UNNotificationRequest] {
         guard await authorizationStatus() == .authorized else {
             throw NotificationError.authorizationDenied
         }
+        guard settings.solutionReminderEnabled else { return [] }
+
+        let calendar = Calendar.current
+        let day30 = calendar.date(byAdding: .day, value: -30, to: discardDate) ?? discardDate
+        let day7 = calendar.date(byAdding: .day, value: -7, to: discardDate) ?? discardDate
+
+        var expectedIdentifiers: Set<String> = []
+
+        if day30 > Date() {
+            try await schedule(
+                identifier: Self.solution30DayIdentifier,
+                title: "Solução de limpeza",
+                body: "Uma das suas soluções de limpeza está se aproximando da validade recomendada após aberta.",
+                fireDate: day30,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(Self.solution30DayIdentifier)
+        }
+
+        if day7 > Date() {
+            try await schedule(
+                identifier: Self.solution7DayIdentifier,
+                title: "Solução de limpeza",
+                body: "Faltam poucos dias para a validade recomendada da solução de limpeza aberta.",
+                fireDate: day7,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(Self.solution7DayIdentifier)
+        }
+
+        if discardDate > Date() {
+            try await schedule(
+                identifier: Self.solutionDueIdentifier,
+                title: "Solução de limpeza",
+                body: "Hoje é a data de validade recomendada da solução de limpeza aberta, considerando o prazo indicado pelo fabricante.",
+                fireDate: discardDate,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(Self.solutionDueIdentifier)
+        }
+
+        let pending = await pendingNotifications()
+        let pendingIdentifiers = Set(pending.map(\.identifier))
+        let missing = expectedIdentifiers.subtracting(pendingIdentifiers)
+        guard missing.isEmpty else {
+            throw NotificationError.verificationFailed(missing: missing)
+        }
+        return pending.filter { expectedIdentifiers.contains($0.identifier) }
+    }
+
+    /// Idempotente — seguro chamar toda vez que o app abre. Mesmo raciocínio de
+    /// `refreshOverdueCaseReminder`, aplicado à solução de limpeza ativa.
+    func refreshOverdueSolutionReminder(discardDate: Date, settings: AppSettings) async {
+        guard settings.solutionReminderEnabled, discardDate <= Date() else { return }
+        guard await authorizationStatus() == .authorized else { return }
+
+        let pending = await pendingNotifications()
+        guard !pending.contains(where: { $0.identifier == Self.solutionOverdueRepeatIdentifier }) else { return }
+
         let content = UNMutableNotificationContent()
-        content.title = "Hora de remover as lentes?"
-        content.body = "Você ativou \"Estou usando as lentes\" há um bom tempo. Considere removê-las para descansar os olhos."
-        if settings.soundEnabled {
-            content.sound = .default
+        content.title = "Solução de limpeza"
+        content.body = "Ainda não há registro de troca da solução de limpeza. Considere substituí-la quando for conveniente."
+        if settings.soundEnabled { content.sound = .default }
+        if settings.badgeEnabled { content.badge = 1 }
+
+        let intervalSeconds = TimeInterval(max(1, settings.solutionOverdueReminderIntervalDays) * 86400)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: intervalSeconds, repeats: true)
+        let request = UNNotificationRequest(identifier: Self.solutionOverdueRepeatIdentifier, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
+    // MARK: - Validade de itens em estoque (LensInventoryItem)
+    //
+    // Diferente do estojo e da solução, vários itens de estoque podem existir ao mesmo tempo —
+    // por isso os identificadores aqui são por item (`estoque.<uuid>.<marco>`), não fixos como
+    // `case15DayIdentifier`. Sem lembrete periódico pós-validade: um item vencido e não usado é
+    // um aviso único, não uma pendência recorrente como trocar o estojo ou a solução.
+
+    private func inventoryIdentifiers(for itemID: UUID) -> [String] {
+        ["60dias", "30dias", "7dias", "dia"].map { "estoque.\(itemID.uuidString).\($0)" }
+    }
+
+    func cancelLensInventoryNotifications(for itemID: UUID) async {
+        center.removePendingNotificationRequests(withIdentifiers: inventoryIdentifiers(for: itemID))
+        _ = await center.pendingNotificationRequests()
+    }
+
+    @discardableResult
+    func scheduleLensInventoryNotifications(for item: LensInventoryItem, settings: AppSettings) async throws -> [UNNotificationRequest] {
+        guard await authorizationStatus() == .authorized else {
+            throw NotificationError.authorizationDenied
         }
-        if settings.badgeEnabled {
-            content.badge = 1
+        guard settings.inventoryReminderEnabled, let expiryDate = item.expiryDate else { return [] }
+
+        let calendar = Calendar.current
+        let identifiers = inventoryIdentifiers(for: item.id)
+        let offsets = [60, 30, 7, 0]
+        var expectedIdentifiers: Set<String> = []
+
+        let label = "\(item.brand) \(item.model)".trimmingCharacters(in: .whitespaces)
+        for (offset, identifier) in zip(offsets, identifiers) {
+            let fireDate = calendar.date(byAdding: .day, value: -offset, to: expiryDate) ?? expiryDate
+            guard fireDate > Date() else { continue }
+            let body = offset == 0
+                ? "Hoje é a validade indicada para a lente \(label) guardada no estoque."
+                : "Faltam cerca de \(offset) dias para a validade da lente \(label) guardada no estoque."
+            try await schedule(
+                identifier: identifier,
+                title: "Estoque de lentes",
+                body: body,
+                fireDate: fireDate,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(identifier)
         }
-        let interval = max(60, date.timeIntervalSinceNow)
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-        let request = UNNotificationRequest(identifier: Self.wearingReminderIdentifier, content: content, trigger: trigger)
+
+        let pending = await pendingNotifications()
+        let pendingIdentifiers = Set(pending.map(\.identifier))
+        let missing = expectedIdentifiers.subtracting(pendingIdentifiers)
+        guard missing.isEmpty else {
+            throw NotificationError.verificationFailed(missing: missing)
+        }
+        return pending.filter { expectedIdentifiers.contains($0.identifier) }
+    }
+
+    // MARK: - Consultas (EyeAppointment)
+    //
+    // Como estoque, várias consultas podem estar agendadas ao mesmo tempo — identificadores por
+    // consulta (`consulta.<uuid>.<marco>`). O aviso de 2 horas antes é o único que precisa do
+    // horário exato da consulta, não do horário configurado em Ajustes.
+
+    private func appointmentIdentifiers(for appointmentID: UUID) -> [String] {
+        ["30dias", "7dias", "1dia", "2horas"].map { "consulta.\(appointmentID.uuidString).\($0)" }
+    }
+
+    func cancelEyeAppointmentNotifications(for appointmentID: UUID) async {
+        center.removePendingNotificationRequests(withIdentifiers: appointmentIdentifiers(for: appointmentID))
+        _ = await center.pendingNotificationRequests()
+    }
+
+    @discardableResult
+    func scheduleEyeAppointmentNotifications(
+        for appointment: EyeAppointment,
+        professionalName: String?,
+        settings: AppSettings
+    ) async throws -> [UNNotificationRequest] {
+        guard await authorizationStatus() == .authorized else {
+            throw NotificationError.authorizationDenied
+        }
+        guard settings.appointmentReminderEnabled, appointment.status == .scheduled else { return [] }
+
+        let calendar = Calendar.current
+        let date = appointment.date
+        let identifiers = appointmentIdentifiers(for: appointment.id)
+        let label = professionalName.map { " com \($0)" } ?? ""
+        var expectedIdentifiers: Set<String> = []
+
+        let dayOffsets: [(days: Int, identifier: String, body: String)] = [
+            (30, identifiers[0], "Faltam cerca de 30 dias para sua consulta\(label)."),
+            (7, identifiers[1], "Faltam cerca de 7 dias para sua consulta\(label)."),
+            (1, identifiers[2], "Sua consulta\(label) é amanhã."),
+        ]
+        for entry in dayOffsets {
+            let fireDate = calendar.date(byAdding: .day, value: -entry.days, to: date) ?? date
+            guard fireDate > Date() else { continue }
+            try await schedule(
+                identifier: entry.identifier,
+                title: "Consulta oftalmológica",
+                body: entry.body,
+                fireDate: fireDate,
+                hour: settings.notificationHour,
+                minute: settings.notificationMinute,
+                settings: settings
+            )
+            expectedIdentifiers.insert(entry.identifier)
+        }
+
+        if let twoHoursBefore = calendar.date(byAdding: .hour, value: -2, to: date), twoHoursBefore > Date() {
+            try await scheduleAtExactMoment(
+                identifier: identifiers[3],
+                title: "Consulta oftalmológica",
+                body: "Sua consulta\(label) é daqui a 2 horas.",
+                fireDate: twoHoursBefore,
+                settings: settings
+            )
+            expectedIdentifiers.insert(identifiers[3])
+        }
+
+        let pending = await pendingNotifications()
+        let pendingIdentifiers = Set(pending.map(\.identifier))
+        let missing = expectedIdentifiers.subtracting(pendingIdentifiers)
+        guard missing.isEmpty else {
+            throw NotificationError.verificationFailed(missing: missing)
+        }
+        return pending.filter { expectedIdentifiers.contains($0.identifier) }
+    }
+
+    /// Como `schedule(identifier:title:body:fireDate:hour:minute:settings:)`, mas usa o
+    /// horário exato de `fireDate` em vez do horário configurado em Ajustes — necessário para
+    /// o aviso "2 horas antes", que é sensível ao horário real da consulta.
+    private func scheduleAtExactMoment(identifier: String, title: String, body: String, fireDate: Date, settings: AppSettings) async throws {
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        if settings.soundEnabled { content.sound = .default }
+        if settings.badgeEnabled { content.badge = 1 }
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         do {
             try await center.add(request)
         } catch {
@@ -307,8 +550,87 @@ final class NotificationManager: NSObject {
         }
     }
 
-    func cancelWearingReminder() {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.wearingReminderIdentifier])
+    // MARK: - Alertas progressivos de tempo de uso ("Estou usando as lentes")
+    //
+    // Três avisos fixos (limiar configurável, +1h, +2h) e, depois disso, um lembrete que se
+    // repete a cada `wearingExcessiveRepeatIntervalHours` enquanto a sessão continuar ativa.
+    // Todos usam `wearingCategoryIdentifier`, que dá ao usuário o botão "Retirei agora" direto
+    // na notificação, sem precisar abrir o app.
+
+    func cancelWearingExcessiveNotifications() {
+        center.removePendingNotificationRequests(withIdentifiers: [
+            Self.wearingFirstIdentifier, Self.wearingSecondIdentifier, Self.wearingThirdIdentifier, Self.wearingRepeatIdentifier,
+        ])
+    }
+
+    /// Agenda os três avisos fixos a partir de `wearingSince` — chamado tanto ao iniciar uma
+    /// sessão quanto ao restaurá-la (nesse caso, `wearingSince` pode já estar horas no passado,
+    /// e os avisos cujo horário já passou simplesmente não são agendados).
+    @discardableResult
+    func scheduleWearingExcessiveNotifications(wearingSince: Date, settings: AppSettings) async throws -> [UNNotificationRequest] {
+        guard await authorizationStatus() == .authorized else {
+            throw NotificationError.authorizationDenied
+        }
+        let thresholds: [(hours: Int, identifier: String)] = [
+            (settings.wearingReminderHours, Self.wearingFirstIdentifier),
+            (settings.wearingReminderHours + 1, Self.wearingSecondIdentifier),
+            (settings.wearingReminderHours + 2, Self.wearingThirdIdentifier),
+        ]
+        var expectedIdentifiers: Set<String> = []
+        for threshold in thresholds {
+            let fireDate = wearingSince.addingTimeInterval(Double(threshold.hours) * 3600)
+            guard fireDate > Date() else { continue }
+            try await scheduleWearingAlert(identifier: threshold.identifier, fireDate: fireDate, settings: settings)
+            expectedIdentifiers.insert(threshold.identifier)
+        }
+        let pending = await pendingNotifications()
+        return pending.filter { expectedIdentifiers.contains($0.identifier) }
+    }
+
+    /// Idempotente — chamado sempre que o app abre e sempre que ele volta a ficar ativo (ver
+    /// `ContentView`, tanto no `.task` inicial quanto na mudança de `scenePhase`), para pegar o
+    /// caso do app nunca ter sido encerrado de fato durante toda a janela dos três avisos fixos.
+    /// Se a sessão já passou do terceiro aviso e nenhum lembrete repetitivo estiver pendente,
+    /// agenda um repetindo a cada `wearingExcessiveRepeatIntervalHours` a partir de agora —
+    /// mesmo raciocínio do lembrete pós-prazo do estojo/solução, e pelo mesmo motivo: não dá
+    /// para agendar de antemão uma repetição ancorada a um horário futuro incerto.
+    func refreshWearingExcessiveRepeatReminder(wearingSince: Date, settings: AppSettings) async {
+        let thirdThreshold = wearingSince.addingTimeInterval(Double(settings.wearingReminderHours + 2) * 3600)
+        guard thirdThreshold <= Date() else { return }
+        guard await authorizationStatus() == .authorized else { return }
+
+        let pending = await pendingNotifications()
+        guard !pending.contains(where: { $0.identifier == Self.wearingRepeatIdentifier }) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Você ainda está utilizando suas lentes?"
+        content.body = "Considere removê-las para descansar os olhos."
+        content.categoryIdentifier = Self.wearingCategoryIdentifier
+        if settings.soundEnabled { content.sound = .default }
+        if settings.badgeEnabled { content.badge = 1 }
+
+        let intervalSeconds = TimeInterval(max(1, settings.wearingExcessiveRepeatIntervalHours) * 3600)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: intervalSeconds, repeats: true)
+        let request = UNNotificationRequest(identifier: Self.wearingRepeatIdentifier, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
+    private func scheduleWearingAlert(identifier: String, fireDate: Date, settings: AppSettings) async throws {
+        let content = UNMutableNotificationContent()
+        content.title = "Você ainda está utilizando suas lentes?"
+        content.body = "Considere removê-las para descansar os olhos."
+        content.categoryIdentifier = Self.wearingCategoryIdentifier
+        if settings.soundEnabled { content.sound = .default }
+        if settings.badgeEnabled { content.badge = 1 }
+
+        let interval = max(1, fireDate.timeIntervalSinceNow)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        do {
+            try await center.add(request)
+        } catch {
+            throw NotificationError.schedulingFailed(error.localizedDescription)
+        }
     }
 
     /// Abre a tela de Ajustes do aplicativo no iOS, usada quando as notificações do sistema
@@ -374,19 +696,39 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
     }
 
     /// Leva o usuário para a aba certa quando ele toca numa notificação: Estojo para os
-    /// avisos de limpeza, Início para o lembrete de remoção das lentes.
+    /// avisos de limpeza, Lentes para os alertas de tempo de uso e estoque, Configurações para
+    /// consultas. O botão "Retirei agora" (nos alertas de tempo de uso) encerra a sessão direto
+    /// pela notificação, sem exigir que o usuário abra a tela e toque em mais nada.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
         let identifier = response.notification.request.identifier
+        let actionIdentifier = response.actionIdentifier
+        let wearingIdentifiers: Set<String> = [
+            Self.wearingFirstIdentifier, Self.wearingSecondIdentifier, Self.wearingThirdIdentifier, Self.wearingRepeatIdentifier,
+        ]
         await MainActor.run {
+            if actionIdentifier == Self.wearingEndSessionActionIdentifier {
+                AppRouter.shared.pendingEndWearingSession = true
+                AppRouter.shared.openLentes()
+                return
+            }
             switch identifier {
             case Self.advanceIdentifier, Self.deadlineIdentifier,
                  Self.case15DayIdentifier, Self.case7DayIdentifier, Self.caseDueIdentifier, Self.caseOverdueRepeatIdentifier:
                 AppRouter.shared.openEstojo()
-            case Self.wearingReminderIdentifier:
-                AppRouter.shared.openHome()
+            case Self.solution30DayIdentifier, Self.solution7DayIdentifier, Self.solutionDueIdentifier, Self.solutionOverdueRepeatIdentifier:
+                AppRouter.shared.openSolution()
+            case let id where id.hasPrefix("estoque."):
+                // Identificadores de estoque são por item (`estoque.<uuid>.<marco>`) — o
+                // estoque fica um toque à frente, dentro da aba Lentes.
+                AppRouter.shared.openLentes()
+            case let id where id.hasPrefix("consulta."):
+                // Identificadores de consulta são por consulta (`consulta.<uuid>.<marco>`).
+                AppRouter.shared.openConsultas()
+            case let id where wearingIdentifiers.contains(id):
+                AppRouter.shared.openLentes()
             default:
                 break
             }

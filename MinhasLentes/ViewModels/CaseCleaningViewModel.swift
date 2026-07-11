@@ -2,10 +2,10 @@ import Foundation
 import Observation
 import SwiftData
 
-/// Estado e ações da aba Estojo: registrar limpeza e reagendar as notificações do ciclo.
+/// Estado e ações da limpeza periódica do estojo: registrar, desfazer, editar e excluir.
 @MainActor
 @Observable
-final class CaseViewModel {
+final class CaseCleaningViewModel {
     var presentedError: IdentifiableError?
     var showUndoToast = false
     var toastMessage: String?
@@ -76,57 +76,6 @@ final class CaseViewModel {
     func editCleaning(_ cleaning: CaseCleaning, newDate: Date, newNotes: String?, settings: AppSettings, context: ModelContext) async {
         do {
             try await CaseCleaningService.editCleaning(cleaning, newDate: newDate, newNotes: newNotes, settings: settings, context: context)
-            HapticsService.success()
-        } catch {
-            HapticsService.error()
-            presentedError = IdentifiableError(message: error.localizedDescription)
-        }
-    }
-
-    // MARK: - Ciclo do estojo (LensCase)
-
-    func startOrReplaceCase(startDate: Date, intervalDays: Int, notes: String?, settings: AppSettings, context: ModelContext) async {
-        do {
-            _ = try await LensCaseService.startNewCase(startDate: startDate, intervalDays: intervalDays, notes: notes, settings: settings, context: context)
-            HapticsService.success()
-        } catch {
-            HapticsService.error()
-            presentedError = IdentifiableError(message: error.localizedDescription)
-        }
-    }
-
-    func editCase(_ lensCase: LensCase, startDate: Date, intervalDays: Int, notes: String?, settings: AppSettings, context: ModelContext) async {
-        do {
-            try await LensCaseService.editCase(lensCase, startDate: startDate, intervalDays: intervalDays, notes: notes, settings: settings, context: context)
-            HapticsService.success()
-        } catch {
-            HapticsService.error()
-            presentedError = IdentifiableError(message: error.localizedDescription)
-        }
-    }
-
-    func deleteCase(_ lensCase: LensCase, context: ModelContext) async {
-        do {
-            try await LensCaseService.deleteCase(lensCase, context: context)
-            HapticsService.success()
-        } catch {
-            HapticsService.error()
-            presentedError = IdentifiableError(message: error.localizedDescription)
-        }
-    }
-
-    // MARK: - Cuidado diário (RoutineCareLog)
-
-    func registerRoutineCareToday(context: ModelContext) {
-        registerRoutineCare(date: Date(), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context)
-    }
-
-    func registerRoutineCare(date: Date, discardedSolution: Bool, cleanedCase: Bool, airDried: Bool, notes: String?, context: ModelContext) {
-        do {
-            try RoutineCareService.registerCare(
-                date: date, discardedSolution: discardedSolution, cleanedCase: cleanedCase,
-                airDried: airDried, notes: notes, context: context
-            )
             HapticsService.success()
         } catch {
             HapticsService.error()

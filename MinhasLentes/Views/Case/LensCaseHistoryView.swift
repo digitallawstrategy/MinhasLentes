@@ -8,7 +8,7 @@ struct LensCaseHistoryView: View {
     @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
     @Query private var allSettings: [AppSettings]
 
-    @State private var viewModel = CaseViewModel()
+    @State private var viewModel = LensCaseViewModel()
     @State private var caseToEdit: LensCase?
     @State private var caseToDelete: LensCase?
 
@@ -46,22 +46,13 @@ struct LensCaseHistoryView: View {
                 Task { await viewModel.editCase(lensCase, startDate: startDate, intervalDays: intervalDays, notes: notes, settings: settings, context: modelContext) }
             }
         }
-        .alert(
-            "Excluir este ciclo?",
-            isPresented: Binding(
-                get: { caseToDelete != nil },
-                set: { if !$0 { caseToDelete = nil } }
-            )
-        ) {
-            Button("Cancelar", role: .cancel) { caseToDelete = nil }
-            Button("Excluir", role: .destructive) {
-                if let lensCase = caseToDelete {
-                    Task { await viewModel.deleteCase(lensCase, context: modelContext) }
-                }
-                caseToDelete = nil
+        .sheet(item: $caseToDelete) { lensCase in
+            ConfirmDeleteByTypingSheet(
+                title: "Excluir ciclo",
+                message: "Isso exclui permanentemente o ciclo do estojo iniciado em \(DateFormatting.short.string(from: lensCase.startDate)). Se for o ciclo ativo, os avisos de substituição são cancelados até que um novo ciclo seja iniciado."
+            ) {
+                Task { await viewModel.deleteCase(lensCase, context: modelContext) }
             }
-        } message: {
-            Text("Remove este registro do histórico de estojos. Se for o ciclo ativo, os avisos de substituição são cancelados até que um novo ciclo seja iniciado.")
         }
         .alert(
             "Não foi possível concluir a ação",

@@ -64,14 +64,31 @@ struct HistoryItem: Identifiable {
             case .pairDeleted: return "trash"
             case .pairTrashed: return "trash.circle"
             case .pairRestored: return "arrow.uturn.backward.circle"
-            case .usageEdited, .cleaningEdited, .caseEdited, .routineCareEdited: return "pencil"
-            case .usageDeleted, .usageUndone, .cleaningDeleted, .caseDeleted, .routineCareDeleted: return "trash"
+            case .usageEdited, .cleaningEdited, .caseEdited, .routineCareEdited, .solutionEdited: return "pencil"
+            case .usageDeleted, .usageUndone, .cleaningDeleted, .caseDeleted, .routineCareDeleted, .solutionDeleted: return "trash"
             case .cleaningRegistered: return "sparkles"
             case .settingsChanged: return "gearshape"
             case .usageAdded: return "eye"
             case .caseStarted: return "shippingbox"
             case .caseReplaced: return "arrow.triangle.2.circlepath"
             case .routineCareRegistered: return "drop.circle"
+            case .solutionOpened: return "flask"
+            case .solutionClosed: return "flask.fill"
+            case .inventoryItemAdded: return "shippingbox"
+            case .inventoryItemEdited: return "pencil"
+            case .inventoryItemDeleted: return "trash"
+            case .inventoryItemExhausted: return "tray"
+            case .inventoryItemUsed: return "arrow.down.bin"
+            case .professionalAdded: return "person.crop.circle.badge.plus"
+            case .professionalEdited: return "person.crop.circle"
+            case .professionalDeleted: return "person.crop.circle.badge.minus"
+            case .appointmentScheduled: return "calendar.badge.plus"
+            case .appointmentEdited: return "calendar.badge.clock"
+            case .appointmentCompleted: return "calendar.badge.checkmark"
+            case .appointmentCanceled: return "calendar.badge.exclamationmark"
+            case .appointmentDeleted: return "calendar.badge.minus"
+            case .wearSessionStarted: return "eye.circle"
+            case .wearSessionEnded: return "eye.slash.circle"
             }
         }
     }
@@ -104,6 +121,7 @@ enum HistoryFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
     case pairLifecycle
     case caseLifecycle
     case routineCare
+    case solutionLifecycle
     case right
     case left
     case both
@@ -117,6 +135,7 @@ enum HistoryFilter: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .pairLifecycle: return "Substituições e pares"
         case .caseLifecycle: return "Ciclos do estojo"
         case .routineCare: return "Cuidado diário"
+        case .solutionLifecycle: return "Solução de limpeza"
         case .right: return "Lente direita"
         case .left: return "Lente esquerda"
         case .both: return "Ambas as lentes"

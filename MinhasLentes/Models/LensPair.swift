@@ -26,6 +26,9 @@ final class LensPair {
     @Relationship(deleteRule: .nullify, inverse: \LensUsage.lensPair)
     var usages: [LensUsage]? = []
 
+    @Relationship(deleteRule: .nullify, inverse: \WearSession.lensPair)
+    var wearSessions: [WearSession]? = []
+
     init(
         id: UUID = UUID(),
         name: String,

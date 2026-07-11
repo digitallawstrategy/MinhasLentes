@@ -31,22 +31,16 @@ struct TrashView: View {
         }
         .navigationTitle("Lixeira")
         .navigationBarTitleDisplayMode(.inline)
-        .alert(
-            "Excluir \(viewModel.pairToPermanentlyDelete?.name ?? "par") permanentemente?",
-            isPresented: Binding(
-                get: { viewModel.pairToPermanentlyDelete != nil },
-                set: { if !$0 { viewModel.pairToPermanentlyDelete = nil } }
-            )
-        ) {
-            Button("Cancelar", role: .cancel) { viewModel.pairToPermanentlyDelete = nil }
-            Button("Excluir para sempre", role: .destructive) {
-                if let pair = viewModel.pairToPermanentlyDelete {
-                    viewModel.permanentlyDelete(pair, context: modelContext)
-                }
-                viewModel.pairToPermanentlyDelete = nil
+        .sheet(item: Binding(
+            get: { viewModel.pairToPermanentlyDelete },
+            set: { viewModel.pairToPermanentlyDelete = $0 }
+        )) { pair in
+            ConfirmDeleteByTypingSheet(
+                title: "Excluir permanentemente",
+                message: "Isso apaga \(pair.name) e todos os usos registrados nele para sempre. Diferente de mover para a lixeira, não pode ser desfeito."
+            ) {
+                viewModel.permanentlyDelete(pair, context: modelContext)
             }
-        } message: {
-            Text("Apaga o par e todos os usos registrados nele para sempre. Diferente de mover para a lixeira, não pode ser desfeito.")
         }
         .alert(
             "Não foi possível concluir a ação",
