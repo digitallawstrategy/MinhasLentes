@@ -26,19 +26,23 @@ struct ReminderCard: View {
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
     private var leadingGlyph: some View {
         if let emoji {
             Text(emoji)
+                .accessibilityHidden(true)
         } else if let systemImage {
             Image(systemName: systemImage)
                 .foregroundStyle(tone.color)
                 .frame(width: 20)
+                .accessibilityHidden(true)
         }
     }
 }

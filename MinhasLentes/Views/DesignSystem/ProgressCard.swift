@@ -3,6 +3,8 @@ import SwiftUI
 /// Cartão de contagem regressiva — título, frase de situação colorida pelo tom e uma barra de
 /// progresso. Usado para prazos (limpeza periódica, validade de solução, substituição de estojo).
 struct ProgressCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let title: String
     let situationText: String
     let fraction: Double
@@ -15,7 +17,7 @@ struct ProgressCard: View {
                 .font(AppTypography.footnote.weight(.medium))
                 .foregroundStyle(tone.color)
             ProgressBarView(fraction: fraction, tint: tone.color)
-                .animation(AppAnimation.standard, value: fraction)
+                .animation(reduceMotion ? nil : AppAnimation.standard, value: fraction)
         }
     }
 }

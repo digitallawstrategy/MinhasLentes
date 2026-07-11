@@ -8,6 +8,7 @@ import SwiftData
 /// lentes em uso, ação principal do momento, sessão ativa, cuidados de hoje, lembretes.
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
     @Query private var allSettings: [AppSettings]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -116,7 +117,7 @@ struct HomeView: View {
                 }
 
                 if isEverythingSettled {
-                    StatusCard(title: "Você está com tudo em dia.", tone: .success)
+                    everythingSettledRow
                 } else if !reminderItems.isEmpty {
                     remindersCard
                 }
@@ -160,24 +161,30 @@ struct HomeView: View {
                     Task { await caseViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
                 }
                 .padding(.bottom, AppSpacing.xs)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(toastTransition)
             } else if pairsViewModel.showUndoToast, let message = pairsViewModel.toastMessage {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     pairsViewModel.undoLastRegisteredUsage(context: modelContext)
                 }
                 .padding(.bottom, AppSpacing.xs)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(toastTransition)
             } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
                 }
                 .padding(.bottom, AppSpacing.xs)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(toastTransition)
             }
         }
-        .animation(AppAnimation.standard, value: caseViewModel.showUndoToast)
-        .animation(AppAnimation.standard, value: pairsViewModel.showUndoToast)
-        .animation(AppAnimation.standard, value: routineCareViewModel.showUndoToast)
+        .animation(reduceMotion ? nil : AppAnimation.standard, value: caseViewModel.showUndoToast)
+        .animation(reduceMotion ? nil : AppAnimation.standard, value: pairsViewModel.showUndoToast)
+        .animation(reduceMotion ? nil : AppAnimation.standard, value: routineCareViewModel.showUndoToast)
+    }
+
+    /// Sem Reduce Motion: desliza e some. Com Reduce Motion: só aparece/desaparece — a
+    /// movimentação é exatamente o que essa preferência de acessibilidade pede para evitar.
+    private var toastTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
     }
 
     @ViewBuilder
@@ -386,27 +393,46 @@ struct HomeView: View {
                 router.openPair(pair.id)
             }
 
+            pairActionRow(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
+        }
+    }
+
+    /// `ViewThatFits` alterna para empilhado quando os dois botões não cabem lado a lado — nome
+    /// de par longo + Dynamic Type grande + tela estreita (iPhone SE) é exatamente esse caso;
+    /// truncar o texto do botão em vez de quebrar a linha esconderia a ação, não só o rótulo.
+    @ViewBuilder
+    private func pairActionRow(for pair: LensPair, usedToday: Bool, isWearingHere: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
             HStack(spacing: AppSpacing.xs) {
-                if usedToday {
-                    StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill")
-                } else {
-                    PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit, fullWidth: false) {
-                        pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
-                    }
-                    .controlSize(.small)
-                }
-                if pairsViewModel.wearingSessionPairID == nil || isWearingHere {
-                    Spacer()
-                    SecondaryActionButton(
-                        title: isWearingHere ? "Retirei as lentes" : "Estou usando as lentes",
-                        tint: isWearingHere ? AppColor.critical : AppColor.primary,
-                        fullWidth: false
-                    ) {
-                        handleWearingSessionToggle(for: pair)
-                    }
-                    .controlSize(.small)
-                }
+                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
             }
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pairActionRowContent(for pair: LensPair, usedToday: Bool, isWearingHere: Bool) -> some View {
+        if usedToday {
+            StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill")
+        } else {
+            PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit, fullWidth: false) {
+                pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
+            }
+            .controlSize(.small)
+        }
+        if pairsViewModel.wearingSessionPairID == nil || isWearingHere {
+            // Mesma família de cor (indigo) nos dois estados — a hierarquia vem do estilo
+            // preenchido vs. contornado, não de trocar para vermelho; vermelho fica reservado
+            // para crítico/destrutivo, e encerrar uma sessão de uso não é nem um nem outro.
+            SecondaryActionButton(
+                title: isWearingHere ? "Retirei as lentes" : "Estou usando as lentes",
+                fullWidth: false
+            ) {
+                handleWearingSessionToggle(for: pair)
+            }
+            .controlSize(.small)
         }
     }
 
@@ -432,6 +458,22 @@ struct HomeView: View {
             // deixar a pessoa esquecer justamente de contabilizar a utilização do dia.
             pendingSessionStartPair = pair
         }
+    }
+
+    /// Deliberadamente sem `AppCard` — teria o mesmo peso visual das ações principais. Isto é
+    /// uma confirmação silenciosa, não mais um cartão para competir por atenção.
+    private var everythingSettledRow: some View {
+        HStack(spacing: AppSpacing.xs) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(AppColor.success)
+                .accessibilityHidden(true)
+            Text("Você está com tudo em dia.")
+                .font(AppTypography.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, AppSpacing.xs)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Lembretes
