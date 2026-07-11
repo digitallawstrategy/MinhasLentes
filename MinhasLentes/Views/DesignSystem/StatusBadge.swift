@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Selo de status compacto — generaliza `UsageStatusBadgeView` para qualquer texto/tom, não só
-/// o status de utilização de um par. Nunca depende só da cor: sempre mostra o texto junto.
+/// Selo de status compacto — texto e tom livres, usado tanto para o status de utilização de um
+/// par quanto para qualquer outro selo do app. Nunca depende só da cor: sempre mostra o texto
+/// junto.
 struct StatusBadge: View {
     let text: String
     var tone: AppStatusTone = .neutral

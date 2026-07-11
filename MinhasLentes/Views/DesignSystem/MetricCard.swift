@@ -19,7 +19,7 @@ struct MetricCard: View {
                         ProgressRingView(remainingFraction: progress, tint: tone.color)
                         VStack(spacing: 0) {
                             Text(value)
-                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .font(AppTypography.metricValue)
                                 .minimumScaleFactor(0.5)
                                 .lineLimit(1)
                             Text(label)

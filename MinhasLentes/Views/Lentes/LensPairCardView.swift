@@ -49,14 +49,12 @@ struct LensPairCardView: View {
     }
 
     var body: some View {
-        SectionCard {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                ringAndHeadline
-                ProgressBarView(fraction: remainingFraction, tint: usageStatus.tintColor)
-                    .animation(.easeInOut(duration: 0.6), value: remainingFraction)
-                detailStats
-            }
+        AppCard {
+            header
+            ringAndHeadline
+            ProgressBarView(fraction: remainingFraction, tint: usageStatus.tone.color)
+                .animation(AppAnimation.standard, value: remainingFraction)
+            detailStats
         }
         .alert("Mover \(pair.name) para a lixeira?", isPresented: $showTrashConfirmation) {
             Button("Cancelar", role: .cancel) {}
@@ -68,18 +66,16 @@ struct LensPairCardView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                 Text(pair.name)
                     .font(.title3.weight(.semibold))
                 Text("Iniciado em \(DateFormatting.short.string(from: pair.startDate))")
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    UsageStatusBadgeView(status: usageStatus)
+                HStack(spacing: AppSpacing.xs) {
+                    StatusBadge(text: usageStatus.label, tone: usageStatus.tone, emoji: usageStatus.emoji)
                     if isWearingSessionActiveHere {
-                        Label("Em uso agora", systemImage: "eye.circle.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
+                        StatusBadge(text: "Em uso agora", tone: .informative, systemImage: "eye.circle.fill")
                     }
                 }
             }
@@ -102,18 +98,18 @@ struct LensPairCardView: View {
     }
 
     private var ringAndHeadline: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: AppSpacing.lg) {
             ZStack {
-                ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tintColor)
+                ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tone.color)
                 VStack(spacing: 0) {
                     Text("\(pair.usesRemaining)")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .font(AppTypography.metricValue)
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                         .contentTransition(.numericText(value: Double(pair.usesRemaining)))
                         .animation(.spring(duration: 0.5), value: pair.usesRemaining)
                     Text("restantes")
-                        .font(.caption)
+                        .font(AppTypography.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -122,11 +118,11 @@ struct LensPairCardView: View {
             .accessibilityLabel("Usos restantes")
             .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                 Text("\(pair.usesCount) de \(pair.maximumUses) usos")
-                    .font(.headline)
+                    .font(AppTypography.headline)
                 Text("\(Int((remainingFraction * 100).rounded()))% do limite de utilizações restante")
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer()

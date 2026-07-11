@@ -65,7 +65,7 @@ struct LensInventoryView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { itemToDelete = item }
                                 Button("Editar") { itemToEdit = item }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                     }
                 }
@@ -83,7 +83,7 @@ struct LensInventoryView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { itemToDelete = item }
                                 Button("Editar") { itemToEdit = item }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                     }
                 }
@@ -159,7 +159,7 @@ struct LensInventoryView: View {
                 if let expiryDate = item.expiryDate {
                     Text("Validade: \(DateFormatting.short.string(from: expiryDate))\(item.isExpired ? " — vencida" : "")")
                         .font(.caption)
-                        .foregroundStyle(item.isExpired ? Color.orange : Color.secondary)
+                        .foregroundStyle(item.isExpired ? AppColor.warning : Color.secondary)
                 }
                 if let notes = item.notes, !notes.isEmpty {
                     Text(notes)
