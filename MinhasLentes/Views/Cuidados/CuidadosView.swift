@@ -49,8 +49,9 @@ struct CuidadosView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, AppSpacing.xs)
-                .padding(.bottom, AppSpacing.xxl)
+                .padding(.bottom, AppSpacing.sm)
             }
+            .tabBarScrollInset()
             .background(AmbientBackground())
             .navigationTitle("Cuidados")
         }

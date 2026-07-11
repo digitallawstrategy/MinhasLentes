@@ -74,8 +74,9 @@ struct LensPairsView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, AppSpacing.xs)
-                .padding(.bottom, AppSpacing.xxl)
+                .padding(.bottom, AppSpacing.sm)
             }
+            .tabBarScrollInset()
             .background(AmbientBackground())
             .navigationTitle("Lentes")
             .task {
@@ -284,10 +285,9 @@ struct LensPairsView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            SecondaryActionButton(title: "Usar agora", fullWidth: false) {
+            SecondaryActionButton(title: "Usar agora", fullWidth: false, compact: true) {
                 viewModel.promoteToInUse(pair, context: modelContext)
             }
-            .controlSize(.small)
             Menu {
                 Button("Editar par", systemImage: "pencil") { pairToEdit = pair }
                 Button("Ver diário do par", systemImage: "book.pages") { pairForDiary = pair }

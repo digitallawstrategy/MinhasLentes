@@ -141,9 +141,9 @@ struct LensPairCardView: View {
 
     private func usageHeadlineText(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: AppSpacing.xxs) {
-            Text("\(pair.usesCount) de \(pair.maximumUses) usos")
+            Text("\(pair.usesCount) de \(pair.maximumUses) usos registrados")
                 .font(AppTypography.headline)
-            Text("\(Int((remainingFraction * 100).rounded()))% do limite de utilizações restante")
+            Text("\(Int((remainingFraction * 100).rounded()))% da vida útil restante")
                 .font(AppTypography.footnote)
                 .foregroundStyle(.secondary)
         }

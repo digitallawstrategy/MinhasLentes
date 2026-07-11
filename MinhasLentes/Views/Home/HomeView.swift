@@ -150,13 +150,9 @@ struct HomeView: View {
             }
             .padding(.horizontal)
             .padding(.top, AppSpacing.xs)
-            // Folga grande abaixo do último cartão, de propósito: em aparelho real, com o
-            // cartão "Cuidados de hoje" no seu estado mais alto (pill + 2 botões + linha de
-            // limpeza periódica), o conteúdo ainda encostava atrás da tab bar mesmo com a
-            // margem automática de safe area + um acréscimo menor. Preferível sobrar espaço em
-            // branco no fim do scroll a cortar o último botão.
-            .padding(.bottom, AppSpacing.xxl * 2 + AppSpacing.lg)
+            .padding(.bottom, AppSpacing.sm)
         }
+        .tabBarScrollInset()
         .background(AmbientBackground())
         .navigationTitle("Início")
         .toolbar(.hidden, for: .navigationBar)
@@ -457,27 +453,32 @@ struct HomeView: View {
     /// `ViewThatFits` alterna para empilhado quando os dois botões não cabem lado a lado — nome
     /// de par longo + Dynamic Type grande + tela estreita (iPhone SE) é exatamente esse caso;
     /// truncar o texto do botão em vez de quebrar a linha esconderia a ação, não só o rótulo.
+    ///
+    /// O candidato horizontal usa filhos de largura natural (`fullWidth: false`), não
+    /// `.infinity`: um filho `.infinity` sempre "cabe" pra `ViewThatFits` (sua largura mínima é
+    /// pequena mesmo que o conteúdo precise embrulhar depois de layout), o que fazia o
+    /// candidato horizontal ser escolhido mesmo quando o texto não ia caber de verdade,
+    /// resultando em uma pílula quebrando em duas linhas. Com largura natural, `ViewThatFits`
+    /// mede o tamanho real do conteúdo e só cai pro vertical quando genuinamente precisa.
     @ViewBuilder
     private func pairActionRow(for pair: LensPair, usedToday: Bool, isWearingHere: Bool) -> some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: AppSpacing.xs) {
-                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
+            HStack(spacing: AppSpacing.sm) {
+                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere, fullWidth: false)
             }
+            .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
+                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere, fullWidth: true)
             }
         }
     }
 
-    /// Selo e botões dividem a linha com peso visual equivalente (duas "pílulas" de largura
-    /// igual, como no cartão "Em uso" da referência) — não um selo compacto ao lado de um botão
-    /// de tamanho cheio.
     @ViewBuilder
-    private func pairActionRowContent(for pair: LensPair, usedToday: Bool, isWearingHere: Bool) -> some View {
+    private func pairActionRowContent(for pair: LensPair, usedToday: Bool, isWearingHere: Bool, fullWidth: Bool) -> some View {
         if usedToday {
-            StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill", fullWidth: true)
+            StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill", fullWidth: fullWidth)
         } else {
-            PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit) {
+            PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit, fullWidth: fullWidth) {
                 pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
             }
         }
@@ -490,11 +491,11 @@ struct HomeView: View {
             // só um botão preenchido por vez, para não competir consigo mesmo.
             let title = isWearingHere ? "Retirei as lentes" : "Estou usando as lentes"
             if usedToday {
-                PrimaryActionButton(title: title) {
+                PrimaryActionButton(title: title, fullWidth: fullWidth) {
                     handleWearingSessionToggle(for: pair)
                 }
             } else {
-                SecondaryActionButton(title: title) {
+                SecondaryActionButton(title: title, fullWidth: fullWidth) {
                     handleWearingSessionToggle(for: pair)
                 }
             }

@@ -136,7 +136,7 @@ struct CaseView: View {
                 .font(AppTypography.footnote)
                 .foregroundStyle(.secondary)
 
-            SecondaryActionButton(title: "Registrar em outro dia", fullWidth: false) {
+            SecondaryActionButton(title: "Registrar em outro dia", fullWidth: false, compact: true) {
                 routineDate = Date()
                 routineDiscardedSolution = true
                 routineCleanedCase = true
@@ -144,7 +144,6 @@ struct CaseView: View {
                 routineNotes = ""
                 showRegisterRoutineCareDetails = true
             }
-            .controlSize(.small)
             .padding(.top, AppSpacing.xxs)
 
             Divider()
@@ -194,12 +193,11 @@ struct CaseView: View {
                     Task { await cleaningViewModel.registerCleaningToday(settings: settings, context: modelContext) }
                 }
 
-                SecondaryActionButton(title: "Registrar em outra data", fullWidth: false) {
+                SecondaryActionButton(title: "Registrar em outra data", fullWidth: false, compact: true) {
                     customDate = Date()
                     customNotes = ""
                     showRegisterOtherDate = true
                 }
-                .controlSize(.small)
             }
             .padding(.top, AppSpacing.xxs)
         }
@@ -267,8 +265,9 @@ struct CaseView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, AppSpacing.xs)
-                .padding(.bottom, AppSpacing.xxl)
+                .padding(.bottom, AppSpacing.sm)
             }
+            .tabBarScrollInset()
             .navigationTitle("Estojo")
             .overlay(alignment: .bottom) {
                 if cleaningViewModel.showUndoToast, let message = cleaningViewModel.toastMessage {

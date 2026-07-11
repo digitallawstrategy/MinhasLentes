@@ -85,8 +85,7 @@ struct TodayCareCardView: View {
                 PrimaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", action: onRegisterRoutineCareForOtherDay)
             } else {
                 PrimaryActionButton(title: "Registrar cuidado diário", systemImage: "drop.circle", action: onRegisterRoutineCareToday)
-                SecondaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", action: onRegisterRoutineCareForOtherDay)
-                    .controlSize(.small)
+                SecondaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", fullWidth: false, compact: true, action: onRegisterRoutineCareForOtherDay)
             }
         }
     }
