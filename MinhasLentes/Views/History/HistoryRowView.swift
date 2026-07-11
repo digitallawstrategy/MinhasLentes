@@ -8,7 +8,7 @@ struct HistoryRowView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: item.systemImageName)
                 .font(.title3)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(AppColor.primary)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 3) {

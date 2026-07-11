@@ -34,7 +34,7 @@ struct LensCaseHistoryView: View {
                             Button("Editar") {
                                 caseToEdit = lensCase
                             }
-                            .tint(.blue)
+                            .tint(AppColor.primary)
                         }
                 }
             }

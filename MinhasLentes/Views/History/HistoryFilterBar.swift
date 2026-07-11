@@ -18,7 +18,7 @@ struct HistoryFilterBar: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(
-                                Capsule().fill(isActive ? Color.accentColor : Color.secondary.opacity(0.15))
+                                Capsule().fill(isActive ? AppColor.primary : Color.secondary.opacity(0.15))
                             )
                             .foregroundStyle(isActive ? Color.white : Color.primary)
                     }
