@@ -149,6 +149,7 @@ final class LensPairsViewModel {
             try? await Task.sleep(for: Self.undoToastDuration)
             guard !Task.isCancelled else { return }
             self?.showUndoToast = false
+            self?.lastRegisteredUsages = []
         }
     }
 

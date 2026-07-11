@@ -395,6 +395,18 @@ struct CaseView: View {
             } message: { error in
                 Text(error.message)
             }
+            .confirmationDialog(
+                "Já existe um cuidado diário registrado nesta data. Registrar mesmo assim?",
+                isPresented: $routineCareViewModel.showDuplicateConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Registrar mesmo assim") {
+                    routineCareViewModel.confirmDuplicateRegistration(context: modelContext)
+                }
+                Button("Cancelar", role: .cancel) {
+                    routineCareViewModel.cancelDuplicateRegistration()
+                }
+            }
             .alert(
                 "Excluir limpeza?",
                 isPresented: Binding(

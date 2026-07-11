@@ -21,6 +21,7 @@ struct HomeView: View {
     @State private var routineCareViewModel = RoutineCareViewModel()
     @State private var router = AppRouter.shared
     @State private var showRoutineCarePrompt = false
+    @State private var pendingSessionStartPair: LensPair?
     @State private var showRegisterRoutineCareDetails = false
     @State private var routineDate = Date()
     @State private var routineDiscardedSolution = true
@@ -73,79 +74,89 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    Text(greeting)
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            withDialogsAndSheet(withErrorAlerts(mainContent))
+        }
+    }
 
-                    if inUsePairs.isEmpty && reservePairs.isEmpty {
-                        emptyState
-                    } else {
-                        summaryContent
-                    }
+    private var mainContent: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                Text(greeting)
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if !reminderItems.isEmpty {
-                        remindersCard
-                    }
-
-                    TodayCareCardView(
-                        lastRoutineCare: lastRoutineCare,
-                        hasRoutineCareToday: hasRoutineCareToday,
-                        lastCleaning: lastCleaning,
-                        settings: settings,
-                        onRegisterRoutineCareToday: {
-                            routineCareViewModel.registerRoutineCareToday(context: modelContext)
-                        },
-                        onRegisterRoutineCareForOtherDay: {
-                            routineDate = Date()
-                            routineDiscardedSolution = true
-                            routineCleanedCase = true
-                            routineAirDried = true
-                            routineNotes = ""
-                            showRegisterRoutineCareDetails = true
-                        },
-                        onRegisterCleaningToday: {
-                            Task { await caseViewModel.registerCleaningToday(settings: settings, context: modelContext) }
-                        }
-                    )
+                if inUsePairs.isEmpty && reservePairs.isEmpty {
+                    emptyState
+                } else {
+                    summaryContent
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
-            }
-            .navigationTitle("Minhas Lentes")
-            .task {
-                pairsViewModel.refreshWearingSessionState(context: modelContext)
-                await endPendingWearingSessionIfNeeded()
-            }
-            .onChange(of: router.pendingEndWearingSession) { _, _ in
-                Task { await endPendingWearingSessionIfNeeded() }
-            }
-            .overlay(alignment: .bottom) {
-                if caseViewModel.showUndoToast, let message = caseViewModel.toastMessage {
-                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
-                        Task { await caseViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
-                    }
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if pairsViewModel.showUndoToast, let message = pairsViewModel.toastMessage {
-                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
-                        pairsViewModel.undoLastRegisteredUsage(context: modelContext)
-                    }
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
-                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
-                        routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
-                    }
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+
+                if !reminderItems.isEmpty {
+                    remindersCard
                 }
+
+                TodayCareCardView(
+                    lastRoutineCare: lastRoutineCare,
+                    hasRoutineCareToday: hasRoutineCareToday,
+                    lastCleaning: lastCleaning,
+                    settings: settings,
+                    onRegisterRoutineCareToday: {
+                        routineCareViewModel.registerRoutineCareToday(context: modelContext)
+                    },
+                    onRegisterRoutineCareForOtherDay: {
+                        routineDate = Date()
+                        routineDiscardedSolution = true
+                        routineCleanedCase = true
+                        routineAirDried = true
+                        routineNotes = ""
+                        showRegisterRoutineCareDetails = true
+                    },
+                    onRegisterCleaningToday: {
+                        Task { await caseViewModel.registerCleaningToday(settings: settings, context: modelContext) }
+                    }
+                )
             }
-            .animation(.snappy, value: caseViewModel.showUndoToast)
-            .animation(.snappy, value: pairsViewModel.showUndoToast)
-            .animation(.snappy, value: routineCareViewModel.showUndoToast)
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
+        }
+        .navigationTitle("Minhas Lentes")
+        .task {
+            pairsViewModel.refreshWearingSessionState(context: modelContext)
+            await endPendingWearingSessionIfNeeded()
+        }
+        .onChange(of: router.pendingEndWearingSession) { _, _ in
+            Task { await endPendingWearingSessionIfNeeded() }
+        }
+        .overlay(alignment: .bottom) {
+            if caseViewModel.showUndoToast, let message = caseViewModel.toastMessage {
+                ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                    Task { await caseViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
+                }
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if pairsViewModel.showUndoToast, let message = pairsViewModel.toastMessage {
+                ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                    pairsViewModel.undoLastRegisteredUsage(context: modelContext)
+                }
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
+                ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                    routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
+                }
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: caseViewModel.showUndoToast)
+        .animation(.snappy, value: pairsViewModel.showUndoToast)
+        .animation(.snappy, value: routineCareViewModel.showUndoToast)
+    }
+
+    @ViewBuilder
+    private func withErrorAlerts(_ content: some View) -> some View {
+        content
             .alert(
                 "Não foi possível concluir a ação",
                 isPresented: Binding(
@@ -182,6 +193,11 @@ struct HomeView: View {
             } message: { error in
                 Text(error.message)
             }
+    }
+
+    @ViewBuilder
+    private func withDialogsAndSheet(_ content: some View) -> some View {
+        content
             .alert("Limite atingido", isPresented: $pairsViewModel.showLimitReachedAlert) {
                 Button("Entendi", role: .cancel) {}
             } message: {
@@ -208,6 +224,40 @@ struct HomeView: View {
                     routineCareViewModel.registerRoutineCareToday(context: modelContext)
                 }
                 Button("Depois", role: .cancel) {}
+            }
+            .confirmationDialog(
+                "Registrar também a utilização de hoje?",
+                isPresented: sessionStartPromptBinding,
+                titleVisibility: .visible
+            ) {
+                Button("Registrar e iniciar sessão") {
+                    if let pair = pendingSessionStartPair {
+                        pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
+                        pairsViewModel.toggleWearingSession(for: pair, settings: settings, context: modelContext)
+                    }
+                    pendingSessionStartPair = nil
+                }
+                Button("Apenas iniciar sessão") {
+                    if let pair = pendingSessionStartPair {
+                        pairsViewModel.toggleWearingSession(for: pair, settings: settings, context: modelContext)
+                    }
+                    pendingSessionStartPair = nil
+                }
+                Button("Cancelar", role: .cancel) {
+                    pendingSessionStartPair = nil
+                }
+            }
+            .confirmationDialog(
+                "Já existe um cuidado diário registrado nesta data. Registrar mesmo assim?",
+                isPresented: $routineCareViewModel.showDuplicateConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Registrar mesmo assim") {
+                    routineCareViewModel.confirmDuplicateRegistration(context: modelContext)
+                }
+                Button("Cancelar", role: .cancel) {
+                    routineCareViewModel.cancelDuplicateRegistration()
+                }
             }
             .sheet(isPresented: $showRegisterRoutineCareDetails) {
                 NavigationStack {
@@ -239,7 +289,6 @@ struct HomeView: View {
                 }
                 .presentationDetents([.medium])
             }
-        }
     }
 
     // MARK: - Em uso
@@ -363,6 +412,13 @@ struct HomeView: View {
         }
     }
 
+    private var sessionStartPromptBinding: Binding<Bool> {
+        Binding(
+            get: { pendingSessionStartPair != nil },
+            set: { if !$0 { pendingSessionStartPair = nil } }
+        )
+    }
+
     private func handleWearingSessionToggle(for pair: LensPair) {
         if pairsViewModel.wearingSessionPairID == pair.id {
             Task {
@@ -371,8 +427,12 @@ struct HomeView: View {
                     showRoutineCarePrompt = true
                 }
             }
-        } else {
+        } else if hasUsageToday(pair) {
             pairsViewModel.toggleWearingSession(for: pair, settings: settings, context: modelContext)
+        } else {
+            // Sem uso registrado hoje ainda: pergunta antes de só iniciar a sessão, para não
+            // deixar a pessoa esquecer justamente de contabilizar a utilização do dia.
+            pendingSessionStartPair = pair
         }
     }
 

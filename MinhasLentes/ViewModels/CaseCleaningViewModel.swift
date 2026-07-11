@@ -60,6 +60,7 @@ final class CaseCleaningViewModel {
             try? await Task.sleep(for: Self.undoToastDuration)
             guard !Task.isCancelled else { return }
             self?.showUndoToast = false
+            self?.lastRegisteredCleaning = nil
         }
     }
 
