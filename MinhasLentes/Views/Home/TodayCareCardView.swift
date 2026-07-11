@@ -37,71 +37,57 @@ struct TodayCareCardView: View {
         return daysUntilNextCleaning <= settings.advanceReminderDays
     }
 
-    private var countdownTint: Color {
-        guard let daysUntilNextCleaning else { return .accentColor }
-        if daysUntilNextCleaning <= 0 { return .red }
-        if daysUntilNextCleaning <= settings.advanceReminderDays { return .orange }
-        return .green
+    private var cleaningTone: AppStatusTone {
+        guard let daysUntilNextCleaning else { return .informative }
+        if daysUntilNextCleaning <= 0 { return .critical }
+        if daysUntilNextCleaning <= settings.advanceReminderDays { return .warning }
+        return .success
     }
 
     var body: some View {
-        SectionCard(title: "Cuidados de hoje") {
-            VStack(alignment: .leading, spacing: 12) {
-                routineCareSection
-                if isCleaningDue {
-                    Divider()
-                    dueCleaningSection
-                } else if let daysUntilNextCleaning {
-                    Text("Próxima limpeza periódica em \(daysUntilNextCleaning) dia(s)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        AppCard {
+            SectionHeader("Cuidados de hoje")
+            routineCareSection
+            if isCleaningDue {
+                Divider()
+                dueCleaningSection
+            } else if let daysUntilNextCleaning {
+                Text("Próxima limpeza periódica em \(daysUntilNextCleaning) dia(s)")
+                    .font(AppTypography.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
     private var routineCareSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
             if let lastRoutineCare {
                 StatRow(label: "Último cuidado diário", value: DateFormatting.shortWithTime.string(from: lastRoutineCare.date))
             } else {
                 StatRow(label: "Último cuidado diário", value: "Nenhum registrado")
             }
             if hasRoutineCareToday {
-                Label("Cuidado diário já registrado hoje", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.green)
+                StatusBadge(text: "Cuidado diário já registrado hoje", tone: .success, systemImage: "checkmark.circle.fill")
             } else {
-                Button(action: onRegisterRoutineCareToday) {
-                    Label("Registrar cuidado diário", systemImage: "drop.circle")
-                        .font(.subheadline.weight(.medium))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
+                PrimaryActionButton(title: "Registrar cuidado diário", systemImage: "drop.circle", action: onRegisterRoutineCareToday)
             }
-            Button("Registrar em outro dia", action: onRegisterRoutineCareForOtherDay)
-                .font(.caption)
+            SecondaryActionButton(title: "Registrar em outro dia", fullWidth: false, action: onRegisterRoutineCareForOtherDay)
+                .controlSize(.small)
         }
     }
 
     private var dueCleaningSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let daysUntilNextCleaning {
-                Text(daysUntilNextCleaning <= 0 ? "Limpeza periódica atrasada" : "Limpeza periódica prevista em \(daysUntilNextCleaning) dia(s)")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(countdownTint)
-            } else {
-                Text("Nenhuma limpeza periódica registrada ainda")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-            Button(action: onRegisterCleaningToday) {
-                Label("Registrar limpeza periódica", systemImage: "sparkles")
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text(cleaningSituationText)
+                .font(AppTypography.footnote.weight(.medium))
+                .foregroundStyle(cleaningTone.color)
+            PrimaryActionButton(title: "Registrar limpeza periódica", systemImage: "sparkles", action: onRegisterCleaningToday)
         }
+    }
+
+    private var cleaningSituationText: String {
+        guard let daysUntilNextCleaning else { return "Nenhuma limpeza periódica registrada ainda" }
+        return daysUntilNextCleaning <= 0 ? "Limpeza periódica atrasada" : "Limpeza periódica prevista em \(daysUntilNextCleaning) dia(s)"
     }
 }
 

@@ -4,7 +4,8 @@ import SwiftData
 /// Aba Início: o hub de ações do dia — registrar o uso de hoje, alternar a sessão "estou
 /// usando as lentes", registrar o cuidado diário do estojo e, quando pertinente, a limpeza
 /// periódica. Edição, encerramento e detalhe administrativo ficam em Lentes/Cuidados; tocar
-/// num par aqui leva direto ao diário dele lá.
+/// num par aqui leva direto ao diário dele lá. Prioridade visual, nesta ordem: situação das
+/// lentes em uso, ação principal do momento, sessão ativa, cuidados de hoje, lembretes.
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
@@ -64,6 +65,21 @@ struct HomeView: View {
         routineCareLogs.contains { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
     }
 
+    /// Mesma janela usada por `TodayCareCardView` para decidir se a limpeza periódica precisa
+    /// de destaque — replicada aqui só para a checagem de "tudo em dia", sem acoplar as Views.
+    private var isCleaningDue: Bool {
+        guard let lastCleaning else { return true }
+        let nextDate = LensStatisticsService.nextCleaningDate(lastCleaningDate: lastCleaning.cleaningDate, intervalDays: settings.cleaningIntervalDays)
+        return LensStatisticsService.daysUntil(nextDate) <= settings.advanceReminderDays
+    }
+
+    /// Nada pendente para hoje: sem uso a registrar, cuidado diário feito, limpeza periódica
+    /// fora da janela de aviso e sem lembretes — mostra uma mensagem discreta no lugar do
+    /// cartão de lembretes, em vez de somar mais um cartão à tela.
+    private var isEverythingSettled: Bool {
+        pairsNeedingUsageToday.isEmpty && hasRoutineCareToday && !isCleaningDue && reminderItems.isEmpty
+    }
+
     private var greeting: String {
         switch Calendar.current.component(.hour, from: Date()) {
         case 0..<12: return "Bom dia"
@@ -80,18 +96,28 @@ struct HomeView: View {
 
     private var mainContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: AppSpacing.md) {
                 Text(greeting)
-                    .font(.title3.weight(.semibold))
+                    .font(AppTypography.title)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if inUsePairs.isEmpty && reservePairs.isEmpty {
-                    emptyState
+                    EmptyStateView(
+                        title: "Nenhum par cadastrado",
+                        systemImage: "eyeglasses",
+                        description: "Vá para a aba Lentes para iniciar seu primeiro par.",
+                        actionTitle: "Ir para Lentes",
+                        actionSystemImage: "arrow.right.circle.fill"
+                    ) {
+                        router.selectedTab = .lentes
+                    }
                 } else {
                     summaryContent
                 }
 
-                if !reminderItems.isEmpty {
+                if isEverythingSettled {
+                    StatusCard(title: "Você está com tudo em dia.", tone: .success)
+                } else if !reminderItems.isEmpty {
                     remindersCard
                 }
 
@@ -117,8 +143,8 @@ struct HomeView: View {
                 )
             }
             .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
+            .padding(.top, AppSpacing.xs)
+            .padding(.bottom, AppSpacing.xxl)
         }
         .navigationTitle("Minhas Lentes")
         .task {
@@ -133,25 +159,25 @@ struct HomeView: View {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     Task { await caseViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, AppSpacing.xs)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if pairsViewModel.showUndoToast, let message = pairsViewModel.toastMessage {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     pairsViewModel.undoLastRegisteredUsage(context: modelContext)
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, AppSpacing.xs)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, AppSpacing.xs)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.snappy, value: caseViewModel.showUndoToast)
-        .animation(.snappy, value: pairsViewModel.showUndoToast)
-        .animation(.snappy, value: routineCareViewModel.showUndoToast)
+        .animation(AppAnimation.standard, value: caseViewModel.showUndoToast)
+        .animation(AppAnimation.standard, value: pairsViewModel.showUndoToast)
+        .animation(AppAnimation.standard, value: routineCareViewModel.showUndoToast)
     }
 
     @ViewBuilder
@@ -296,36 +322,29 @@ struct HomeView: View {
     @ViewBuilder
     private var summaryContent: some View {
         if !inUsePairs.isEmpty {
-            SectionCard(title: "Em uso") {
-                VStack(spacing: 12) {
-                    if pairsNeedingUsageToday.count > 1 {
-                        registerAllUsageButton
+            AppCard {
+                SectionHeader("Em uso")
+                if pairsNeedingUsageToday.count > 1 {
+                    registerAllUsageButton
+                    Divider()
+                }
+                ForEach(inUsePairs) { pair in
+                    pairActionCard(for: pair)
+                    if pair.id != inUsePairs.last?.id {
                         Divider()
-                    }
-                    ForEach(inUsePairs) { pair in
-                        pairActionCard(for: pair)
-                        if pair.id != inUsePairs.last?.id {
-                            Divider()
-                        }
                     }
                 }
             }
         }
         if !reservePairs.isEmpty {
-            Button {
+            ReminderCard(
+                systemImage: "tray.and.arrow.down",
+                title: "Reservas disponíveis",
+                detail: "\(reservePairs.count) par(es)",
+                tone: .neutral
+            ) {
                 router.selectedTab = .lentes
-            } label: {
-                HStack {
-                    Text("\(reservePairs.count) par(es) reserva disponível(is)")
-                        .font(.subheadline)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -338,14 +357,12 @@ struct HomeView: View {
     }
 
     private var registerAllUsageButton: some View {
-        Button {
+        PrimaryActionButton(
+            title: "Registrar uso nos \(pairsNeedingUsageToday.count) pares pendentes",
+            systemImage: "checkmark.circle.fill"
+        ) {
             pairsViewModel.registerUsageForAllInUsePairs(pairsNeedingUsageToday, settings: settings, context: modelContext)
-        } label: {
-            Label("Registrar uso nos \(pairsNeedingUsageToday.count) pares pendentes", systemImage: "checkmark.circle.fill")
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
     }
 
     private func pairActionCard(for pair: LensPair) -> some View {
@@ -359,54 +376,35 @@ struct HomeView: View {
         let isWearingHere = pairsViewModel.wearingSessionPairID == pair.id
         let usedToday = hasUsageToday(pair)
 
-        return VStack(alignment: .leading, spacing: 8) {
-            Button {
+        return VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            ReminderCard(
+                emoji: status.emoji,
+                title: pair.name,
+                detail: "\(pair.usesRemaining) de \(pair.maximumUses) usos restantes — \(status.label)",
+                tone: status.tone
+            ) {
                 router.openPair(pair.id)
-            } label: {
-                HStack(spacing: 10) {
-                    Text(status.emoji)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(pair.name)
-                            .font(.subheadline.weight(.medium))
-                        Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes — \(status.label)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
             }
-            .buttonStyle(.plain)
 
-            HStack(spacing: 8) {
+            HStack(spacing: AppSpacing.xs) {
                 if usedToday {
-                    Label("Uso registrado hoje", systemImage: "checkmark.circle.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.green)
+                    StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill")
                 } else {
-                    Button {
+                    PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit, fullWidth: false) {
                         pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
-                    } label: {
-                        Text("Registrar uso hoje")
-                            .font(.caption.weight(.medium))
                     }
-                    .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .disabled(pair.hasReachedLimit)
                 }
                 if pairsViewModel.wearingSessionPairID == nil || isWearingHere {
                     Spacer()
-                    Button {
+                    SecondaryActionButton(
+                        title: isWearingHere ? "Retirei as lentes" : "Estou usando as lentes",
+                        tint: isWearingHere ? AppColor.critical : AppColor.primary,
+                        fullWidth: false
+                    ) {
                         handleWearingSessionToggle(for: pair)
-                    } label: {
-                        Text(isWearingHere ? "Retirei as lentes" : "Estou usando as lentes")
-                            .font(.caption.weight(.medium))
                     }
-                    .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .tint(isWearingHere ? .red : .accentColor)
                 }
             }
         }
@@ -471,40 +469,17 @@ struct HomeView: View {
     }
 
     private var remindersCard: some View {
-        SectionCard(title: "Lembretes") {
-            VStack(spacing: 10) {
-                ForEach(Array(reminderItems.enumerated()), id: \.element.id) { index, item in
-                    reminderRow(icon: item.icon, title: item.title, detail: item.detail, tab: item.tab)
-                    if index != reminderItems.count - 1 {
-                        Divider()
-                    }
+        AppCard {
+            SectionHeader("Lembretes")
+            ForEach(Array(reminderItems.enumerated()), id: \.element.id) { index, item in
+                ReminderCard(systemImage: item.icon, title: item.title, detail: item.detail, tone: .informative) {
+                    router.selectedTab = item.tab
+                }
+                if index != reminderItems.count - 1 {
+                    Divider()
                 }
             }
         }
-    }
-
-    private func reminderRow(icon: String, title: String, detail: String, tab: AppTab) -> some View {
-        Button {
-            router.selectedTab = tab
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 20)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .buttonStyle(.plain)
     }
 
     private func caseReminderDetail(_ lensCase: LensCase) -> String {
@@ -541,24 +516,6 @@ struct HomeView: View {
         guard router.pendingEndWearingSession else { return }
         router.pendingEndWearingSession = false
         await pairsViewModel.endWearingSession(context: modelContext)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            ContentUnavailableView(
-                "Nenhum par cadastrado",
-                systemImage: "eyeglasses",
-                description: Text("Vá para a aba Lentes para iniciar seu primeiro par.")
-            )
-            Button {
-                router.selectedTab = .lentes
-            } label: {
-                Label("Ir para Lentes", systemImage: "arrow.right.circle.fill")
-                    .font(.headline)
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(.top, 40)
     }
 }
 

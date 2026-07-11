@@ -16,3 +16,16 @@ enum AppStatusTone {
         }
     }
 }
+
+extension LensUsageStatus {
+    /// Traduz o status de utilização de um par (leitura da contagem de usos restantes) para o
+    /// tom visual correspondente do design system.
+    var tone: AppStatusTone {
+        switch self {
+        case .excellent: return .success
+        case .good: return .success
+        case .warning: return .warning
+        case .critical: return .critical
+        }
+    }
+}
