@@ -93,8 +93,8 @@ struct MonthlyCareCalendarView: View {
 
             if !secondaryLoggedDates.isEmpty {
                 HStack(spacing: 12) {
-                    legendItem(color: .accentColor, label: "Cuidado diário")
-                    legendItem(color: .orange, label: "Limpeza periódica")
+                    legendItem(color: AppColor.primary, label: "Cuidado diário")
+                    legendItem(color: AppColor.secondary, label: "Limpeza periódica")
                 }
                 .padding(.top, 2)
             }
@@ -118,7 +118,7 @@ struct MonthlyCareCalendarView: View {
             let isFuture = date > Date()
             ZStack(alignment: .bottomTrailing) {
                 Circle()
-                    .fill(isLogged ? Color.accentColor : Color.clear)
+                    .fill(isLogged ? AppColor.primary : Color.clear)
                     .overlay(
                         Circle().strokeBorder(isFuture ? Color.clear : Color.secondary.opacity(0.35), lineWidth: 1)
                     )
@@ -130,7 +130,7 @@ struct MonthlyCareCalendarView: View {
                     )
                 if isSecondaryLogged {
                     Circle()
-                        .fill(Color.orange)
+                        .fill(AppColor.secondary)
                         .frame(width: 7, height: 7)
                         .overlay(Circle().strokeBorder(.background, lineWidth: 1))
                 }

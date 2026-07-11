@@ -41,23 +41,24 @@ struct CuidadosView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: AppSpacing.md) {
                     caseSummaryCard
                     solutionSummaryCard
                     calendarCard
                     orientationsCard
                 }
                 .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+                .padding(.top, AppSpacing.xs)
+                .padding(.bottom, AppSpacing.xxl)
             }
             .navigationTitle("Cuidados")
         }
     }
 
     private var caseSummaryCard: some View {
-        SectionCard(title: "Estojo") {
-            VStack(alignment: .leading, spacing: 6) {
+        AppCard {
+            SectionHeader("Estojo")
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                 if let activeCase {
                     StatRow(label: "Ciclo atual iniciado em", value: DateFormatting.short.string(from: activeCase.startDate))
                     StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
@@ -66,7 +67,7 @@ struct CuidadosView: View {
                     }
                 } else {
                     Text("Nenhum ciclo de estojo iniciado ainda.")
-                        .font(.subheadline)
+                        .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 if let lastCleaning {
@@ -81,14 +82,15 @@ struct CuidadosView: View {
             } label: {
                 Text("Ver detalhes do estojo")
             }
-            .font(.subheadline)
-            .padding(.top, 4)
+            .font(AppTypography.subheadline)
+            .padding(.top, AppSpacing.xxs)
         }
     }
 
     private var solutionSummaryCard: some View {
-        SectionCard(title: "Solução de limpeza") {
-            VStack(alignment: .leading, spacing: 6) {
+        AppCard {
+            SectionHeader("Solução de limpeza")
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                 if let activeSolution {
                     StatRow(label: "Aberto em", value: DateFormatting.short.string(from: activeSolution.openedDate))
                     StatRow(label: "Descarte recomendado", value: DateFormatting.short.string(from: activeSolution.discardDate))
@@ -97,7 +99,7 @@ struct CuidadosView: View {
                     }
                 } else {
                     Text("Nenhum frasco de solução registrado ainda.")
-                        .font(.subheadline)
+                        .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -106,13 +108,14 @@ struct CuidadosView: View {
             } label: {
                 Text("Ver detalhes da solução")
             }
-            .font(.subheadline)
-            .padding(.top, 4)
+            .font(AppTypography.subheadline)
+            .padding(.top, AppSpacing.xxs)
         }
     }
 
     private var calendarCard: some View {
-        SectionCard(title: "Calendário de cuidados") {
+        AppCard {
+            SectionHeader("Calendário de cuidados")
             MonthlyCareCalendarView(
                 loggedDates: routineCareLogs.map(\.date),
                 secondaryLoggedDates: cleanings.map(\.cleaningDate)
@@ -121,23 +124,22 @@ struct CuidadosView: View {
     }
 
     private var orientationsCard: some View {
-        SectionCard(title: "Orientações") {
-            VStack(alignment: .leading, spacing: 8) {
-                orientationRow("Nunca complete solução antiga com solução nova — descarte e use sempre solução fresca.")
-                orientationRow("Deixe o estojo secar ao ar livre depois de cada uso, sem tampar molhado.")
-                orientationRow("Siga sempre a validade e as instruções do fabricante das lentes e da solução.")
-                orientationRow("Procure um oftalmologista em caso de dor, vermelhidão ou alteração na visão.")
-            }
+        AppCard {
+            SectionHeader("Orientações")
+            orientationRow("Nunca complete solução antiga com solução nova — descarte e use sempre solução fresca.")
+            orientationRow("Deixe o estojo secar ao ar livre depois de cada uso, sem tampar molhado.")
+            orientationRow("Siga sempre a validade e as instruções do fabricante das lentes e da solução.")
+            orientationRow("Procure um oftalmologista em caso de dor, vermelhidão ou alteração na visão.")
         }
     }
 
     private func orientationRow(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: AppSpacing.xs) {
             Image(systemName: "info.circle")
-                .foregroundStyle(Color.accentColor)
-                .font(.footnote)
+                .foregroundStyle(AppColor.primary)
+                .font(AppTypography.footnote)
             Text(text)
-                .font(.footnote)
+                .font(AppTypography.footnote)
                 .foregroundStyle(.secondary)
         }
     }

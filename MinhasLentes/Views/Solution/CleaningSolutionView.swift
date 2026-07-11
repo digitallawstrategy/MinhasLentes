@@ -41,7 +41,7 @@ struct CleaningSolutionView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { solutionToDelete = activeSolution }
                                 Button("Editar") { solutionToEdit = activeSolution }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                         Button {
                             showStartOrReplaceSolution = true
@@ -67,7 +67,7 @@ struct CleaningSolutionView: View {
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button("Excluir", role: .destructive) { solutionToDelete = solution }
                                     Button("Editar") { solutionToEdit = solution }
-                                        .tint(.blue)
+                                        .tint(AppColor.primary)
                                 }
                         }
                     }
@@ -132,7 +132,7 @@ struct CleaningSolutionView: View {
             if let daysUntilDiscard {
                 Text(solutionSituationText(daysUntilDiscard))
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(daysUntilDiscard <= 0 ? Color.orange : Color.secondary)
+                    .foregroundStyle(daysUntilDiscard <= 0 ? AppColor.warning : Color.secondary)
             }
             if let notes = solution.notes, !notes.isEmpty {
                 Text(notes)

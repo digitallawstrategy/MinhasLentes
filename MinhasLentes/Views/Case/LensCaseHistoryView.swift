@@ -76,7 +76,7 @@ struct LensCaseHistoryView: View {
                 Spacer()
                 Text(lensCase.status.displayName)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(lensCase.status == .active ? Color.green : Color.secondary)
+                    .foregroundStyle(lensCase.status == .active ? AppColor.success : Color.secondary)
             }
             if let replacedAt = lensCase.replacedAt {
                 Text("Substituído em \(DateFormatting.short.string(from: replacedAt))")
