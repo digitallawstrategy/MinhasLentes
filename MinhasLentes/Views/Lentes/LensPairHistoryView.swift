@@ -36,16 +36,16 @@ struct LensPairHistoryView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(pair.name)
-                    .font(.subheadline.weight(.medium))
+                    .font(AppTypography.subheadlineMedium)
                 Spacer()
                 if let reason = pair.discardReasonValue {
                     Text(reason.displayName)
-                        .font(.caption.weight(.semibold))
+                        .font(AppTypography.captionSemibold)
                         .foregroundStyle(.secondary)
                 }
             }
             Text(periodText(for: pair))
-                .font(.caption)
+                .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 if let durationDays = durationDays(for: pair) {
@@ -56,11 +56,11 @@ struct LensPairHistoryView: View {
                     Text("média \(DateFormatting.durationShort(averageSessionDuration))/sessão")
                 }
             }
-            .font(.caption)
+            .font(AppTypography.caption)
             .foregroundStyle(.secondary)
             if let notes = pair.notes, !notes.isEmpty {
                 Text(notes)
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
             }
         }

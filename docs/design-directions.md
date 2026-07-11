@@ -39,5 +39,16 @@ sustenta um tom de "acompanhante pessoal" em vez de "gerenciador clínico".
 
 ## Decisão
 
-_Pendente — registrar aqui e na issue [#10](https://github.com/digitallawstrategy/MinhasLentes/issues/10)
-depois de decidido._
+Direção aprovada: **Opção B — Indigo e violeta** (commit `c8e3009`).
+
+- Indigo (`AccentColor` colorset): cor principal e de interação — botões primários, links,
+  seleção de aba, tint do sistema.
+- Violeta (`AppSecondary` colorset): destaque de marca pontual — nunca representa estado
+  semântico (sucesso/atenção/crítico).
+- Verde, laranja e vermelho (`AppColor.success`/`.warning`/`.critical`): exclusivamente
+  estados, nunca usados como cor de marca.
+- Fundos e superfícies (`AppColor.surface`/`.surfaceElevated`): neutros e adaptativos, sem
+  depender da paleta de marca.
+
+Ambas as cores de marca têm variantes de modo claro, escuro e contraste aumentado definidas
+no asset catalog — nenhum valor hexadecimal aparece fora dos dois `.colorset`.

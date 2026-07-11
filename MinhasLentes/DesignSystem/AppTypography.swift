@@ -12,6 +12,7 @@ enum AppTypography {
     static let subheadlineMedium: Font = .subheadline.weight(.medium)
     static let caption: Font = .caption
     static let captionMedium: Font = .caption.weight(.medium)
+    static let captionSemibold: Font = .caption.weight(.semibold)
     static let footnote: Font = .footnote
     /// Número de destaque em anéis/métricas (ex.: usos restantes). Ainda deriva de um estilo de
     /// texto nativo (`.largeTitle`, só com desenho arredondado) — nunca um tamanho fixo em

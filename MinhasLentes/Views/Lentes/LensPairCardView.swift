@@ -6,6 +6,8 @@ import SwiftUI
 /// se olha o detalhe do par e se faz a gestão dele (editar, mover para reserva, encerrar,
 /// lixeira). O emblema "Em uso agora" é só informativo, não uma ação.
 struct LensPairCardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let pair: LensPair
     let settings: AppSettings
     let onFinishPair: () -> Void
@@ -53,7 +55,7 @@ struct LensPairCardView: View {
             header
             ringAndHeadline
             ProgressBarView(fraction: remainingFraction, tint: usageStatus.tone.color)
-                .animation(AppAnimation.standard, value: remainingFraction)
+                .animation(reduceMotion ? nil : AppAnimation.standard, value: remainingFraction)
             detailStats
         }
         .alert("Mover \(pair.name) para a lixeira?", isPresented: $showTrashConfirmation) {
@@ -97,35 +99,53 @@ struct LensPairCardView: View {
         }
     }
 
+    /// `ViewThatFits` alterna para o layout vertical (anel centralizado acima do texto) quando o
+    /// horizontal não cabe — nome de par longo, Dynamic Type grande e telas estreitas combinados
+    /// podiam comprimir ou cortar a coluna de texto no layout único anterior.
     private var ringAndHeadline: some View {
-        HStack(spacing: AppSpacing.lg) {
-            ZStack {
-                ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tone.color)
-                VStack(spacing: 0) {
-                    Text("\(pair.usesRemaining)")
-                        .font(AppTypography.metricValue)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                        .contentTransition(.numericText(value: Double(pair.usesRemaining)))
-                        .animation(.spring(duration: 0.5), value: pair.usesRemaining)
-                    Text("restantes")
-                        .font(AppTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppSpacing.lg) {
+                ringView
+                usageHeadlineText(alignment: .leading)
+                Spacer()
             }
-            .frame(width: 108, height: 108)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Usos restantes")
-            .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
+            VStack(spacing: AppSpacing.sm) {
+                ringView
+                usageHeadlineText(alignment: .center)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
 
-            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                Text("\(pair.usesCount) de \(pair.maximumUses) usos")
-                    .font(AppTypography.headline)
-                Text("\(Int((remainingFraction * 100).rounded()))% do limite de utilizações restante")
-                    .font(AppTypography.footnote)
+    private var ringView: some View {
+        ZStack {
+            ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tone.color)
+            VStack(spacing: 0) {
+                Text("\(pair.usesRemaining)")
+                    .font(AppTypography.metricValue)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .contentTransition(.numericText(value: Double(pair.usesRemaining)))
+                    .animation(reduceMotion ? nil : .spring(duration: 0.5), value: pair.usesRemaining)
+                Text("restantes")
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
+        }
+        .frame(width: 108, height: 108)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Usos restantes")
+        .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
+    }
+
+    private func usageHeadlineText(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: AppSpacing.xxs) {
+            Text("\(pair.usesCount) de \(pair.maximumUses) usos")
+                .font(AppTypography.headline)
+            Text("\(Int((remainingFraction * 100).rounded()))% do limite de utilizações restante")
+                .font(AppTypography.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 

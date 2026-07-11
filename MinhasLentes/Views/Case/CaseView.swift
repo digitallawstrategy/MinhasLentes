@@ -159,7 +159,7 @@ struct CaseView: View {
     @ViewBuilder
     private var periodicCleaningCard: some View {
         AppCard {
-            SectionHeader("Estojo")
+            SectionHeader("Limpeza periódica")
             VStack(spacing: AppSpacing.xxs) {
                 if let lastCleaning {
                     StatRow(label: "Última limpeza", value: DateFormatting.short.string(from: lastCleaning.cleaningDate))

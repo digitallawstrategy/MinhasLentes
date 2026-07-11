@@ -57,7 +57,7 @@ struct LensInventoryView: View {
             Section("Disponível") {
                 if availableItems.isEmpty {
                     Text("Nenhum item disponível no estoque.")
-                        .font(.subheadline)
+                        .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(availableItems) { item in
@@ -147,23 +147,23 @@ struct LensInventoryView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("\(item.brand) — \(item.model)")
-                        .font(.subheadline.weight(.medium))
+                        .font(AppTypography.subheadlineMedium)
                     Spacer()
                     Text(item.side.displayName)
-                        .font(.caption)
+                        .font(AppTypography.caption)
                         .foregroundStyle(.secondary)
                 }
                 Text("\(item.remainingQuantity) de \(item.initialQuantity) unidade(s) restante(s)")
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
                 if let expiryDate = item.expiryDate {
                     Text("Validade: \(DateFormatting.short.string(from: expiryDate))\(item.isExpired ? " — vencida" : "")")
-                        .font(.caption)
+                        .font(AppTypography.caption)
                         .foregroundStyle(item.isExpired ? AppColor.warning : Color.secondary)
                 }
                 if let notes = item.notes, !notes.isEmpty {
                     Text(notes)
-                        .font(.footnote)
+                        .font(AppTypography.footnote)
                         .foregroundStyle(.secondary)
                 }
             }

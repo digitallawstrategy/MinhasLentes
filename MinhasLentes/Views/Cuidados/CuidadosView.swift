@@ -34,8 +34,8 @@ struct CuidadosView: View {
 
     private func solutionSituationText(_ days: Int) -> String {
         if days > 0 { return "Faltam \(days) dia(s)" }
-        if days == 0 { return "Validade recomendada para hoje" }
-        return "Validade recomendada há \(-days) dia(s)"
+        if days == 0 { return "Descarte recomendado para hoje" }
+        return "Descarte recomendado há \(-days) dia(s)"
     }
 
     var body: some View {
