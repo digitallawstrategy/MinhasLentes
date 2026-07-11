@@ -150,10 +150,12 @@ struct HomeView: View {
             }
             .padding(.horizontal)
             .padding(.top, AppSpacing.xs)
-            // Folga generosa abaixo do último cartão: a barra de abas nativa já reserva sua
-            // própria altura via safe area, mas em telas menores/Dynamic Type maior o último
-            // cartão cresce o bastante para ficar rente a ela sem essa margem extra.
-            .padding(.bottom, AppSpacing.xxl + AppSpacing.lg)
+            // Folga grande abaixo do último cartão, de propósito: em aparelho real, com o
+            // cartão "Cuidados de hoje" no seu estado mais alto (pill + 2 botões + linha de
+            // limpeza periódica), o conteúdo ainda encostava atrás da tab bar mesmo com a
+            // margem automática de safe area + um acréscimo menor. Preferível sobrar espaço em
+            // branco no fim do scroll a cortar o último botão.
+            .padding(.bottom, AppSpacing.xxl * 2 + AppSpacing.lg)
         }
         .background(AmbientBackground())
         .navigationTitle("Início")
