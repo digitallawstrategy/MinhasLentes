@@ -132,7 +132,7 @@ struct LensPairsView: View {
                     pairToTrash = nil
                 }
             } message: {
-                Text("Some da aba Lentes e das reservas, mas fica recuperável na Lixeira (Configurações → Dados) por \(LensPairService.trashRetentionDays) dias.")
+                Text("Some da aba Lentes e das reservas, mas fica recuperável na Lixeira (Mais → Dados) por \(LensPairService.trashRetentionDays) dias.")
             }
             .sheet(item: $pairToFinish) { pair in
                 EndPairSheet(pair: pair) { endDate, reason, notes, startNew in

@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 enum AppTab: Hashable {
-    case home, lentes, estojo, solution, consultas, settings
+    case home, lentes, cuidados, consultas, settings
 }
 
 /// Roteamento de app inteiro: para onde a TabView deve ir e qual par deve ser aberto, vindo de
@@ -27,12 +27,16 @@ final class AppRouter {
         pendingPairID = id
     }
 
+    /// Estojo e Solução moraram em abas próprias antes, mas viraram destinos dentro de
+    /// Cuidados — um toque de notificação sobre qualquer um dos dois leva até a aba e para na
+    /// tela de escolha; não há como pular direto para a subtela sem uma pilha de navegação
+    /// própria por aba, o que não vale a complexidade extra para este caso.
     func openEstojo() {
-        selectedTab = .estojo
+        selectedTab = .cuidados
     }
 
     func openSolution() {
-        selectedTab = .solution
+        selectedTab = .cuidados
     }
 
     func openHome() {

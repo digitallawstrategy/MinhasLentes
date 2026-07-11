@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import UIKit
+import SwiftData
 
 /// Gerencia as notificações locais de limpeza do estojo. Usa exclusivamente `UserNotifications`
 /// (sem servidor, push remoto ou serviço externo), portanto funciona mesmo com o aplicativo
@@ -696,9 +697,14 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
     }
 
     /// Leva o usuário para a aba certa quando ele toca numa notificação: Estojo para os
-    /// avisos de limpeza, Lentes para os alertas de tempo de uso e estoque, Configurações para
+    /// avisos de limpeza, Lentes para os alertas de tempo de uso e estoque, Consultas para
     /// consultas. O botão "Retirei agora" (nos alertas de tempo de uso) encerra a sessão direto
-    /// pela notificação, sem exigir que o usuário abra a tela e toque em mais nada.
+    /// no banco, antes de qualquer coisa relacionada à UI — a ação usa `options: []`
+    /// (não traz o app para primeiro plano), então o processo pode ser apenas acordado em
+    /// segundo plano para rodar este handler, sem a árvore de Views chegar a existir. Depender
+    /// só de `AppRouter.pendingEndWearingSession` nesse cenário nunca encerraria a sessão de
+    /// verdade — por isso ela é encerrada aqui, e o roteamento de UI é só um complemento para
+    /// quando o app já estiver (ou vier a ficar) em primeiro plano.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
@@ -708,12 +714,17 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         let wearingIdentifiers: Set<String> = [
             Self.wearingFirstIdentifier, Self.wearingSecondIdentifier, Self.wearingThirdIdentifier, Self.wearingRepeatIdentifier,
         ]
-        await MainActor.run {
-            if actionIdentifier == Self.wearingEndSessionActionIdentifier {
+
+        if actionIdentifier == Self.wearingEndSessionActionIdentifier {
+            await Self.endWearingSessionDirectly()
+            await MainActor.run {
                 AppRouter.shared.pendingEndWearingSession = true
                 AppRouter.shared.openLentes()
-                return
             }
+            return
+        }
+
+        await MainActor.run {
             switch identifier {
             case Self.advanceIdentifier, Self.deadlineIdentifier,
                  Self.case15DayIdentifier, Self.case7DayIdentifier, Self.caseDueIdentifier, Self.caseOverdueRepeatIdentifier:
@@ -733,5 +744,23 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 break
             }
         }
+    }
+
+    /// Encerra a sessão de uso ativa direto no `ModelContext`, sem depender de nenhuma `View`
+    /// ter aparecido — abre o `ModelContainer` compartilhado (`AppContainer`, o mesmo usado por
+    /// `MinhasLentesApp`, nunca um segundo contêiner independente) e grava `endedAt`/`status`
+    /// como `WearSessionService.endSession` faria. Melhor esforço: se o contêiner não puder ser
+    /// aberto ou não houver sessão ativa, não há nada a fazer aqui — o caminho de UI
+    /// (`pendingEndWearingSession`) ainda cobre o caso do app já estar em primeiro plano.
+    private static func endWearingSessionDirectly() async {
+        do {
+            let container = try AppContainer.shared()
+            let context = ModelContext(container)
+            guard let session = try WearSessionService.activeSession(context: context) else { return }
+            try WearSessionService.endSession(session, endedAt: Date(), context: context)
+        } catch {
+            // Sem tratamento adicional — melhor esforço, ver comentário acima.
+        }
+        await LiveActivityService.endWearingSession()
     }
 }

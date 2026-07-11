@@ -1,7 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Aba Estojo: última limpeza, próximos avisos e histórico de limpezas.
+/// Destino "Estojo" dentro da aba Cuidados: ciclo de vida, cuidado diário, limpeza periódica e
+/// histórico.
 struct CaseView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -166,12 +167,14 @@ struct CaseView: View {
 
             Divider()
                 .padding(.vertical, 4)
-            MonthlyCareCalendarView(loggedDates: routineCareLogs.map(\.date))
+            MonthlyCareCalendarView(
+                loggedDates: routineCareLogs.map(\.date),
+                secondaryLoggedDates: cleanings.map(\.cleaningDate)
+            )
         }
     }
 
     var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     caseLifecycleCard
@@ -413,11 +416,12 @@ struct CaseView: View {
             } message: {
                 Text("Os avisos de limpeza serão recalculados a partir do registro anterior, se houver.")
             }
-        }
     }
 }
 
 #Preview {
-    CaseView()
-        .modelContainer(PreviewData.container)
+    NavigationStack {
+        CaseView()
+    }
+    .modelContainer(PreviewData.container)
 }

@@ -7,28 +7,22 @@ struct MinhasLentesApp: App {
     let initializationErrorMessage: String?
 
     init() {
-        let schema = Schema([
-            LensPair.self,
-            LensUsage.self,
-            CaseCleaning.self,
-            AppSettings.self,
-            HistoryEvent.self,
-            LensCase.self,
-            RoutineCareLog.self,
-            CleaningSolution.self,
-            LensInventoryItem.self,
-            EyeCareProfessional.self,
-            EyeAppointment.self,
-            WearSession.self,
-        ])
+        // Registra o delegate de notificações (e a categoria/ação "Retirei agora") o quanto
+        // antes no ciclo de vida do processo — inclusive quando o app é apenas acordado em
+        // segundo plano por causa de uma notificação, cenário em que a árvore de Views pode
+        // nunca chegar a existir. `NotificationManager.shared` é lazy; sem tocar nele aqui,
+        // nada garante que o delegate esteja pronto a tempo de o sistema entregar a resposta.
+        _ = NotificationManager.shared
         do {
-            // O banco vive no App Group, não no contêiner privado do app, para que o widget e
-            // a Live Activity (processos separados) consigam ler os mesmos dados.
-            let url = try AppGroup.storeURL()
-            AppGroup.migrateLegacyStoreIfNeeded(to: url)
-            let configuration = ModelConfiguration(schema: schema, url: url)
-            modelContainer = try ModelContainer(for: schema, configurations: [configuration])
+            let container = try AppContainer.shared()
+            modelContainer = container
             initializationErrorMessage = nil
+            // Migração: `hasCompletedOnboarding` não existia antes desta versão. Para uma
+            // instalação já em uso — reconhecida aqui por já ter pelo menos um par —, o valor
+            // padrão `false` faria o app voltar a mostrar a tela de boas-vindas, escondendo
+            // (nunca apagando) os dados reais atrás dela. Corrige isso antes de qualquer View
+            // aparecer, para nunca mostrar o onboarding por engano a quem já usa o app.
+            Self.migrateOnboardingFlagIfNeeded(container: container)
         } catch {
             // Falha ao abrir o armazenamento local (ex.: disco cheio, arquivo corrompido).
             // Em vez de encerrar o processo com fatalError, mostramos uma tela explicando o
@@ -37,6 +31,15 @@ struct MinhasLentesApp: App {
             modelContainer = nil
             initializationErrorMessage = error.localizedDescription
         }
+    }
+
+    private static func migrateOnboardingFlagIfNeeded(container: ModelContainer) {
+        let context = container.mainContext
+        guard let settings = try? context.fetch(FetchDescriptor<AppSettings>()).first, !settings.hasCompletedOnboarding else { return }
+        let hasAnyPair = ((try? context.fetchCount(FetchDescriptor<LensPair>())) ?? 0) > 0
+        guard hasAnyPair else { return }
+        settings.hasCompletedOnboarding = true
+        try? context.save()
     }
 
     var body: some Scene {

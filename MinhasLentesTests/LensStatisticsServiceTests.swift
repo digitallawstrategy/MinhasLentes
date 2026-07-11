@@ -148,8 +148,8 @@ final class LensStatisticsServiceTests: XCTestCase {
 
         let set = LensStatisticsService.calendarDaySet(from: [morning, night, otherDay], calendar: calendar)
         XCTAssertEqual(set.count, 2, "Manhã e noite do mesmo dia devem colapsar num único dia do calendário")
-        XCTAssertTrue(set.contains(calendar.dateComponents([.year, .month, .day], from: morning)))
-        XCTAssertTrue(set.contains(calendar.dateComponents([.year, .month, .day], from: otherDay)))
+        XCTAssertTrue(set.contains(calendar.startOfDay(for: morning)))
+        XCTAssertTrue(set.contains(calendar.startOfDay(for: otherDay)))
     }
 
     func testHasUsageOnSameDay() {

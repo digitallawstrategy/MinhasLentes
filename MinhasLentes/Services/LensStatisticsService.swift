@@ -99,7 +99,12 @@ enum LensStatisticsService {
     /// Reduz uma lista de datas de registro a um conjunto de "dias do calendário" (início do
     /// dia, no fuso informado), para que marcar um dia no calendário de hábito seja uma simples
     /// verificação de pertencimento a um `Set`, sem comparar horários.
-    static func calendarDaySet(from dates: [Date], calendar: Calendar = .current) -> Set<DateComponents> {
-        Set(dates.map { calendar.dateComponents([.year, .month, .day], from: $0) })
+    ///
+    /// Usa `Date` (início do dia), não `DateComponents` — a igualdade de `DateComponents` pode
+    /// levar em conta campos incidentalmente preenchidos além dos pedidos (ex.: `calendar`),
+    /// fazendo duas instâncias que representam o mesmo dia não baterem. `Date` compara só o
+    /// instante exato, sem essa ambiguidade.
+    static func calendarDaySet(from dates: [Date], calendar: Calendar = .current) -> Set<Date> {
+        Set(dates.map { calendar.startOfDay(for: $0) })
     }
 }

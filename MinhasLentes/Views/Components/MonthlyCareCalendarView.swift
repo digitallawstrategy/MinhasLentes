@@ -1,17 +1,25 @@
 import SwiftUI
 
-/// Calendário mensal compacto de hábito: marca os dias em que houve um registro (ex.: cuidado
-/// diário do estojo) e deixa sem marcar os dias que passaram sem registro — sem tentar adivinhar
-/// se foi esquecimento ou simplesmente um dia sem uso das lentes. Navegação limitada ao passado
-/// (não faz sentido "marcar" um dia que ainda não aconteceu).
+/// Calendário mensal compacto de hábito: marca os dias em que houve um registro de cuidado
+/// diário (círculo preenchido) e, quando informado, também os dias com limpeza periódica do
+/// estojo (marcador pequeno) — dois conceitos que nunca se misturam nos dados (ver
+/// `RoutineCareLog`/`CaseCleaning`), mas que fazem sentido de ver lado a lado num único
+/// calendário, já que os dois botões de registro ficam na mesma tela e é fácil confundir qual
+/// usar no dia a dia. Deixa sem marcar os dias que passaram sem nenhum registro — sem tentar
+/// adivinhar se foi esquecimento ou simplesmente um dia sem uso das lentes. Navegação limitada
+/// ao passado (não faz sentido "marcar" um dia que ainda não aconteceu).
 struct MonthlyCareCalendarView: View {
     let loggedDates: [Date]
+    var secondaryLoggedDates: [Date] = []
 
     @State private var displayedMonth: Date = Calendar.current.startOfDay(for: Date())
 
     private var calendar: Calendar { Calendar.current }
-    private var loggedDaySet: Set<DateComponents> {
+    private var loggedDaySet: Set<Date> {
         LensStatisticsService.calendarDaySet(from: loggedDates, calendar: calendar)
+    }
+    private var secondaryLoggedDaySet: Set<Date> {
+        LensStatisticsService.calendarDaySet(from: secondaryLoggedDates, calendar: calendar)
     }
 
     private var isCurrentMonth: Bool {
@@ -82,25 +90,52 @@ struct MonthlyCareCalendarView: View {
                     dayCell(date)
                 }
             }
+
+            if !secondaryLoggedDates.isEmpty {
+                HStack(spacing: 12) {
+                    legendItem(color: .accentColor, label: "Cuidado diário")
+                    legendItem(color: .orange, label: "Limpeza periódica")
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    private func legendItem(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private func dayCell(_ date: Date?) -> some View {
         if let date {
-            let isLogged = loggedDaySet.contains(calendar.dateComponents([.year, .month, .day], from: date))
+            let isLogged = loggedDaySet.contains(calendar.startOfDay(for: date))
+            let isSecondaryLogged = secondaryLoggedDaySet.contains(calendar.startOfDay(for: date))
             let isFuture = date > Date()
-            Circle()
-                .fill(isLogged ? Color.accentColor : Color.clear)
-                .overlay(
-                    Circle().strokeBorder(isFuture ? Color.clear : Color.secondary.opacity(0.35), lineWidth: 1)
-                )
-                .frame(width: 24, height: 24)
-                .overlay(
-                    Text("\(calendar.component(.day, from: date))")
-                        .font(.system(size: 10))
-                        .foregroundStyle(isLogged ? Color.white : (isFuture ? Color.secondary.opacity(0.35) : Color.primary))
-                )
+            ZStack(alignment: .bottomTrailing) {
+                Circle()
+                    .fill(isLogged ? Color.accentColor : Color.clear)
+                    .overlay(
+                        Circle().strokeBorder(isFuture ? Color.clear : Color.secondary.opacity(0.35), lineWidth: 1)
+                    )
+                    .frame(width: 24, height: 24)
+                    .overlay(
+                        Text("\(calendar.component(.day, from: date))")
+                            .font(.system(size: 10))
+                            .foregroundStyle(isLogged ? Color.white : (isFuture ? Color.secondary.opacity(0.35) : Color.primary))
+                    )
+                if isSecondaryLogged {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 7, height: 7)
+                        .overlay(Circle().strokeBorder(.background, lineWidth: 1))
+                }
+            }
+            .frame(width: 24, height: 24)
         } else {
             Color.clear.frame(width: 24, height: 24)
         }
@@ -113,10 +148,16 @@ struct MonthlyCareCalendarView: View {
 }
 
 #Preview {
-    MonthlyCareCalendarView(loggedDates: [
-        Calendar.current.date(byAdding: .day, value: -1, to: Date())!,
-        Calendar.current.date(byAdding: .day, value: -3, to: Date())!,
-        Calendar.current.date(byAdding: .day, value: -4, to: Date())!,
-    ])
+    MonthlyCareCalendarView(
+        loggedDates: [
+            Calendar.current.date(byAdding: .day, value: -1, to: Date())!,
+            Calendar.current.date(byAdding: .day, value: -3, to: Date())!,
+            Calendar.current.date(byAdding: .day, value: -4, to: Date())!,
+        ],
+        secondaryLoggedDates: [
+            Calendar.current.date(byAdding: .day, value: -4, to: Date())!,
+            Calendar.current.date(byAdding: .day, value: -12, to: Date())!,
+        ]
+    )
     .padding()
 }

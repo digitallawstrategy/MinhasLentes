@@ -57,7 +57,7 @@ struct LensPairCardView: View {
             Button("Cancelar", role: .cancel) {}
             Button("Mover para a lixeira", role: .destructive, action: onMoveToTrash)
         } message: {
-            Text("Some da Home e das reservas, mas fica recuperável na Lixeira (Configurações → Dados) por \(LensPairService.trashRetentionDays) dias.")
+            Text("Some da Home e das reservas, mas fica recuperável na Lixeira (Mais → Dados) por \(LensPairService.trashRetentionDays) dias.")
         }
     }
 

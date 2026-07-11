@@ -22,7 +22,7 @@ struct LensCaseHistoryView: View {
                 ContentUnavailableView(
                     "Nenhum ciclo registrado",
                     systemImage: "shippingbox",
-                    description: Text("Inicie o primeiro ciclo do estojo na aba Estojo.")
+                    description: Text("Inicie o primeiro ciclo do estojo em Cuidados → Estojo.")
                 )
             } else {
                 ForEach(cases) { lensCase in

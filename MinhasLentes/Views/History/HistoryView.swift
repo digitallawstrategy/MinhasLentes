@@ -196,7 +196,7 @@ struct HistoryView: View {
                     viewModel.pairToTrash = nil
                 }
             } message: {
-                Text("Some da Home e das reservas, mas fica recuperável na Lixeira (Configurações → Dados) por \(LensPairService.trashRetentionDays) dias.")
+                Text("Some da Home e das reservas, mas fica recuperável na Lixeira (Mais → Dados) por \(LensPairService.trashRetentionDays) dias.")
             }
             .alert("Excluir registro?", isPresented: Binding(
                 get: { viewModel.eventToDelete != nil },

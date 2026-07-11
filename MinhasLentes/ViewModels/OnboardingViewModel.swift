@@ -59,6 +59,8 @@ final class OnboardingViewModel {
             }
 
             _ = try await CaseCleaningService.registerCleaning(date: lastCleaningDate, notes: nil, settings: settings, context: context)
+            settings.hasCompletedOnboarding = true
+            try context.save()
             return true
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível concluir a configuração inicial. \(error.localizedDescription)")

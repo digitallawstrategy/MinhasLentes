@@ -1,9 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// Aba Solução: frasco atual e histórico de frascos de solução de limpeza, num único lugar —
-/// editar e excluir estão sempre a um gesto de distância (deslizar a linha), sem precisar
-/// navegar para outra tela. Excluir exige digitar a palavra de confirmação, por ser permanente.
+/// Destino "Solução de limpeza" dentro da aba Cuidados: frasco atual e histórico de frascos,
+/// num único lugar — editar e excluir estão sempre a um gesto de distância (deslizar a linha),
+/// sem precisar navegar para outra tela. Excluir exige digitar a palavra de confirmação, por
+/// ser permanente.
 struct CleaningSolutionView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \CleaningSolution.openedDate, order: .reverse) private var solutions: [CleaningSolution]
@@ -27,7 +28,6 @@ struct CleaningSolutionView: View {
     }
 
     var body: some View {
-        NavigationStack {
             List {
                 Section("Frasco atual") {
                     if let activeSolution {
@@ -111,7 +111,6 @@ struct CleaningSolutionView: View {
             } message: { error in
                 Text(error.message)
             }
-        }
     }
 
     private func activeRow(for solution: CleaningSolution) -> some View {
@@ -167,6 +166,8 @@ struct CleaningSolutionView: View {
 }
 
 #Preview {
-    CleaningSolutionView()
-        .modelContainer(PreviewData.container)
+    NavigationStack {
+        CleaningSolutionView()
+    }
+    .modelContainer(PreviewData.container)
 }

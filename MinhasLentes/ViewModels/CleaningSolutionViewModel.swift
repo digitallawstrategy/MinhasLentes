@@ -2,7 +2,8 @@ import Foundation
 import Observation
 import SwiftData
 
-/// Estado e ações da aba Solução: abrir/substituir frasco, editar e excluir registros.
+/// Estado e ações do destino Solução de limpeza (dentro da aba Cuidados): abrir/substituir
+/// frasco, editar e excluir registros.
 @MainActor
 @Observable
 final class CleaningSolutionViewModel {

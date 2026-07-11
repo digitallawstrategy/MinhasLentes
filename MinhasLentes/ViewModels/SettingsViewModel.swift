@@ -277,6 +277,12 @@ final class SettingsViewModel {
         do {
             importReport = try BackupService.importBackup(from: url, mode: mode, context: context)
             HapticsService.success()
+            // Os dados voltam com um único context.save() — sem isso, os avisos de
+            // estojo/solução/estoque/consultas/sessão de uso restaurados nunca seriam
+            // reagendados: eles só existem quando algo explicitamente os agenda.
+            if let settings = try? AppSettingsStore.currentSettings(context: context) {
+                Task { await NotificationReconciliationService.rebuildAll(context: context, settings: settings) }
+            }
         } catch {
             HapticsService.error()
             presentedError = IdentifiableError(message: error.localizedDescription)

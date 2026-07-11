@@ -18,6 +18,12 @@ final class AppSettings {
     var badgeEnabled: Bool = true
     var trackingModeRawValue: String = TrackingMode.pair.rawValue
 
+    /// Uma vez `true`, a tela de boas-vindas nunca mais aparece — mesmo que todos os pares
+    /// sejam encerrados ou excluídos depois. Estojo, solução, estoque, consultas e histórico
+    /// são módulos independentes de ter um par ativo; gatear a navegação principal pela
+    /// existência de um par prenderia o usuário no onboarding sem acesso a eles.
+    var hasCompletedOnboarding: Bool = false
+
     /// Faixas do status de UTILIZAÇÃO configuráveis (leitura da contagem de usos restantes,
     /// não uma avaliação clínica), expressas em percentual (0...100). Abaixo de
     /// `healthGoodBelowPercent` o par deixa de ter "Vida útil alta"; abaixo de

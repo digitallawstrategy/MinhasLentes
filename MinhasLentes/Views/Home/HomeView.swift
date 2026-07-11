@@ -143,7 +143,7 @@ struct HomeView: View {
                         icon: "shippingbox",
                         title: "Estojo",
                         detail: caseReminderDetail(activeCase),
-                        tab: .estojo
+                        tab: .cuidados
                     )
                 }
                 if activeCase != nil && (activeSolution != nil || nextAppointment != nil) {
@@ -154,7 +154,7 @@ struct HomeView: View {
                         icon: "flask",
                         title: "Solução",
                         detail: solutionReminderDetail(activeSolution),
-                        tab: .solution
+                        tab: .cuidados
                     )
                 }
                 if activeSolution != nil && nextAppointment != nil {

@@ -174,6 +174,157 @@ final class BackupServiceTests: XCTestCase {
         }
     }
 
+    func testValidateRejectsOrphanAppointmentProfessionalReference() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [], "settings": null,
+          "professionals": [],
+          "appointments": [
+            {"id": "\(UUID().uuidString)", "professionalID": "\(UUID().uuidString)", "date": "2026-08-10T12:00:00Z", "type": "routine", "notes": null, "prescription": null, "attachmentData": null, "recommendedFollowUpMonths": 12, "status": "scheduled", "createdAt": "2026-07-10T12:00:00Z"}
+          ]
+        }
+        """
+        let url = writeTempJSON(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try BackupService.validate(url: url)) { error in
+            guard case BackupService.BackupError.invalidFile = error else {
+                return XCTFail("Esperava invalidFile, obteve \(error)")
+            }
+        }
+    }
+
+    func testValidateRejectsOrphanWearSessionPairReference() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [], "settings": null,
+          "wearSessions": [
+            {"id": "\(UUID().uuidString)", "lensPairID": "\(UUID().uuidString)", "startedAt": "2026-07-10T08:00:00Z", "endedAt": null, "status": "active", "createdAt": "2026-07-10T08:00:00Z"}
+          ]
+        }
+        """
+        let url = writeTempJSON(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try BackupService.validate(url: url)) { error in
+            guard case BackupService.BackupError.invalidFile = error else {
+                return XCTFail("Esperava invalidFile, obteve \(error)")
+            }
+        }
+    }
+
+    func testValidateRejectsMultipleActiveCases() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [], "settings": null,
+          "cases": [
+            {"id": "\(UUID().uuidString)", "startDate": "2026-01-01T12:00:00Z", "replacedAt": null, "intervalDays": 90, "notes": null, "status": "active", "createdAt": "2026-01-01T12:00:00Z"},
+            {"id": "\(UUID().uuidString)", "startDate": "2026-04-01T12:00:00Z", "replacedAt": null, "intervalDays": 90, "notes": null, "status": "active", "createdAt": "2026-04-01T12:00:00Z"}
+          ]
+        }
+        """
+        let url = writeTempJSON(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try BackupService.validate(url: url)) { error in
+            guard case BackupService.BackupError.invalidFile = error else {
+                return XCTFail("Esperava invalidFile, obteve \(error)")
+            }
+        }
+    }
+
+    func testValidateRejectsMultipleActiveSolutions() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [], "settings": null,
+          "solutions": [
+            {"id": "\(UUID().uuidString)", "brand": "A", "product": "P", "lot": null, "purchaseDate": null, "openedDate": "2026-01-01T12:00:00Z", "printedExpiryDate": null, "postOpeningShelfLifeDays": 90, "initialVolumeML": null, "remainingVolumeML": null, "notes": null, "status": "active", "finishedAt": null, "createdAt": "2026-01-01T12:00:00Z"},
+            {"id": "\(UUID().uuidString)", "brand": "B", "product": "Q", "lot": null, "purchaseDate": null, "openedDate": "2026-04-01T12:00:00Z", "printedExpiryDate": null, "postOpeningShelfLifeDays": 90, "initialVolumeML": null, "remainingVolumeML": null, "notes": null, "status": "active", "finishedAt": null, "createdAt": "2026-04-01T12:00:00Z"}
+          ]
+        }
+        """
+        let url = writeTempJSON(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try BackupService.validate(url: url)) { error in
+            guard case BackupService.BackupError.invalidFile = error else {
+                return XCTFail("Esperava invalidFile, obteve \(error)")
+            }
+        }
+    }
+
+    func testValidateRejectsMultipleActiveWearSessions() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [], "settings": null,
+          "wearSessions": [
+            {"id": "\(UUID().uuidString)", "lensPairID": null, "startedAt": "2026-07-10T08:00:00Z", "endedAt": null, "status": "active", "createdAt": "2026-07-10T08:00:00Z"},
+            {"id": "\(UUID().uuidString)", "lensPairID": null, "startedAt": "2026-07-10T09:00:00Z", "endedAt": null, "status": "active", "createdAt": "2026-07-10T09:00:00Z"}
+          ]
+        }
+        """
+        let url = writeTempJSON(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try BackupService.validate(url: url)) { error in
+            guard case BackupService.BackupError.invalidFile = error else {
+                return XCTFail("Esperava invalidFile, obteve \(error)")
+            }
+        }
+    }
+
+    func testValidateRejectsNegativeInventoryQuantity() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [], "settings": null,
+          "inventoryItems": [
+            {"id": "\(UUID().uuidString)", "brand": "A", "model": "M", "prescriptionOD": null, "prescriptionOS": null, "side": "both", "lot": null, "expiryDate": null, "initialQuantity": 2, "remainingQuantity": -1, "photoData": null, "notes": null, "status": "available", "createdAt": "2026-07-10T12:00:00Z"}
+          ]
+        }
+        """
+        let url = writeTempJSON(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try BackupService.validate(url: url)) { error in
+            guard case BackupService.BackupError.invalidFile = error else {
+                return XCTFail("Esperava invalidFile, obteve \(error)")
+            }
+        }
+    }
+
+    func testValidateRejectsCaseReplacedBeforeStart() throws {
+        let json = """
+        {
+          "schemaVersion": 2,
+          "createdAt": "2026-07-10T12:00:00Z",
+          "pairs": [], "usages": [], "cleanings": [], "events": [], "settings": null,
+          "cases": [
+            {"id": "\(UUID().uuidString)", "startDate": "2026-04-01T12:00:00Z", "replacedAt": "2026-01-01T12:00:00Z", "intervalDays": 90, "notes": null, "status": "replaced", "createdAt": "2026-04-01T12:00:00Z"}
+          ]
+        }
+        """
+        let url = writeTempJSON(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertThrowsError(try BackupService.validate(url: url)) { error in
+            guard case BackupService.BackupError.invalidFile = error else {
+                return XCTFail("Esperava invalidFile, obteve \(error)")
+            }
+        }
+    }
+
     func testReplaceImportWipesExistingDataAndRestoresBackup() async throws {
         let sourceContext = try await seedContext()
         let url = try BackupService.exportJSON(context: sourceContext)

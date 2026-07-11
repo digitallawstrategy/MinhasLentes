@@ -6,20 +6,24 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var pairs: [LensPair]
+    @Query private var allSettings: [AppSettings]
 
     @State private var startupError: IdentifiableError?
     @State private var router = AppRouter.shared
 
-    private var hasAnyPair: Bool {
-        pairs.contains { $0.status != .finished && $0.deletedAt == nil }
+    /// Uma vez concluído, o onboarding nunca mais volta — mesmo que todos os pares sejam
+    /// encerrados ou excluídos depois. Estojo, solução, estoque, consultas e histórico não
+    /// dependem de haver um par ativo; gatear a navegação principal pela existência de um par
+    /// prenderia o usuário no onboarding sem acesso a esses módulos.
+    private var hasCompletedOnboarding: Bool {
+        allSettings.first?.hasCompletedOnboarding ?? false
     }
 
     var body: some View {
         Group {
             if let startupError {
                 startupErrorView(startupError)
-            } else if hasAnyPair {
+            } else if hasCompletedOnboarding {
                 mainTabs
             } else {
                 OnboardingView()
@@ -50,37 +54,9 @@ struct ContentView: View {
             try LensPairService.normalizeInUseInvariant(context: modelContext)
             // Idempotente: apaga de vez pares na lixeira há mais de trashRetentionDays dias.
             try LensPairService.purgeExpiredTrash(context: modelContext)
-            // Idempotente: se o ciclo ativo do estojo já passou do prazo recomendado e não
-            // há lembrete periódico pendente, agenda um — ver NotificationManager para o
-            // motivo de isso não poder ser agendado com antecedência.
-            if let activeCase = try LensCaseService.activeCase(context: modelContext) {
-                await NotificationManager.shared.refreshOverdueCaseReminder(
-                    dueDate: activeCase.nextRecommendedReplacementDate,
-                    settings: settings
-                )
-            }
-            if let activeSolution = try CleaningSolutionService.activeSolution(context: modelContext) {
-                await NotificationManager.shared.refreshOverdueSolutionReminder(
-                    discardDate: activeSolution.discardDate,
-                    settings: settings
-                )
-            }
-            // Nunca perder a sessão: se houver um WearSession ativo mas nenhuma Live
-            // Activity correspondente (o sistema pode ter encerrado a Live Activity, o
-            // widget reiniciado, o app sido fechado, ou o iPhone reiniciado), restaura a
-            // apresentação a partir dos dados persistidos — nunca o contrário.
-            if let activeSession = try WearSessionService.activeSession(context: modelContext), let pair = activeSession.lensPair {
-                if !LiveActivityService.hasActiveWearingSession() {
-                    await LiveActivityService.presentWearingSession(
-                        pairID: pair.id, pairName: pair.name, usesRemaining: pair.usesRemaining, maximumUses: pair.maximumUses,
-                        wearingSince: activeSession.startedAt, settings: settings
-                    )
-                }
-                // Idempotente: `add(request:)` substitui uma notificação pendente com o
-                // mesmo identificador em vez de duplicar — seguro reagendar toda vez.
-                try? await NotificationManager.shared.scheduleWearingExcessiveNotifications(wearingSince: activeSession.startedAt, settings: settings)
-                await NotificationManager.shared.refreshWearingExcessiveRepeatReminder(wearingSince: activeSession.startedAt, settings: settings)
-            }
+            // Reagenda tudo que pode ter ficado pendente (estojo, solução, estoque, consultas,
+            // sessão de uso) e restaura a Live Activity/corrige uma sessão órfã, se for o caso.
+            await NotificationReconciliationService.rebuildAll(context: modelContext, settings: settings)
         } catch {
             startupError = IdentifiableError(error)
         }
@@ -94,17 +70,14 @@ struct ContentView: View {
             LensPairsView()
                 .tabItem { Label("Lentes", systemImage: "eye") }
                 .tag(AppTab.lentes)
-            CaseView()
-                .tabItem { Label("Estojo", systemImage: "shippingbox") }
-                .tag(AppTab.estojo)
-            CleaningSolutionView()
-                .tabItem { Label("Solução", systemImage: "flask") }
-                .tag(AppTab.solution)
+            CuidadosView()
+                .tabItem { Label("Cuidados", systemImage: "heart.text.square") }
+                .tag(AppTab.cuidados)
             EyeCareView()
                 .tabItem { Label("Consultas", systemImage: "stethoscope") }
                 .tag(AppTab.consultas)
             SettingsView()
-                .tabItem { Label("Configurações", systemImage: "gearshape") }
+                .tabItem { Label("Mais", systemImage: "ellipsis.circle") }
                 .tag(AppTab.settings)
         }
     }

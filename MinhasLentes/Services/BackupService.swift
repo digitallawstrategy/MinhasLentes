@@ -11,7 +11,11 @@ import SwiftData
 @MainActor
 enum BackupService {
 
-    nonisolated static let currentSchemaVersion = 1
+    /// v1: pares, usos, limpezas, eventos e configurações. v2: acrescenta estojo (ciclo de
+    /// vida), cuidado rotineiro, solução de limpeza, estoque de lentes, profissionais,
+    /// consultas e sessão de uso — todos opcionais no envelope para que um backup v1 continue
+    /// válido, mas registrados aqui porque a v1 já não descreve o formato real do arquivo.
+    nonisolated static let currentSchemaVersion = 2
 
     enum BackupError: LocalizedError {
         case encodingFailed(String)
@@ -455,7 +459,7 @@ enum BackupService {
         guard !envelope.pairs.isEmpty || !envelope.cleanings.isEmpty || envelope.settings != nil
             || !(envelope.cases ?? []).isEmpty || !(envelope.routineCareLogs ?? []).isEmpty || !(envelope.solutions ?? []).isEmpty
             || !(envelope.inventoryItems ?? []).isEmpty || !(envelope.professionals ?? []).isEmpty
-            || !(envelope.wearSessions ?? []).isEmpty
+            || !(envelope.wearSessions ?? []).isEmpty || !(envelope.appointments ?? []).isEmpty
         else {
             throw BackupError.invalidFile("O arquivo não contém nenhum dado reconhecível.")
         }
@@ -464,6 +468,56 @@ enum BackupService {
         for usage in envelope.usages {
             if let pairID = usage.lensPairID, !pairIDs.contains(pairID) {
                 throw BackupError.invalidFile("Um registro de uso referencia um par inexistente no próprio arquivo.")
+            }
+        }
+
+        let professionalIDs = Set((envelope.professionals ?? []).map(\.id))
+        for appointment in envelope.appointments ?? [] {
+            if let professionalID = appointment.professionalID, !professionalIDs.contains(professionalID) {
+                throw BackupError.invalidFile("Uma consulta referencia um profissional inexistente no próprio arquivo.")
+            }
+        }
+        for session in envelope.wearSessions ?? [] {
+            if let lensPairID = session.lensPairID, !pairIDs.contains(lensPairID) {
+                throw BackupError.invalidFile("Uma sessão de uso referencia um par inexistente no próprio arquivo.")
+            }
+        }
+
+        // No máximo um registro "ativo" por domínio de ciclo único — o mesmo invariante que os
+        // serviços já garantem na criação normal (LensCaseService/CleaningSolutionService/
+        // WearSessionService), aqui verificado no próprio arquivo antes de confiar nele.
+        let activeCases = (envelope.cases ?? []).filter { $0.status == "active" }.count
+        guard activeCases <= 1 else {
+            throw BackupError.invalidFile("O arquivo contém mais de um ciclo de estojo ativo.")
+        }
+        let activeSolutions = (envelope.solutions ?? []).filter { $0.status == "active" }.count
+        guard activeSolutions <= 1 else {
+            throw BackupError.invalidFile("O arquivo contém mais de uma solução de limpeza ativa.")
+        }
+        let activeSessions = (envelope.wearSessions ?? []).filter { $0.status == "active" }.count
+        guard activeSessions <= 1 else {
+            throw BackupError.invalidFile("O arquivo contém mais de uma sessão de uso ativa.")
+        }
+
+        for item in envelope.inventoryItems ?? [] {
+            guard item.initialQuantity >= 0, item.remainingQuantity >= 0 else {
+                throw BackupError.invalidFile("Um item de estoque tem quantidade negativa.")
+            }
+        }
+
+        for lensCase in envelope.cases ?? [] {
+            if let replacedAt = lensCase.replacedAt, replacedAt < lensCase.startDate {
+                throw BackupError.invalidFile("Um ciclo de estojo tem data de substituição anterior ao início.")
+            }
+        }
+        for solution in envelope.solutions ?? [] {
+            if let finishedAt = solution.finishedAt, finishedAt < solution.openedDate {
+                throw BackupError.invalidFile("Uma solução de limpeza tem data de finalização anterior à abertura.")
+            }
+        }
+        for session in envelope.wearSessions ?? [] {
+            if let endedAt = session.endedAt, endedAt < session.startedAt {
+                throw BackupError.invalidFile("Uma sessão de uso tem data de término anterior ao início.")
             }
         }
 
