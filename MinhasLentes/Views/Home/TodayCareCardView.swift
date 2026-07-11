@@ -7,16 +7,15 @@ import SwiftUI
 /// dados), só a apresentação fica lado a lado por serem as duas ações mais comuns do dia.
 struct TodayCareCardView: View {
     let lastRoutineCare: RoutineCareLog?
+    /// Calculado pelo chamador a partir de todos os registros do dia, não só do mais recente —
+    /// um registro futuro (ex.: engano em "Registrar em outro dia") ordenaria antes do de hoje
+    /// e faria um cálculo local aqui perder o registro de hoje de vista.
+    let hasRoutineCareToday: Bool
     let lastCleaning: CaseCleaning?
     let settings: AppSettings
     let onRegisterRoutineCareToday: () -> Void
     let onRegisterRoutineCareForOtherDay: () -> Void
     let onRegisterCleaningToday: () -> Void
-
-    private var hasRoutineCareToday: Bool {
-        guard let lastRoutineCare else { return false }
-        return Calendar.current.isDate(lastRoutineCare.date, inSameDayAs: Date())
-    }
 
     private var nextCleaningDate: Date? {
         guard let lastCleaning else { return nil }
@@ -109,6 +108,7 @@ struct TodayCareCardView: View {
 #Preview {
     TodayCareCardView(
         lastRoutineCare: nil,
+        hasRoutineCareToday: false,
         lastCleaning: nil,
         settings: AppSettings(),
         onRegisterRoutineCareToday: {},

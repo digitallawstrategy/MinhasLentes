@@ -49,16 +49,18 @@ struct HomeView: View {
     }
 
     private var availableInventoryItems: [LensInventoryItem] {
-        inventoryItems.filter { $0.status == .available }
+        inventoryItems.filter { $0.status == .available && $0.remainingQuantity > 0 }
     }
 
     private var expiringInventoryItems: [LensInventoryItem] {
         LensInventoryStatisticsService.itemsNearExpiry(items: availableInventoryItems, withinDays: 30)
     }
 
+    /// Verifica todos os registros do dia, não só o primeiro da lista — um registro futuro
+    /// (relógio errado, engano de data em "Registrar em outro dia") ordenaria antes do de hoje e
+    /// faria o app deixar de perceber um cuidado diário já feito hoje.
     private var hasRoutineCareToday: Bool {
-        guard let lastRoutineCare else { return false }
-        return Calendar.current.isDate(lastRoutineCare.date, inSameDayAs: Date())
+        routineCareLogs.contains { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
     }
 
     private var greeting: String {
@@ -89,6 +91,7 @@ struct HomeView: View {
 
                     TodayCareCardView(
                         lastRoutineCare: lastRoutineCare,
+                        hasRoutineCareToday: hasRoutineCareToday,
                         lastCleaning: lastCleaning,
                         settings: settings,
                         onRegisterRoutineCareToday: {
@@ -132,10 +135,17 @@ struct HomeView: View {
                     }
                     .padding(.bottom, 8)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
+                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                        routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
+                    }
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.snappy, value: caseViewModel.showUndoToast)
             .animation(.snappy, value: pairsViewModel.showUndoToast)
+            .animation(.snappy, value: routineCareViewModel.showUndoToast)
             .alert(
                 "Não foi possível concluir a ação",
                 isPresented: Binding(
@@ -280,9 +290,9 @@ struct HomeView: View {
 
     private var registerAllUsageButton: some View {
         Button {
-            pairsViewModel.registerUsageForAllInUsePairs(inUsePairs, settings: settings, context: modelContext)
+            pairsViewModel.registerUsageForAllInUsePairs(pairsNeedingUsageToday, settings: settings, context: modelContext)
         } label: {
-            Label("Registrar uso hoje (todos os pares)", systemImage: "checkmark.circle.fill")
+            Label("Registrar uso nos \(pairsNeedingUsageToday.count) pares pendentes", systemImage: "checkmark.circle.fill")
                 .font(.subheadline.weight(.medium))
                 .frame(maxWidth: .infinity)
         }
@@ -368,8 +378,15 @@ struct HomeView: View {
 
     // MARK: - Lembretes
 
+    /// Identidade estável por tipo de lembrete — usar `UUID()` recalculado a cada renderização
+    /// faria o SwiftUI tratar cada atualização como uma lista inteiramente nova, prejudicando
+    /// animações e a preservação de estado da lista.
+    private enum ReminderKind: Hashable {
+        case lensCase, solution, appointment, inventory
+    }
+
     private struct ReminderItem: Identifiable {
-        let id = UUID()
+        let id: ReminderKind
         let icon: String
         let title: String
         let detail: String
@@ -379,16 +396,16 @@ struct HomeView: View {
     private var reminderItems: [ReminderItem] {
         var items: [ReminderItem] = []
         if let activeCase {
-            items.append(ReminderItem(icon: "shippingbox", title: "Estojo", detail: caseReminderDetail(activeCase), tab: .cuidados))
+            items.append(ReminderItem(id: .lensCase, icon: "shippingbox", title: "Estojo", detail: caseReminderDetail(activeCase), tab: .cuidados))
         }
         if let activeSolution {
-            items.append(ReminderItem(icon: "flask", title: "Solução", detail: solutionReminderDetail(activeSolution), tab: .cuidados))
+            items.append(ReminderItem(id: .solution, icon: "flask", title: "Solução", detail: solutionReminderDetail(activeSolution), tab: .cuidados))
         }
         if let nextAppointment {
-            items.append(ReminderItem(icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas))
+            items.append(ReminderItem(id: .appointment, icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas))
         }
         if !expiringInventoryItems.isEmpty {
-            items.append(ReminderItem(icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes))
+            items.append(ReminderItem(id: .inventory, icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes))
         }
         return items
     }
@@ -432,12 +449,16 @@ struct HomeView: View {
 
     private func caseReminderDetail(_ lensCase: LensCase) -> String {
         let days = LensStatisticsService.daysUntil(lensCase.nextRecommendedReplacementDate)
-        return days <= 0 ? "Substituição recomendada já se aproximou" : "Substituição recomendada em \(days) dia(s)"
+        if days > 0 { return "Substituição recomendada em \(days) dia(s)" }
+        if days == 0 { return "Substituição recomendada para hoje" }
+        return "Substituição recomendada há \(-days) dia(s)"
     }
 
     private func solutionReminderDetail(_ solution: CleaningSolution) -> String {
         let days = LensStatisticsService.daysUntil(solution.discardDate)
-        return days <= 0 ? "Validade recomendada já se aproximou" : "Descarte recomendado em \(days) dia(s)"
+        if days > 0 { return "Descarte recomendado em \(days) dia(s)" }
+        if days == 0 { return "Descarte recomendado para hoje" }
+        return "Descarte recomendado há \(-days) dia(s)"
     }
 
     private func appointmentReminderDetail(_ appointment: EyeAppointment) -> String {

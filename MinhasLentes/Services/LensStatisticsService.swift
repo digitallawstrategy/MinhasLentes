@@ -109,14 +109,16 @@ enum LensStatisticsService {
     }
 
     /// Intervalo médio, em dias, entre usos consecutivos de um par — a base da projeção de
-    /// término. `nil` com menos de dois registros: nunca inventa uma média a partir de um único
-    /// ponto de dado.
+    /// término. Conta dias distintos de utilização, não registros: dois usos no mesmo dia (ex.:
+    /// modo individual registrando os dois lados) não podem reduzir artificialmente a média só
+    /// por inflar o denominador sem aumentar o intervalo real. `nil` com menos de dois dias
+    /// distintos: nunca inventa uma média a partir de um único ponto de dado.
     static func averageIntervalDays(betweenUsageDates dates: [Date], calendar: Calendar = .current) -> Double? {
-        guard dates.count >= 2 else { return nil }
-        let sortedDays = dates.map { calendar.startOfDay(for: $0) }.sorted()
-        let totalDays = calendar.dateComponents([.day], from: sortedDays.first!, to: sortedDays.last!).day ?? 0
+        let uniqueDays = Set(dates.map { calendar.startOfDay(for: $0) }).sorted()
+        guard uniqueDays.count >= 2 else { return nil }
+        let totalDays = calendar.dateComponents([.day], from: uniqueDays.first!, to: uniqueDays.last!).day ?? 0
         guard totalDays > 0 else { return nil }
-        return Double(totalDays) / Double(sortedDays.count - 1)
+        return Double(totalDays) / Double(uniqueDays.count - 1)
     }
 
     /// Data aproximada em que os usos restantes se esgotariam, mantido o ritmo médio observado.

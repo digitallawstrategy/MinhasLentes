@@ -27,6 +27,12 @@ struct CleaningSolutionView: View {
         return LensStatisticsService.daysUntil(activeSolution.discardDate)
     }
 
+    private func solutionSituationText(_ days: Int) -> String {
+        if days > 0 { return "Faltam \(days) dia(s)" }
+        if days == 0 { return "Validade recomendada para hoje" }
+        return "Validade recomendada há \(-days) dia(s)"
+    }
+
     var body: some View {
             List {
                 Section("Frasco atual") {
@@ -124,7 +130,7 @@ struct CleaningSolutionView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let daysUntilDiscard {
-                Text(daysUntilDiscard <= 0 ? "Validade recomendada já se aproximou" : "Faltam \(daysUntilDiscard) dia(s)")
+                Text(solutionSituationText(daysUntilDiscard))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(daysUntilDiscard <= 0 ? Color.orange : Color.secondary)
             }

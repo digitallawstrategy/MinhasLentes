@@ -26,6 +26,18 @@ struct CuidadosView: View {
         return LensStatisticsService.daysUntil(activeSolution.discardDate)
     }
 
+    private func caseSituationText(_ days: Int) -> String {
+        if days > 0 { return "Faltam \(days) dia(s)" }
+        if days == 0 { return "Substituição recomendada para hoje" }
+        return "Substituição recomendada há \(-days) dia(s)"
+    }
+
+    private func solutionSituationText(_ days: Int) -> String {
+        if days > 0 { return "Faltam \(days) dia(s)" }
+        if days == 0 { return "Validade recomendada para hoje" }
+        return "Validade recomendada há \(-days) dia(s)"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -50,12 +62,7 @@ struct CuidadosView: View {
                     StatRow(label: "Ciclo atual iniciado em", value: DateFormatting.short.string(from: activeCase.startDate))
                     StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
                     if let daysUntilCaseReplacement {
-                        StatRow(
-                            label: "Situação",
-                            value: daysUntilCaseReplacement <= 0
-                                ? "Substituição recomendada já se aproximou"
-                                : "Faltam \(daysUntilCaseReplacement) dia(s)"
-                        )
+                        StatRow(label: "Situação", value: caseSituationText(daysUntilCaseReplacement))
                     }
                 } else {
                     Text("Nenhum ciclo de estojo iniciado ainda.")
@@ -86,12 +93,7 @@ struct CuidadosView: View {
                     StatRow(label: "Aberto em", value: DateFormatting.short.string(from: activeSolution.openedDate))
                     StatRow(label: "Descarte recomendado", value: DateFormatting.short.string(from: activeSolution.discardDate))
                     if let daysUntilSolutionDiscard {
-                        StatRow(
-                            label: "Situação",
-                            value: daysUntilSolutionDiscard <= 0
-                                ? "Validade recomendada já se aproximou"
-                                : "Faltam \(daysUntilSolutionDiscard) dia(s)"
-                        )
+                        StatRow(label: "Situação", value: solutionSituationText(daysUntilSolutionDiscard))
                     }
                 } else {
                     Text("Nenhum frasco de solução registrado ainda.")

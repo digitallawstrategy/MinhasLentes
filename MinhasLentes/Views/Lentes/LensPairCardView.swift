@@ -125,7 +125,7 @@ struct LensPairCardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("\(pair.usesCount) de \(pair.maximumUses) usos")
                     .font(.headline)
-                Text("\(Int((remainingFraction * 100).rounded()))% da vida útil restante")
+                Text("\(Int((remainingFraction * 100).rounded()))% do limite de utilizações restante")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

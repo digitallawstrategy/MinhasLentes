@@ -38,6 +38,12 @@ struct CaseView: View {
         return LensStatisticsService.daysUntil(activeCase.nextRecommendedReplacementDate)
     }
 
+    private func caseSituationText(_ days: Int) -> String {
+        if days > 0 { return "Faltam \(days) dia(s)" }
+        if days == 0 { return "Substituição recomendada para hoje" }
+        return "Substituição recomendada há \(-days) dia(s)"
+    }
+
     private var lastCleaning: CaseCleaning? { cleanings.first }
 
     private var daysSinceLastCleaning: Int? {
@@ -88,12 +94,7 @@ struct CaseView: View {
                     StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
                     StatRow(label: "Intervalo configurado", value: "\(activeCase.intervalDays) dias")
                     if let daysUntilCaseReplacement {
-                        StatRow(
-                            label: "Situação",
-                            value: daysUntilCaseReplacement <= 0
-                                ? "Substituição recomendada já se aproximou"
-                                : "Faltam \(daysUntilCaseReplacement) dia(s)"
-                        )
+                        StatRow(label: "Situação", value: caseSituationText(daysUntilCaseReplacement))
                     }
                 }
                 Button {
@@ -275,9 +276,16 @@ struct CaseView: View {
                     }
                     .padding(.bottom, 8)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
+                    ConfirmationToast(message: message, actionTitle: "Desfazer") {
+                        routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
+                    }
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.snappy, value: cleaningViewModel.showUndoToast)
+            .animation(.snappy, value: routineCareViewModel.showUndoToast)
             .sheet(isPresented: $showRegisterOtherDate) {
                 NavigationStack {
                     Form {

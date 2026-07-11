@@ -181,6 +181,21 @@ final class LensStatisticsServiceTests: XCTestCase {
         XCTAssertEqual(average!, 2.0, accuracy: 0.0001)
     }
 
+    func testAverageIntervalDaysIgnoresDuplicateUsagesOnSameDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
+        // Dois usos no dia 1 (ex.: registrando os dois lados) e um no dia 5: só 2 dias distintos
+        // de utilização, separados por 4 dias — a duplicata no dia 1 não pode reduzir a média.
+        let dates = [
+            TestSupport.date(2026, 7, 1, hour: 8),
+            TestSupport.date(2026, 7, 1, hour: 20),
+            TestSupport.date(2026, 7, 5),
+        ]
+        let average = LensStatisticsService.averageIntervalDays(betweenUsageDates: dates, calendar: calendar)
+        XCTAssertNotNil(average)
+        XCTAssertEqual(average!, 4.0, accuracy: 0.0001)
+    }
+
     func testProjectedDepletionDateNilWithoutAverageOrRemaining() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
