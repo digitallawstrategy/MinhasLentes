@@ -412,14 +412,14 @@ struct HomeView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .frame(width: 108, height: 108)
+                    .frame(width: 84, height: 84)
                     .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                         Text(pair.name)
                             .font(AppTypography.headline)
                             .foregroundStyle(.primary)
-                        StatusBadge(text: status.label, tone: status.tone, emoji: status.emoji)
+                        StatusBadge(text: status.label, tone: status.tone, systemImage: "shield.fill")
                         SegmentedProgressBar(filledFraction: fraction, tone: status.tone)
                             .padding(.top, AppSpacing.xxs)
                     }

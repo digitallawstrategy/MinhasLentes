@@ -27,7 +27,7 @@ struct StatusBadge: View {
                 Text(text)
             }
         }
-        .font(AppTypography.captionMedium)
+        .font(AppTypography.badge)
         .frame(maxWidth: fullWidth ? .infinity : nil)
         .padding(.horizontal, AppSpacing.sm)
         .padding(.vertical, fullWidth ? AppSpacing.xs : AppSpacing.xxs)

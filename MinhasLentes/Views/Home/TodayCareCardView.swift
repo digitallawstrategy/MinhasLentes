@@ -46,7 +46,7 @@ struct TodayCareCardView: View {
 
     var body: some View {
         AppCard {
-            SectionHeader("Cuidados de hoje") {
+            SectionHeader("Cuidados de hoje", leadingIcon: "calendar.badge.checkmark") {
                 if hasRoutineCareToday && !isCleaningDue {
                     StatusBadge(text: "Em dia", tone: .success, systemImage: "checkmark.circle.fill")
                 }
@@ -75,10 +75,10 @@ struct TodayCareCardView: View {
                 // Única ação restante nesta seção quando o cuidado diário já foi registrado —
                 // ganha o mesmo destaque preenchido que "Retirei as lentes" ganha no cartão "Em
                 // uso" pelo mesmo motivo.
-                PrimaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.plus", action: onRegisterRoutineCareForOtherDay)
+                PrimaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", action: onRegisterRoutineCareForOtherDay)
             } else {
                 PrimaryActionButton(title: "Registrar cuidado diário", systemImage: "drop.circle", action: onRegisterRoutineCareToday)
-                SecondaryActionButton(title: "Registrar em outro dia", action: onRegisterRoutineCareForOtherDay)
+                SecondaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", action: onRegisterRoutineCareForOtherDay)
                     .controlSize(.small)
             }
         }

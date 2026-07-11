@@ -75,7 +75,7 @@ struct LensPairCardView: View {
                     .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
                 HStack(spacing: AppSpacing.xs) {
-                    StatusBadge(text: usageStatus.label, tone: usageStatus.tone, emoji: usageStatus.emoji)
+                    StatusBadge(text: usageStatus.label, tone: usageStatus.tone, systemImage: "shield.fill")
                     if isWearingSessionActiveHere {
                         StatusBadge(text: "Em uso agora", tone: .informative, systemImage: "eye.circle.fill")
                     }

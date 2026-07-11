@@ -24,6 +24,9 @@ enum AppTypography {
     static let captionSemibold: Font = .caption.weight(.semibold)
     /// Texto secundário — 13pt (`.footnote`).
     static let footnote: Font = .footnote
+    /// Indicadores e badges — 11pt medium (`.caption2`, não `.caption`: a referência visual
+    /// separa os dois papéis por tamanho, não só peso).
+    static let badge: Font = .caption2.weight(.medium)
     /// Número de destaque em anéis/métricas (ex.: usos restantes) — 34pt bold, desenho
     /// arredondado (`.largeTitle`, nunca um tamanho fixo em pontos), para continuar acompanhando
     /// o Dynamic Type.
