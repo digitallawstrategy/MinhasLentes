@@ -9,6 +9,7 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
     @Query private var allSettings: [AppSettings]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -89,6 +90,11 @@ struct HomeView: View {
         }
     }
 
+    /// Fixa e não some quando "tudo em dia" — essa confirmação já tem seu próprio lugar
+    /// discreto (`everythingSettledRow`); duplicá-la aqui só repetiria a mesma frase duas vezes
+    /// na mesma tela.
+    private let greetingSubtitle = "Vamos cuidar bem das suas lentes hoje."
+
     var body: some View {
         NavigationStack {
             withDialogsAndSheet(withErrorAlerts(mainContent))
@@ -98,9 +104,7 @@ struct HomeView: View {
     private var mainContent: some View {
         ScrollView {
             VStack(spacing: AppSpacing.md) {
-                Text(greeting)
-                    .font(AppTypography.title)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle)
 
                 if inUsePairs.isEmpty && reservePairs.isEmpty {
                     EmptyStateView(
@@ -147,7 +151,9 @@ struct HomeView: View {
             .padding(.top, AppSpacing.xs)
             .padding(.bottom, AppSpacing.xxl)
         }
-        .navigationTitle("Minhas Lentes")
+        .background(AppGradient.ambientBackground(colorScheme: colorScheme).ignoresSafeArea())
+        .navigationTitle("Início")
+        .toolbar(.hidden, for: .navigationBar)
         .task {
             pairsViewModel.refreshWearingSessionState(context: modelContext)
             await endPendingWearingSessionIfNeeded()
@@ -330,7 +336,11 @@ struct HomeView: View {
     private var summaryContent: some View {
         if !inUsePairs.isEmpty {
             AppCard {
-                SectionHeader("Em uso")
+                SectionHeader("Em uso") {
+                    if pairsNeedingUsageToday.isEmpty {
+                        StatusBadge(text: "Tudo certo", tone: .success, systemImage: "checkmark.circle.fill")
+                    }
+                }
                 if pairsNeedingUsageToday.count > 1 {
                     registerAllUsageButton
                     Divider()
@@ -382,16 +392,45 @@ struct HomeView: View {
         )
         let isWearingHere = pairsViewModel.wearingSessionPairID == pair.id
         let usedToday = hasUsageToday(pair)
+        let fraction = pair.maximumUses > 0 ? Double(pair.usesRemaining) / Double(pair.maximumUses) : 0
 
-        return VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            ReminderCard(
-                emoji: status.emoji,
-                title: pair.name,
-                detail: "\(pair.usesRemaining) de \(pair.maximumUses) usos restantes — \(status.label)",
-                tone: status.tone
-            ) {
+        return VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Button {
                 router.openPair(pair.id)
+            } label: {
+                HStack(spacing: AppSpacing.md) {
+                    ZStack {
+                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color, lineWidth: 9)
+                        Text("\(pair.usesRemaining)")
+                            .font(AppTypography.metricValue)
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                    }
+                    .frame(width: 84, height: 84)
+                    .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                        Text(pair.name)
+                            .font(AppTypography.headline)
+                            .foregroundStyle(.primary)
+                        StatusBadge(text: status.label, tone: status.tone, emoji: status.emoji)
+                        SegmentedProgressBar(filledFraction: fraction, tone: status.tone)
+                            .padding(.top, AppSpacing.xxs)
+                    }
+
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
             }
+            .buttonStyle(.plain)
+            .pressScale()
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(pair.name), \(status.label)")
+            .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
+            .accessibilityHint("Abre o diário deste par")
 
             pairActionRow(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
         }
@@ -426,13 +465,21 @@ struct HomeView: View {
             // Mesma família de cor (indigo) nos dois estados — a hierarquia vem do estilo
             // preenchido vs. contornado, não de trocar para vermelho; vermelho fica reservado
             // para crítico/destrutivo, e encerrar uma sessão de uso não é nem um nem outro.
-            SecondaryActionButton(
-                title: isWearingHere ? "Retirei as lentes" : "Estou usando as lentes",
-                fullWidth: false
-            ) {
-                handleWearingSessionToggle(for: pair)
+            // Preenchido quando é a única ação restante na linha (uso já registrado hoje);
+            // contornado quando "Registrar uso hoje" ainda disputa a atenção como ação primária —
+            // só um botão preenchido por vez, para não competir consigo mesmo.
+            let title = isWearingHere ? "Retirei as lentes" : "Estou usando as lentes"
+            if usedToday {
+                PrimaryActionButton(title: title, fullWidth: false) {
+                    handleWearingSessionToggle(for: pair)
+                }
+                .controlSize(.small)
+            } else {
+                SecondaryActionButton(title: title, fullWidth: false) {
+                    handleWearingSessionToggle(for: pair)
+                }
+                .controlSize(.small)
             }
-            .controlSize(.small)
         }
     }
 
@@ -491,31 +538,68 @@ struct HomeView: View {
         let title: String
         let detail: String
         let tab: AppTab
+        /// `nil` quando o lembrete não tem uma contagem de dias própria (ex.: estoque, que é uma
+        /// contagem de caixas) — nesse caso ele nunca vira o item em destaque com anel.
+        var daysRemaining: Int? = nil
+        var tone: AppStatusTone = .informative
     }
 
+    /// Mais urgente primeiro (menor `daysRemaining`), para que o item em destaque do cartão seja
+    /// sempre o que precisa de mais atenção, não só o primeiro por ordem de inserção.
     private var reminderItems: [ReminderItem] {
         var items: [ReminderItem] = []
         if let activeCase {
-            items.append(ReminderItem(id: .lensCase, icon: "shippingbox", title: "Estojo", detail: caseReminderDetail(activeCase), tab: .cuidados))
+            let days = LensStatisticsService.daysUntil(activeCase.nextRecommendedReplacementDate)
+            items.append(ReminderItem(id: .lensCase, icon: "shippingbox", title: "Estojo", detail: caseReminderDetail(activeCase), tab: .cuidados, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if let activeSolution {
-            items.append(ReminderItem(id: .solution, icon: "flask", title: "Solução", detail: solutionReminderDetail(activeSolution), tab: .cuidados))
+            let days = LensStatisticsService.daysUntil(activeSolution.discardDate)
+            items.append(ReminderItem(id: .solution, icon: "flask", title: "Solução", detail: solutionReminderDetail(activeSolution), tab: .cuidados, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if let nextAppointment {
-            items.append(ReminderItem(id: .appointment, icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas))
+            let days = LensStatisticsService.daysUntil(nextAppointment.date)
+            items.append(ReminderItem(id: .appointment, icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if !expiringInventoryItems.isEmpty {
-            items.append(ReminderItem(id: .inventory, icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes))
+            items.append(ReminderItem(id: .inventory, icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes, tone: .warning))
         }
-        return items
+        return items.sorted { lhs, rhs in
+            switch (lhs.daysRemaining, rhs.daysRemaining) {
+            case let (l?, r?): return l < r
+            case (nil, _): return false
+            case (_, nil): return true
+            }
+        }
     }
 
+    private func reminderTone(daysRemaining: Int) -> AppStatusTone {
+        if daysRemaining <= 0 { return .critical }
+        if daysRemaining <= settings.advanceReminderDays { return .warning }
+        return .informative
+    }
+
+    /// O primeiro item (o mais urgente, após a ordenação acima) ganha o tratamento em destaque
+    /// com anel quando tem uma contagem de dias própria; os demais continuam como linha simples —
+    /// nenhuma informação é perdida, só o mais urgente ganha mais peso visual.
     private var remindersCard: some View {
         AppCard {
             SectionHeader("Lembretes")
             ForEach(Array(reminderItems.enumerated()), id: \.element.id) { index, item in
-                ReminderCard(systemImage: item.icon, title: item.title, detail: item.detail, tone: .informative) {
-                    router.selectedTab = item.tab
+                if index == 0, let days = item.daysRemaining {
+                    FeaturedReminderRow(
+                        systemImage: item.icon,
+                        title: item.title,
+                        detail: item.detail,
+                        ringValue: "\(abs(days))",
+                        ringFraction: min(max(Double(days) / 90, 0), 1),
+                        tone: item.tone
+                    ) {
+                        router.selectedTab = item.tab
+                    }
+                } else {
+                    ReminderCard(systemImage: item.icon, title: item.title, detail: item.detail, tone: item.tone) {
+                        router.selectedTab = item.tab
+                    }
                 }
                 if index != reminderItems.count - 1 {
                     Divider()

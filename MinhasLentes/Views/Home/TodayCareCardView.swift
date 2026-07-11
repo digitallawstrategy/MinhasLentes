@@ -46,7 +46,11 @@ struct TodayCareCardView: View {
 
     var body: some View {
         AppCard {
-            SectionHeader("Cuidados de hoje")
+            SectionHeader("Cuidados de hoje") {
+                if hasRoutineCareToday && !isCleaningDue {
+                    StatusBadge(text: "Em dia", tone: .success, systemImage: "checkmark.circle.fill")
+                }
+            }
             routineCareSection
             if isCleaningDue {
                 Divider()
