@@ -49,7 +49,7 @@ struct EyeCareView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { professionalToDelete = professional }
                                 Button("Editar") { professionalToEdit = professional }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                     }
                 }
@@ -71,15 +71,15 @@ struct EyeCareView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                                 Button("Cancelar") {
                                     Task { await viewModel.cancelAppointment(appointment, context: modelContext) }
                                 }
-                                .tint(.orange)
+                                .tint(AppColor.warning)
                                 Button("Realizada") {
                                     Task { await viewModel.markCompleted(appointment, context: modelContext) }
                                 }
-                                .tint(.green)
+                                .tint(AppColor.success)
                             }
                     }
                 }
@@ -97,7 +97,7 @@ struct EyeCareView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                     }
                 }
@@ -219,7 +219,7 @@ struct EyeCareView: View {
                 Spacer()
                 Text(appointment.status.displayName)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(appointment.status == .scheduled ? Color.accentColor : .secondary)
+                    .foregroundStyle(appointment.status == .scheduled ? AppColor.primary : .secondary)
             }
             Text(DateFormatting.shortWithTime.string(from: appointment.date))
                 .font(.caption)
