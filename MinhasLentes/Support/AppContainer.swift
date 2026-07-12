@@ -21,11 +21,24 @@ enum AppContainer {
         }
         do {
             let schema = Schema(versionedSchema: AppSchemaV1.self)
-            // O banco vive no App Group, não no contêiner privado do app, para que o widget e
-            // a Live Activity (processos separados) consigam ler os mesmos dados.
-            let url = try AppGroup.storeURL()
-            AppGroup.migrateLegacyStoreIfNeeded(to: url)
-            let configuration = ModelConfiguration(schema: schema, url: url)
+            let configuration: ModelConfiguration
+            #if DEBUG
+            if isUITestSeedRequested {
+                // Store isolado e em memória, só para screenshot/validação visual automatizada —
+                // nunca abre o arquivo real do App Group. Sendo em memória, cada novo lançamento
+                // do processo começa de uma base garantidamente vazia: não há "esvaziar" a
+                // fazer, e rodar isto 10 vezes seguidas não pode acumular nada, por construção
+                // (ao contrário de reaproveitar o store real e checar "já tem dado?", que
+                // dependia do store estar vazio na primeira vez e não se recuperava sozinho se
+                // alguém rodasse duas vezes segui — ou, sabotado, se o AppGroup já tivesse dado
+                // real de uso normal do app).
+                configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            } else {
+                configuration = try Self.realConfiguration(schema: schema)
+            }
+            #else
+            configuration = try Self.realConfiguration(schema: schema)
+            #endif
             let container = try ModelContainer(for: schema, migrationPlan: AppMigrationPlan.self, configurations: [configuration])
             cached = .success(container)
             return container
@@ -34,4 +47,18 @@ enum AppContainer {
             throw error
         }
     }
+
+    private static func realConfiguration(schema: Schema) throws -> ModelConfiguration {
+        // O banco vive no App Group, não no contêiner privado do app, para que o widget e
+        // a Live Activity (processos separados) consigam ler os mesmos dados.
+        let url = try AppGroup.storeURL()
+        AppGroup.migrateLegacyStoreIfNeeded(to: url)
+        return ModelConfiguration(schema: schema, url: url)
+    }
+
+    #if DEBUG
+    static var isUITestSeedRequested: Bool {
+        ProcessInfo.processInfo.arguments.contains("-uiTestSeedData")
+    }
+    #endif
 }
