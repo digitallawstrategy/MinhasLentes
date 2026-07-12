@@ -31,4 +31,7 @@ enum AppTypography {
     /// arredondado (`.largeTitle`, nunca um tamanho fixo em pontos), para continuar acompanhando
     /// o Dynamic Type.
     static let metricValue: Font = .system(.largeTitle, design: .rounded).weight(.bold)
+    /// Número de métrica compacta, 2-3 lado a lado numa faixa (`MetricStrip`) — menor que
+    /// `metricValue`, que é para um único número em destaque num anel.
+    static let metricCompact: Font = .system(.title2, design: .rounded).weight(.bold)
 }
