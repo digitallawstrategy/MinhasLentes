@@ -115,6 +115,8 @@ enum UITestSupport {
     /// - Sessão "Estou usando as lentes" ativa neste par — sem isso, o botão da Home mostraria
     ///   "Estou usando as lentes" em vez de "Retirei as lentes", o estado retratado nos prints
     ///   de referência originais.
+    /// - 1 item de estoque disponível (4 unidades, validade em 200 dias) — sem isto, a tela
+    ///   Estoque só mostra o estado vazio, o que não valida `MetricStrip`/`AppListRow`.
     @discardableResult
     static func seedPreviewData(context: ModelContext, referenceDate: Date = Date()) throws -> LensPair {
         let calendar = Calendar.current
@@ -154,6 +156,15 @@ enum UITestSupport {
             postOpeningShelfLifeDays: 90
         ))
         context.insert(WearSession(startedAt: referenceDate, lensPair: pair))
+
+        let inventoryExpiryDate = calendar.date(byAdding: .day, value: 200, to: referenceDate) ?? referenceDate
+        context.insert(LensInventoryItem(
+            brand: "Marca de exemplo",
+            model: "Lentes de reserva",
+            side: .both,
+            expiryDate: inventoryExpiryDate,
+            initialQuantity: 4
+        ))
 
         try context.save()
         return pair

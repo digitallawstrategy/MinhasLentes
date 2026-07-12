@@ -146,6 +146,17 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(session.lensPair?.id, pair.id)
     }
 
+    func testSeedPreviewDataCreatesAvailableInventoryItem() throws {
+        let referenceDate = TestSupport.date(2026, 7, 12)
+        try UITestSupport.seedPreviewData(context: context, referenceDate: referenceDate)
+
+        let items = try context.fetch(FetchDescriptor<LensInventoryItem>())
+        XCTAssertEqual(items.count, 1)
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.status, .available)
+        XCTAssertEqual(item.remainingQuantity, 4)
+    }
+
     // MARK: - Idempotência
 
     func testSeedPreviewDataCalledTwiceDoesNotDuplicateAnything() throws {
@@ -160,6 +171,7 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<LensCase>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CleaningSolution>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WearSession>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<LensInventoryItem>()), 1)
     }
 
     func testSeedPreviewDataCalledManyTimesStaysStable() throws {
