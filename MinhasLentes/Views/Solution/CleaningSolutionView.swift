@@ -136,13 +136,13 @@ struct CleaningSolutionView: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                     solutionTitleBlock(for: solution)
-                    // `.fixedSize()`: dentro de uma List, a medição de altura de linha às vezes
-                    // propõe uma largura errada (subestimada) para conteúdo aninhado em tamanho
-                    // de fonte extremo — o selo, mesmo sozinho na própria linha, truncava
-                    // ("Faltam 90..."). `.fixedSize()` força a medição pelo tamanho ideal do
-                    // próprio texto, ignorando essa proposta.
-                    StatusBadge(text: discardStatusText, tone: discardTone, systemImage: "flask.fill")
-                        .fixedSize()
+                    // Mesmo sozinho na própria linha, sem nenhum vizinho disputando espaço, o
+                    // selo truncava ("Faltam 90...") em accessibility-XXXL — o texto simplesmente
+                    // não cabe numa linha só nesse tamanho de fonte, nem com a tela inteira à
+                    // disposição. `lineLimit: nil` deixa a pílula crescer em altura (2 linhas) em
+                    // vez de truncar ou (com `.fixedSize()`, tentado antes) ficar maior que a
+                    // tela e cortar visualmente.
+                    StatusBadge(text: discardStatusText, tone: discardTone, systemImage: "flask.fill", lineLimit: nil)
                 }
             } else {
                 HStack(alignment: .top) {

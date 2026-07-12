@@ -12,6 +12,13 @@ struct StatusBadge: View {
     /// hoje" ao lado de "Retirei as lentes") — sem isto, o selo fica compacto de propósito, do
     /// tamanho do próprio texto, como em todo o resto do app.
     var fullWidth: Bool = false
+    /// `1` (padrão) mantém o selo como uma pílula compacta de uma linha só, com
+    /// `minimumScaleFactor` como rede de segurança para textos um pouco largos. Quem já sabe que
+    /// está num tamanho de fonte extremo (accessibility sizes) e tem o selo sozinho na própria
+    /// linha pode passar `nil` aqui: em vez de truncar (ou, com `.fixedSize()`, ficar maior que a
+    /// própria tela e cortar visualmente), o texto quebra em 2+ linhas dentro da pílula — a
+    /// pílula cresce em altura, mas nunca esconde ou corta o texto.
+    var lineLimit: Int? = 1
 
     var body: some View {
         Group {
@@ -28,8 +35,9 @@ struct StatusBadge: View {
             }
         }
         .font(AppTypography.badge)
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
+        .lineLimit(lineLimit)
+        .minimumScaleFactor(lineLimit == 1 ? 0.7 : 1)
+        .multilineTextAlignment(.leading)
         .frame(maxWidth: fullWidth ? .infinity : nil)
         .padding(.horizontal, AppSpacing.sm)
         .padding(.vertical, fullWidth ? AppSpacing.xs : AppSpacing.xxs)

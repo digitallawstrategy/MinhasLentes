@@ -211,11 +211,9 @@ struct EyeCareView: View {
     private func nextAppointmentCard(for appointment: EyeAppointment) -> some View {
         let days = daysUntil(appointment)
         let daysTone = tone(forDaysUntil: days)
-        let statusBadge = StatusBadge(
-            text: days > 0 ? "Em \(days) dia(s)" : (days == 0 ? "Hoje" : "Atrasada"),
-            tone: daysTone,
-            systemImage: "calendar"
-        )
+        let badgeText = days > 0 ? "Em \(days) dia(s)" : (days == 0 ? "Hoje" : "Atrasada")
+        let statusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar")
+        let accessibilityStatusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar", lineLimit: nil)
         let titleBlock = VStack(alignment: .leading, spacing: 2) {
             Text(appointment.type.displayName)
                 .font(AppTypography.headline)
@@ -227,12 +225,13 @@ struct EyeCareView: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                     titleBlock
-                    // `.fixedSize()`: dentro de uma List, a medição de altura de linha às vezes
-                    // propõe uma largura errada (subestimada) para conteúdo aninhado em tamanho
-                    // de fonte extremo — o selo, mesmo sozinho na própria linha sem nenhum
-                    // vizinho disputando espaço, truncava ("Falta..."). `.fixedSize()` força a
-                    // medição pelo tamanho ideal do próprio texto, ignorando essa proposta.
-                    statusBadge.fixedSize()
+                    // Mesmo sozinho na própria linha, sem nenhum vizinho disputando espaço, o
+                    // selo truncava ("Falta...") em accessibility-XXXL — o texto simplesmente não
+                    // cabe numa linha só nesse tamanho de fonte, nem com a tela inteira à
+                    // disposição. `lineLimit: nil` deixa a pílula crescer em altura (2 linhas) em
+                    // vez de truncar ou (com `.fixedSize()`, tentado antes) ficar maior que a tela
+                    // e cortar visualmente.
+                    accessibilityStatusBadge
                 }
             } else {
                 HStack(alignment: .top) {
