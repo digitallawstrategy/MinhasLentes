@@ -144,19 +144,41 @@ struct LensPairCardView: View {
         }
     }
 
-    @ViewBuilder
-    private var detailStats: some View {
+    // Antes, até 4 StatRow empilhadas — rótulo e valor no mesmo peso, uma embaixo da outra, lendo
+    // como uma planilha. Uma grade 2x2 com o valor em destaque e o rótulo pequeno abaixo (mesmo
+    // espírito do "Highlights" da Apple Saúde) deixa mais óbvio que são fatos secundários, não
+    // uma lista de igual importância ao anel/status acima.
+    private var detailStatItems: [(label: String, value: String)] {
+        var items: [(label: String, value: String)] = []
         if let lastUsage = pair.lastUsageDate {
-            StatRow(label: "Último uso", value: DateFormatting.short.string(from: lastUsage))
+            items.append(("Último uso", DateFormatting.short.string(from: lastUsage)))
         }
         if let averageIntervalDays {
-            StatRow(label: "Frequência média", value: "a cada \(String(format: "%.1f", averageIntervalDays)) dia(s)")
+            items.append(("Frequência média", "a cada \(String(format: "%.1f", averageIntervalDays)) dia(s)"))
         }
         if let projectedDepletionDate {
-            StatRow(label: "Previsão de término", value: DateFormatting.short.string(from: projectedDepletionDate))
+            items.append(("Previsão de término", DateFormatting.short.string(from: projectedDepletionDate)))
         }
         if let averageSessionDuration {
-            StatRow(label: "Duração média de uso", value: DateFormatting.durationShort(averageSessionDuration))
+            items.append(("Duração média de uso", DateFormatting.durationShort(averageSessionDuration)))
+        }
+        return items
+    }
+
+    @ViewBuilder
+    private var detailStats: some View {
+        if !detailStatItems.isEmpty {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: AppSpacing.md, alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: AppSpacing.sm) {
+                ForEach(detailStatItems, id: \.label) { item in
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.value)
+                            .font(AppTypography.subheadlineMedium)
+                        Text(item.label)
+                            .font(AppTypography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 }
