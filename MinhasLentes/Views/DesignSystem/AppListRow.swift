@@ -9,6 +9,10 @@ import SwiftUI
 /// faz para o caso de cartões tocáveis.
 struct AppListRow: View {
     var systemImage: String?
+    /// Sobrepõe `systemImage` quando presente — o único caso hoje é a foto opcional de um item
+    /// de estoque. Sempre a mesma moldura do selo de ícone, para não quebrar o alinhamento das
+    /// linhas vizinhas que não têm foto.
+    var leadingImage: UIImage?
     var tone: AppStatusTone = .neutral
     let title: String
     var subtitle: String?
@@ -17,7 +21,14 @@ struct AppListRow: View {
 
     var body: some View {
         HStack(spacing: AppSpacing.sm) {
-            if let systemImage {
+            if let leadingImage {
+                Image(uiImage: leadingImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                    .accessibilityHidden(true)
+            } else if let systemImage {
                 Image(systemName: systemImage)
                     .font(.subheadline)
                     .foregroundStyle(tone.color)
