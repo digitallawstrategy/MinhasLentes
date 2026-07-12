@@ -42,16 +42,26 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 notificationStatusSection
+                // `.minimumScaleFactor` aqui é exceção deliberada, não o padrão do resto do
+                // app: "Lembretes"/"Avançado" são uma palavra só disputando espaço com o ícone e
+                // o indicador de navegação (desenhado pelo sistema, fora do nosso controle) — sem
+                // espaço para quebrar, o sistema hifenizava ("Lembre-"/"tes") em accessibility
+                // sizes. Não existe layout adaptativo alternativo para uma palavra indivisível
+                // numa linha de navegação; encolher levemente é a única saída real.
                 Section {
                     NavigationLink { rotinaScreen } label: { Label("Rotina", systemImage: "gauge.with.dots.needle.67percent") }
                     NavigationLink { lembretesScreen } label: { Label("Lembretes", systemImage: "bell.badge") }
                     NavigationLink { dadosScreen } label: { Label("Dados", systemImage: "externaldrive") }
                     NavigationLink { avancadoScreen } label: { Label("Avançado", systemImage: "gearshape.2") }
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 #if DEBUG
                 Section {
                     NavigationLink { developerToolsScreen } label: { Label("Desenvolvimento", systemImage: "ladybug") }
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 #endif
             }
             .navigationTitle("Configurações")
