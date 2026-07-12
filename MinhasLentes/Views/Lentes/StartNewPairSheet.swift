@@ -75,7 +75,7 @@ struct StartNewPairSheet: View {
                             Picker("Item do estoque", selection: $selectedInventoryItemID) {
                                 Text("Selecione").tag(UUID?.none)
                                 ForEach(matchingInventoryItems) { item in
-                                    Text("\(item.brand) \(item.model) — \(item.remainingQuantity) restante(s)\(item.isExpired ? " (vencida)" : "")")
+                                    Text("\(item.brand) \(item.model) — \(Pluralization.count(item.remainingQuantity, "restante", "restantes"))\(item.isExpired ? " (vencida)" : "")")
                                         .tag(Optional(item.id))
                                 }
                             }

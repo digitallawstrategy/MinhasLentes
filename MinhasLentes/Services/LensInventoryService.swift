@@ -74,7 +74,7 @@ enum LensInventoryService {
         logEvent(
             .inventoryItemAdded,
             date: Date(),
-            descriptionText: "\(brand) \(model) adicionado ao estoque (\(item.initialQuantity) unidade(s)).",
+            descriptionText: "\(brand) \(model) adicionado ao estoque (\(Pluralization.count(item.initialQuantity, "unidade", "unidades"))).",
             context: context
         )
         try save(context: context)

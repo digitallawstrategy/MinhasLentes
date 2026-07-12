@@ -18,18 +18,31 @@ struct HomeHeaderView: View {
                     // duplicado num imageset comum — um "AppIcon.appiconset" não é acessível via
                     // Image(_:) de forma confiável, e a marca no cabeçalho precisa ser
                     // literalmente a mesma arte do ícone, não um desenho à parte tentando lembrá-la.
+                    // Um brilho suave atrás (mesmo tom da marca) dá peso de assinatura ao ícone,
+                    // em vez de um selo pequeno e tímido perdido ao lado do texto.
                     Image("AppLogoAsset")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 26, height: 26)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .frame(width: 34, height: 34)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .background(
+                            Circle()
+                                .fill(AppGradient.primaryButtonBackground)
+                                .frame(width: 46, height: 46)
+                                .opacity(0.22)
+                                .blur(radius: 10)
+                        )
                         .accessibilityHidden(true)
                     Text("Minhas Lentes")
                         .font(AppTypography.headline)
                         .foregroundStyle(.secondary)
                 }
+                // Gradiente da marca (o mesmo do botão primário) em vez da cor padrão do texto —
+                // a saudação é o elemento mais lido da tela, então é ela que carrega a
+                // identidade, não um selo decorativo à parte.
                 Text(greeting)
                     .font(AppTypography.title)
+                    .foregroundStyle(AppGradient.primaryButtonBackground)
                 Text(subtitle)
                     .font(AppTypography.subheadline)
                     .foregroundStyle(.secondary)

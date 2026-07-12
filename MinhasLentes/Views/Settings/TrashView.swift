@@ -63,7 +63,7 @@ struct TrashView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(pair.name)
                     .font(AppTypography.subheadlineMedium)
-                Text("Excluído para sempre em \(daysLeft) dia(s), a menos que restaurado")
+                Text("Excluído para sempre em \(Pluralization.count(daysLeft, "dia", "dias")), a menos que restaurado")
                     .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }

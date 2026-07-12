@@ -69,7 +69,7 @@ final class NotificationManager: NSObject {
             case .schedulingFailed(let detail):
                 return "Não foi possível agendar a notificação. \(detail)"
             case .verificationFailed(let missing):
-                return "O agendamento não pôde ser confirmado junto ao sistema (\(missing.count) notificação(ões) ausente(s))."
+                return "O agendamento não pôde ser confirmado junto ao sistema (\(Pluralization.count(missing.count, "notificação ausente", "notificações ausentes")))."
             }
         }
     }

@@ -41,20 +41,17 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                lentesSection
-                healthSection
-                caseSection
-                solutionSection
-                inventorySection
-                appointmentSection
                 notificationStatusSection
-                notificationPreferencesSection
-                backupSection
-                exportSection
-                persistenceInfoSection
-                dataSection
+                Section {
+                    NavigationLink { rotinaScreen } label: { Label("Rotina", systemImage: "gauge.with.dots.needle.67percent") }
+                    NavigationLink { lembretesScreen } label: { Label("Lembretes", systemImage: "bell.badge") }
+                    NavigationLink { dadosScreen } label: { Label("Dados", systemImage: "externaldrive") }
+                    NavigationLink { avancadoScreen } label: { Label("Avançado", systemImage: "gearshape.2") }
+                }
                 #if DEBUG
-                developerToolsSection
+                Section {
+                    NavigationLink { developerToolsScreen } label: { Label("Desenvolvimento", systemImage: "ladybug") }
+                }
                 #endif
             }
             .navigationTitle("Configurações")
@@ -141,22 +138,20 @@ struct SettingsView: View {
 
     private func importReportSummary(_ report: BackupService.ImportReport) -> String {
         var lines: [String] = []
-        lines.append("Pares: \(report.pairsImported) importado(s), \(report.pairsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Usos: \(report.usagesImported) importado(s), \(report.usagesSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Limpezas: \(report.cleaningsImported) importada(s), \(report.cleaningsSkippedAsDuplicate) ignorada(s) por já existir.")
-        lines.append("Eventos de histórico: \(report.eventsImported) importado(s), \(report.eventsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Ciclos do estojo: \(report.casesImported) importado(s), \(report.casesSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Cuidados diários: \(report.routineCareLogsImported) importado(s), \(report.routineCareLogsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Soluções de limpeza: \(report.solutionsImported) importado(s), \(report.solutionsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Itens de estoque: \(report.inventoryItemsImported) importado(s), \(report.inventoryItemsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Profissionais: \(report.professionalsImported) importado(s), \(report.professionalsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Consultas: \(report.appointmentsImported) importada(s), \(report.appointmentsSkippedAsDuplicate) ignorada(s) por já existir.")
-        lines.append("Sessões de uso: \(report.wearSessionsImported) importada(s), \(report.wearSessionsSkippedAsDuplicate) ignorada(s) por já existir.")
+        lines.append("Pares: \(Pluralization.count(report.pairsImported, "importado", "importados")), \(Pluralization.count(report.pairsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Usos: \(Pluralization.count(report.usagesImported, "importado", "importados")), \(Pluralization.count(report.usagesSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Limpezas: \(Pluralization.count(report.cleaningsImported, "importada", "importadas")), \(Pluralization.count(report.cleaningsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
+        lines.append("Eventos de histórico: \(Pluralization.count(report.eventsImported, "importado", "importados")), \(Pluralization.count(report.eventsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Ciclos do estojo: \(Pluralization.count(report.casesImported, "importado", "importados")), \(Pluralization.count(report.casesSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Cuidados diários: \(Pluralization.count(report.routineCareLogsImported, "importado", "importados")), \(Pluralization.count(report.routineCareLogsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Soluções de limpeza: \(Pluralization.count(report.solutionsImported, "importada", "importadas")), \(Pluralization.count(report.solutionsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
+        lines.append("Itens de estoque: \(Pluralization.count(report.inventoryItemsImported, "importado", "importados")), \(Pluralization.count(report.inventoryItemsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Profissionais: \(Pluralization.count(report.professionalsImported, "importado", "importados")), \(Pluralization.count(report.professionalsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Consultas: \(Pluralization.count(report.appointmentsImported, "importada", "importadas")), \(Pluralization.count(report.appointmentsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
+        lines.append("Sessões de uso: \(Pluralization.count(report.wearSessionsImported, "importada", "importadas")), \(Pluralization.count(report.wearSessionsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
         lines.append("Configurações: \(report.settingsImported ? "importadas" : "mantidas as atuais").")
         return lines.joined(separator: "\n")
     }
-
-    // MARK: - Seções
 
     @ViewBuilder
     private var notificationStatusSection: some View {
@@ -172,6 +167,63 @@ struct SettingsView: View {
             }
         }
     }
+
+    // MARK: - Grupos (Rotina, Lembretes, Dados, Avançado, Desenvolvimento)
+    //
+    // Antes, Configurações era um Form só com 12 seções soltas, uma atrás da outra — cada
+    // preferência individual competindo pelo mesmo nível de atenção que uma ação destrutiva como
+    // "Apagar todos os dados". Agrupar em 4-5 telas (mesmo padrão do próprio Ajustes da Apple:
+    // "Geral", "Tela e Brilho" etc. como linhas que abrem outra tela, não uma lista plana) deixa
+    // a tela raiz curta e cada sub-tela focada num só assunto.
+
+    private var rotinaScreen: some View {
+        Form { lentesSection }
+            .navigationTitle("Rotina")
+            .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var lembretesScreen: some View {
+        Form {
+            caseSection
+            solutionSection
+            inventorySection
+            appointmentSection
+            notificationPreferencesSection
+        }
+        .navigationTitle("Lembretes")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var dadosScreen: some View {
+        Form {
+            backupSection
+            exportSection
+            dataSection
+        }
+        .navigationTitle("Dados")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // Faixas de status e detalhes de persistência são informação de apoio, não algo que se
+    // ajusta no dia a dia — ficam aqui, não na tela raiz.
+    private var avancadoScreen: some View {
+        Form {
+            healthSection
+            persistenceInfoSection
+        }
+        .navigationTitle("Avançado")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    #if DEBUG
+    private var developerToolsScreen: some View {
+        Form { developerToolsSection }
+            .navigationTitle("Desenvolvimento")
+            .navigationBarTitleDisplayMode(.inline)
+    }
+    #endif
+
+    // MARK: - Seções (conteúdo de cada grupo)
 
     private var lentesSection: some View {
         Section {
@@ -425,7 +477,7 @@ struct SettingsView: View {
             NavigationLink {
                 DataDiagnosticsView()
             } label: {
-                Label("Diagnóstico de dados", systemImage: "stethoscope")
+                Label("Diagnóstico de dados", systemImage: "wrench.and.screwdriver")
             }
             Button("Agendar notificação de teste em 1 minuto") {
                 Task { await viewModel.scheduleSingleTestNotification() }

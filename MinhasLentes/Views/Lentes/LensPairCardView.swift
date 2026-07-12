@@ -145,22 +145,22 @@ struct LensPairCardView: View {
     }
 
     // Antes, até 4 StatRow empilhadas — rótulo e valor no mesmo peso, uma embaixo da outra, lendo
-    // como uma planilha. Uma grade 2x2 com o valor em destaque e o rótulo pequeno abaixo (mesmo
-    // espírito do "Highlights" da Apple Saúde) deixa mais óbvio que são fatos secundários, não
-    // uma lista de igual importância ao anel/status acima.
-    private var detailStatItems: [(label: String, value: String)] {
-        var items: [(label: String, value: String)] = []
+    // como uma planilha. `DetailStatGrid` (mesmo espírito do "Highlights" da Apple Saúde) deixa
+    // mais óbvio que são fatos secundários, não uma lista de igual importância ao anel/status
+    // acima.
+    private var detailStatItems: [DetailStatItem] {
+        var items: [DetailStatItem] = []
         if let lastUsage = pair.lastUsageDate {
-            items.append(("Último uso", DateFormatting.short.string(from: lastUsage)))
+            items.append(DetailStatItem(label: "Último uso", value: DateFormatting.short.string(from: lastUsage)))
         }
         if let averageIntervalDays {
-            items.append(("Frequência média", "a cada \(String(format: "%.1f", averageIntervalDays)) dia(s)"))
+            items.append(DetailStatItem(label: "Frequência média", value: "a cada \(String(format: "%.1f", averageIntervalDays)) \(Pluralization.word(Int(averageIntervalDays.rounded()), "dia", "dias"))"))
         }
         if let projectedDepletionDate {
-            items.append(("Previsão de término", DateFormatting.short.string(from: projectedDepletionDate)))
+            items.append(DetailStatItem(label: "Previsão de término", value: DateFormatting.short.string(from: projectedDepletionDate)))
         }
         if let averageSessionDuration {
-            items.append(("Duração média de uso", DateFormatting.durationShort(averageSessionDuration)))
+            items.append(DetailStatItem(label: "Duração média de uso", value: DateFormatting.durationShort(averageSessionDuration)))
         }
         return items
     }
@@ -168,17 +168,7 @@ struct LensPairCardView: View {
     @ViewBuilder
     private var detailStats: some View {
         if !detailStatItems.isEmpty {
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: AppSpacing.md, alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: AppSpacing.sm) {
-                ForEach(detailStatItems, id: \.label) { item in
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(item.value)
-                            .font(AppTypography.subheadlineMedium)
-                        Text(item.label)
-                            .font(AppTypography.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            DetailStatGrid(items: detailStatItems)
         }
     }
 }

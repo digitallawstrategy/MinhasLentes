@@ -211,7 +211,7 @@ struct EyeCareView: View {
     private func nextAppointmentCard(for appointment: EyeAppointment) -> some View {
         let days = daysUntil(appointment)
         let daysTone = tone(forDaysUntil: days)
-        let badgeText = days > 0 ? "Em \(days) dia(s)" : (days == 0 ? "Hoje" : "Atrasada")
+        let badgeText = days > 0 ? "Em \(Pluralization.count(days, "dia", "dias"))" : (days == 0 ? "Hoje" : "Atrasada")
         let statusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar")
         let accessibilityStatusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar", lineLimit: nil)
         let titleBlock = VStack(alignment: .leading, spacing: 2) {
@@ -302,7 +302,7 @@ struct EyeCareView: View {
 
     private func appointmentRow(for appointment: EyeAppointment) -> some View {
         AppListRow(
-            systemImage: "stethoscope",
+            systemImage: "calendar",
             tone: appointment.status == .scheduled ? .informative : .neutral,
             title: appointment.type.displayName,
             subtitle: [DateFormatting.shortWithTime.string(from: appointment.date), appointment.professional?.name]

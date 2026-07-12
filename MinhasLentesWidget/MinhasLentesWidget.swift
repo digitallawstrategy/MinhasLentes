@@ -115,7 +115,7 @@ private struct MediumLensWidgetView: View {
                         Label("Solução: \(daysUntilSolutionDiscard)d", systemImage: "flask")
                     }
                     if let daysUntilNextAppointment = snapshot.daysUntilNextAppointment {
-                        Label("Consulta: \(daysUntilNextAppointment)d", systemImage: "stethoscope")
+                        Label("Consulta: \(daysUntilNextAppointment)d", systemImage: "calendar.badge.clock")
                     }
                 }
                 .font(.caption)

@@ -349,7 +349,7 @@ enum LensPairService {
             lensPairID: pair.id,
             lensPairName: name,
             side: pair.side,
-            descriptionText: "\(name) excluído permanentemente, junto com \(deletedUsesCount) uso(s)."
+            descriptionText: "\(name) excluído permanentemente, junto com \(Pluralization.count(deletedUsesCount, "uso", "usos"))."
         )
         context.insert(event)
         context.delete(pair)

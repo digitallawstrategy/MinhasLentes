@@ -49,9 +49,9 @@ struct LensPairHistoryView: View {
                 .foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 if let durationDays = durationDays(for: pair) {
-                    Text("\(durationDays) dia(s)")
+                    Text(Pluralization.count(durationDays, "dia", "dias"))
                 }
-                Text("\(pair.usesCount) uso(s)")
+                Text(Pluralization.count(pair.usesCount, "uso", "usos"))
                 if let averageSessionDuration = averageSessionDuration(for: pair) {
                     Text("média \(DateFormatting.durationShort(averageSessionDuration))/sessão")
                 }

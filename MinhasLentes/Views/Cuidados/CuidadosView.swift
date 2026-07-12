@@ -36,9 +36,9 @@ struct CuidadosView: View {
     }
 
     private func situationText(daysRemaining days: Int, dueVerb: String) -> String {
-        if days > 0 { return "Faltam \(days) dia(s)" }
+        if days > 0 { return "\(Pluralization.word(days, "Falta", "Faltam")) \(Pluralization.count(days, "dia", "dias"))" }
         if days == 0 { return "\(dueVerb) hoje" }
-        return "\(dueVerb) há \(-days) dia(s)"
+        return "\(dueVerb) há \(Pluralization.count(-days, "dia", "dias"))"
     }
 
     private func situationTone(daysRemaining days: Int) -> AppStatusTone {

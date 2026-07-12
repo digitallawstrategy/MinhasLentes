@@ -155,7 +155,7 @@ struct LensInventoryView: View {
             leadingImage: item.photoData.flatMap(UIImage.init(data:)),
             tone: tone(for: item),
             title: "\(item.brand) — \(item.model)",
-            subtitle: "\(item.side.displayName) · \(item.remainingQuantity) de \(item.initialQuantity) unidade(s)",
+            subtitle: "\(item.side.displayName) · \(item.remainingQuantity) de \(item.initialQuantity) \(Pluralization.word(item.initialQuantity, "unidade", "unidades"))",
             trailingText: item.expiryDate.map { date in
                 let text = DateFormatting.short.string(from: date)
                 return item.isExpired ? "\(text) (vencida)" : text

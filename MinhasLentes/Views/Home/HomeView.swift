@@ -360,7 +360,7 @@ struct HomeView: View {
             ReminderCard(
                 systemImage: "tray.and.arrow.down",
                 title: "Reservas disponíveis",
-                detail: "\(reservePairs.count) par(es)",
+                detail: Pluralization.count(reservePairs.count, "par", "pares"),
                 tone: .neutral
             ) {
                 router.selectedTab = .lentes
@@ -399,9 +399,7 @@ struct HomeView: View {
 
         // 72 (não 84): mesmo tamanho do anel de "Lembretes", e reduz um pouco o peso vertical do
         // cartão — "Em uso" é o primeiro cartão da tela, então cada ponto de altura conta pra
-        // deixar mais conteúdo visível antes de rolar. O número dentro do anel é só decorativo
-        // (`UsageCountRing`); a legenda abaixo repete o valor por extenso, então continua
-        // completa mesmo se só ela for lida.
+        // deixar mais conteúdo visível antes de rolar.
         let ringColumn = VStack(spacing: 2) {
             UsageCountRing(value: pair.usesRemaining, remainingFraction: fraction, tint: status.tone.color, diameter: 72, lineWidth: 7)
             Text("\(pair.usesRemaining) restantes")
@@ -424,11 +422,8 @@ struct HomeView: View {
             Button {
                 router.openPair(pair.id)
             } label: {
-                // Em accessibility sizes, a coluna do nome/badge (que já cresce bastante sozinha)
-                // espremia a legenda "N restantes" ao lado do anel numa coluna estreita demais
-                // até para a palavra inteira — o sistema recorria a hifenizar ("restan-"/"tes")
-                // pra não estourar. Empilhado, o anel ganha a largura inteira do cartão pra sua
-                // legenda, do mesmo jeito que `LensPairCardView.ringAndHeadline` já faz.
+                // Empilhado em accessibility sizes: o anel ganha a largura inteira do cartão para
+                // sua legenda, mesmo padrão de `LensPairCardView.ringAndHeadline`.
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(spacing: AppSpacing.sm) {
                         ringColumn
@@ -585,7 +580,7 @@ struct HomeView: View {
         }
         if let nextAppointment {
             let days = LensStatisticsService.daysUntil(nextAppointment.date)
-            items.append(ReminderItem(id: .appointment, icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
+            items.append(ReminderItem(id: .appointment, icon: "calendar.badge.clock", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if !expiringInventoryItems.isEmpty {
             items.append(ReminderItem(id: .inventory, icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes, tone: .warning))
@@ -637,16 +632,16 @@ struct HomeView: View {
 
     private func caseReminderDetail(_ lensCase: LensCase) -> String {
         let days = LensStatisticsService.daysUntil(lensCase.nextRecommendedReplacementDate)
-        if days > 0 { return "Substituição recomendada em \(days) dia(s)" }
+        if days > 0 { return "Substituição recomendada em \(Pluralization.count(days, "dia", "dias"))" }
         if days == 0 { return "Substituição recomendada para hoje" }
-        return "Substituição recomendada há \(-days) dia(s)"
+        return "Substituição recomendada há \(Pluralization.count(-days, "dia", "dias"))"
     }
 
     private func solutionReminderDetail(_ solution: CleaningSolution) -> String {
         let days = LensStatisticsService.daysUntil(solution.discardDate)
-        if days > 0 { return "Descarte recomendado em \(days) dia(s)" }
+        if days > 0 { return "Descarte recomendado em \(Pluralization.count(days, "dia", "dias"))" }
         if days == 0 { return "Descarte recomendado para hoje" }
-        return "Descarte recomendado há \(-days) dia(s)"
+        return "Descarte recomendado há \(Pluralization.count(-days, "dia", "dias"))"
     }
 
     private func appointmentReminderDetail(_ appointment: EyeAppointment) -> String {
