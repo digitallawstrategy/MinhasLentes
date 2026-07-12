@@ -42,26 +42,28 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 notificationStatusSection
-                // `.minimumScaleFactor` aqui é exceção deliberada, não o padrão do resto do
-                // app: "Lembretes"/"Avançado" são uma palavra só disputando espaço com o ícone e
-                // o indicador de navegação (desenhado pelo sistema, fora do nosso controle) — sem
-                // espaço para quebrar, o sistema hifenizava ("Lembre-"/"tes") em accessibility
-                // sizes. Não existe layout adaptativo alternativo para uma palavra indivisível
-                // numa linha de navegação; encolher levemente é a única saída real.
+                // `.minimumScaleFactor` não tem efeito dentro de uma linha de `List`/`Form` neste
+                // iOS — testado tanto na `Section` quanto direto no `Text` interno do `Label`, o
+                // texto truncava com reticências do mesmo jeito nos dois casos, validado por
+                // screenshot real no simulador. A saída que a própria Apple recomenda para
+                // elementos de navegação/chrome (abas, itens de lista curtos) é limitar o teto de
+                // Dynamic Type desses rótulos, deixando o conteúdo de cada tela (o que precisa ser
+                // lido) continuar escalando livremente até accessibility-XXXL. `accessibility1`
+                // ainda é bem maior que o tamanho padrão — só não chega ao extremo em que
+                // "Desenvolvimento" (a mais longa) não cabe ao lado do ícone e do indicador de
+                // navegação sem hifenizar.
                 Section {
                     NavigationLink { rotinaScreen } label: { Label("Rotina", systemImage: "gauge.with.dots.needle.67percent") }
                     NavigationLink { lembretesScreen } label: { Label("Lembretes", systemImage: "bell.badge") }
                     NavigationLink { dadosScreen } label: { Label("Dados", systemImage: "externaldrive") }
                     NavigationLink { avancadoScreen } label: { Label("Avançado", systemImage: "gearshape.2") }
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 #if DEBUG
                 Section {
                     NavigationLink { developerToolsScreen } label: { Label("Desenvolvimento", systemImage: "ladybug") }
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 #endif
             }
             .navigationTitle("Configurações")
