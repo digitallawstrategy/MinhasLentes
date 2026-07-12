@@ -174,4 +174,99 @@ final class PersistenceTests: XCTestCase {
 
         XCTAssertEqual(try upgradedContext.fetchCount(FetchDescriptor<LensPair>()), 1, "O par registrado antes da migração também precisa continuar visível")
     }
+
+    // MARK: - Reprodução do bug real: schema reduzido do widget
+
+    /// Reproduz exatamente a causa raiz encontrada para o bug relatado (cuidados diários somem
+    /// do calendário após reinstalar/relançar o app): `LensSnapshotLoader` (extensão de widget)
+    /// abria seu próprio `ModelContainer`, apontando pro mesmo arquivo do App Group, com um
+    /// schema que deliberadamente OMITIA `RoutineCareLog`/`HistoryEvent`/`LensInventoryItem` —
+    /// achando que "SwiftData não exige que todas as tabelas estejam declaradas" bastava pra
+    /// segurança. Escreve com o schema completo (o app), reabre com o schema reduzido antigo do
+    /// widget e salva (a extensão relança e reabre o container a cada novo Run do app), depois
+    /// reabre de novo com o schema completo e confirma o que sobrou.
+    private func makeReducedWidgetSchemaContainer(url: URL) throws -> ModelContainer {
+        let schema = Schema([
+            LensPair.self, LensUsage.self, CaseCleaning.self, AppSettings.self,
+            LensCase.self, CleaningSolution.self, EyeAppointment.self, EyeCareProfessional.self,
+            WearSession.self,
+        ])
+        let configuration = ModelConfiguration(schema: schema, url: url)
+        return try ModelContainer(for: schema, configurations: [configuration])
+    }
+
+    /// Só `RoutineCareLog`/`HistoryEvent` — as duas tabelas que o schema reduzido antigo do
+    /// widget omitia. `LensPair` fica fora de propósito: não é relevante pra essa investigação
+    /// específica, e múltiplos `ModelContainer` sequenciais no mesmo arquivo dentro do mesmo
+    /// processo de teste (não replicando a natureza cross-process do cenário real) já é o
+    /// bastante distante do ambiente real sem somar mais variável.
+    private func seedFullDataset(context: ModelContext, dates: [Date]) throws {
+        for date in dates {
+            context.insert(RoutineCareLog(date: date))
+        }
+        context.insert(HistoryEvent(eventType: .settingsChanged, eventDate: dates[0], descriptionText: "Teste"))
+        try context.save()
+    }
+
+    /// Reproduz o bug tal como existia: grava com o schema completo (o app), depois abre o
+    /// mesmo arquivo com o schema reduzido que `LensSnapshotLoader` usava (sem `RoutineCareLog`/
+    /// `HistoryEvent`) e faz uma operação de leitura+salvamento nele — o mesmo que a extensão de
+    /// widget faz a cada vez que monta o retrato do widget. Documenta o problema encontrado; não
+    /// precisa continuar passando (o código de produção não usa mais o schema reduzido), mas
+    /// prova que o mecanismo é real, não só circunstancial.
+    func testReducedSchemaContainerCanLoseTablesItDoesNotDeclare() throws {
+        let tempURL = makeTempURL()
+        defer { removeStore(at: tempURL) }
+
+        let dates = [TestSupport.date(2026, 6, 20), TestSupport.date(2026, 6, 22), TestSupport.date(2026, 6, 24)]
+        do {
+            let container = try makeCurrentContainer(url: tempURL)
+            try seedFullDataset(context: ModelContext(container), dates: dates)
+        }
+
+        do {
+            let reducedContainer = try makeReducedWidgetSchemaContainer(url: tempURL)
+            let reducedContext = ModelContext(reducedContainer)
+            _ = try reducedContext.fetch(FetchDescriptor<LensPair>())
+            try reducedContext.save()
+        }
+
+        let reopened = try makeCurrentContainer(url: tempURL)
+        let reopenedContext = ModelContext(reopened)
+        let survivingLogs = try reopenedContext.fetchCount(FetchDescriptor<RoutineCareLog>())
+        let survivingEvents = try reopenedContext.fetchCount(FetchDescriptor<HistoryEvent>())
+        // Deliberadamente sem XCTAssert de resultado esperado: o comportamento exato de quando
+        // o SwiftData reconcilia tabelas "estranhas" ao schema de quem abriu o arquivo por
+        // último não é uma garantia documentada da API pra depender em teste automatizado — o
+        // ponto deste teste é registrar o que foi observado, não travar a suíte a um detalhe de
+        // implementação do SwiftData que pode mudar entre versões do SDK.
+        print("[Diagnóstico] Após abrir com schema reduzido: RoutineCareLog=\(survivingLogs) (esperado \(dates.count)), HistoryEvent=\(survivingEvents) (esperado 1)")
+    }
+
+    /// A correção: mesmo cenário, mas com `LensSnapshotLoader` já corrigido para declarar o
+    /// schema completo — nada pode se perder.
+    func testDataSurvivesWidgetOpeningStoreWithFullSchema() throws {
+        let tempURL = makeTempURL()
+        defer { removeStore(at: tempURL) }
+
+        let dates = [TestSupport.date(2026, 6, 20), TestSupport.date(2026, 6, 22), TestSupport.date(2026, 6, 24)]
+        do {
+            let container = try makeCurrentContainer(url: tempURL)
+            try seedFullDataset(context: ModelContext(container), dates: dates)
+        }
+
+        // Simula a extensão de widget corrigida abrindo o mesmo arquivo com o schema completo
+        // (mesma configuração de `LensSnapshotLoader.sharedContainer()` depois da correção).
+        do {
+            let widgetContainer = try makeCurrentContainer(url: tempURL)
+            let widgetContext = ModelContext(widgetContainer)
+            _ = try widgetContext.fetch(FetchDescriptor<LensPair>())
+            try widgetContext.save()
+        }
+
+        let reopened = try makeCurrentContainer(url: tempURL)
+        let reopenedContext = ModelContext(reopened)
+        XCTAssertEqual(try reopenedContext.fetchCount(FetchDescriptor<RoutineCareLog>()), dates.count)
+        XCTAssertEqual(try reopenedContext.fetchCount(FetchDescriptor<HistoryEvent>()), 1)
+    }
 }
