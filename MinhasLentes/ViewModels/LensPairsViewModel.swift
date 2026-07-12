@@ -86,18 +86,16 @@ final class LensPairsViewModel {
 
         var registered: [LensUsage] = []
         do {
-            for request in requests {
-                let usage = try LensPairService.registerUsage(
-                    for: request.pair,
-                    date: request.date,
-                    side: request.side,
-                    notes: request.notes,
-                    allowMultipleUsesPerDay: settings.allowMultipleUsesPerDay,
-                    forceDuplicate: forceAll,
-                    context: context
-                )
-                registered.append(usage)
-            }
+            // Uma única transação para o lote inteiro — ver `LensPairService.registerUsageBatch`.
+            // Antes disto, cada `request` gravava (e podia falhar) separadamente: um `save()`
+            // com erro no meio do laço podia deixar o lote parcialmente persistido, apesar do
+            // comentário acima prometer tudo-ou-nada.
+            registered = try LensPairService.registerUsageBatch(
+                requests.map { LensPairService.UsageRequest(pair: $0.pair, date: $0.date, side: $0.side, notes: $0.notes) },
+                allowMultipleUsesPerDay: settings.allowMultipleUsesPerDay,
+                forceDuplicate: forceAll,
+                context: context
+            )
         } catch {
             HapticsService.error()
             presentedError = IdentifiableError(message: "Não foi possível registrar o uso. \(error.localizedDescription)")
@@ -126,9 +124,8 @@ final class LensPairsViewModel {
         guard !lastRegisteredUsages.isEmpty else { return }
         undoToastTask?.cancel()
         do {
-            for usage in lastRegisteredUsages {
-                try LensPairService.deleteUsage(usage, context: context)
-            }
+            // Mesma garantia de transação única do registro — ver `LensPairService.deleteUsageBatch`.
+            try LensPairService.deleteUsageBatch(lastRegisteredUsages, context: context)
             lastRegisteredUsages = []
             showUndoToast = false
             HapticsService.success()
