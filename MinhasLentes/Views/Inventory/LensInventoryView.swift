@@ -94,6 +94,8 @@ struct LensInventoryView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(AmbientBackground())
         .navigationTitle("Estoque de lentes")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddItem) {
