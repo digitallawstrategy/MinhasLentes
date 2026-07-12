@@ -103,8 +103,10 @@ struct HistoryView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                 }
             }
+            .background(AmbientBackground())
             .navigationTitle("Histórico")
             .searchable(text: $viewModel.searchText, prompt: "Buscar por tipo, par ou observação")
             .sheet(item: $viewModel.editingUsage) { usage in
