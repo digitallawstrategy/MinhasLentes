@@ -14,14 +14,18 @@ import WidgetKit
 /// correção, bloquearia para sempre o início de uma sessão nova, já que `WearSessionService
 /// .startSession` é idempotente sobre "já existe alguma sessão ativa".
 ///
-/// Falhas de agendamento nunca são apenas descartadas com `try?` sem rastro: a ausência de
-/// autorização (estado normal, já visível em Configurações) é a única ignorada em silêncio;
-/// qualquer outra falha vira um `HistoryEvent`, para que o problema não fique varrido para
-/// baixo do tapete só porque não há uma tela óbvia para mostrar um alerta nesse momento.
+/// Nenhuma falha aqui — nem de leitura (buscar o estojo/solução/estoque/consultas/sessão
+/// ativos), nem de agendamento, nem do `save()` final — é descartada com `try?` sem rastro. A
+/// ausência de autorização de notificações (estado normal, já visível em Configurações) é a
+/// única ignorada em silêncio de propósito; qualquer outra falha vira um `HistoryEvent`, para
+/// que o problema não fique varrido para baixo do tapete só porque não há uma tela óbvia para
+/// mostrar um alerta nesse momento. Única exceção: se o próprio `save()` final falhar (mesmo
+/// após nova tentativa), não há como registrar isso de forma durável — nesse caso extremo, cai
+/// para o console (ver comentário no fim de `rebuildAll`).
 @MainActor
 enum NotificationReconciliationService {
     static func rebuildAll(context: ModelContext, settings: AppSettings) async {
-        if let activeCase = try? LensCaseService.activeCase(context: context) {
+        if let activeCase = attemptFetch("o estojo", context: context, { try LensCaseService.activeCase(context: context) }) {
             await NotificationManager.shared.cancelLensCaseNotifications()
             await attempt("estojo", context: context) {
                 try await NotificationManager.shared.scheduleLensCaseNotifications(
@@ -33,7 +37,7 @@ enum NotificationReconciliationService {
             )
         }
 
-        if let activeSolution = try? CleaningSolutionService.activeSolution(context: context) {
+        if let activeSolution = attemptFetch("a solução de limpeza", context: context, { try CleaningSolutionService.activeSolution(context: context) }) {
             await NotificationManager.shared.cancelCleaningSolutionNotifications()
             await attempt("solução de limpeza", context: context) {
                 try await NotificationManager.shared.scheduleCleaningSolutionNotifications(
@@ -45,7 +49,7 @@ enum NotificationReconciliationService {
             )
         }
 
-        if let items = try? LensInventoryService.availableItems(context: context) {
+        if let items = attemptFetch("o estoque", context: context, { try LensInventoryService.availableItems(context: context) }) {
             for item in items {
                 await NotificationManager.shared.cancelLensInventoryNotifications(for: item.id)
                 await attempt("estoque (\(item.brand) \(item.model))", context: context) {
@@ -54,7 +58,7 @@ enum NotificationReconciliationService {
             }
         }
 
-        if let appointments = try? EyeAppointmentService.allAppointments(context: context) {
+        if let appointments = attemptFetch("as consultas", context: context, { try EyeAppointmentService.allAppointments(context: context) }) {
             for appointment in appointments where appointment.status == .scheduled {
                 await NotificationManager.shared.cancelEyeAppointmentNotifications(for: appointment.id)
                 await attempt("consulta de \(DateFormatting.short.string(from: appointment.date))", context: context) {
@@ -65,7 +69,7 @@ enum NotificationReconciliationService {
             }
         }
 
-        if let session = try? WearSessionService.activeSession(context: context) {
+        if let session = attemptFetch("a sessão de uso", context: context, { try WearSessionService.activeSession(context: context) }) {
             if let pair = session.lensPair {
                 if !LiveActivityService.hasActiveWearingSession() {
                     await LiveActivityService.presentWearingSession(
@@ -80,13 +84,41 @@ enum NotificationReconciliationService {
             } else {
                 // Sessão órfã: nunca deveria existir uma sessão ativa sem par associado. Encerra
                 // para não bloquear o início de uma sessão nova para sempre.
-                try? WearSessionService.endSession(session, endedAt: Date(), context: context)
+                do {
+                    try WearSessionService.endSession(session, endedAt: Date(), context: context)
+                } catch {
+                    log("Não foi possível encerrar automaticamente a sessão de uso órfã. \(error.localizedDescription)", context: context)
+                }
                 await LiveActivityService.endWearingSession()
             }
         }
 
         WidgetCenter.shared.reloadAllTimelines()
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            do {
+                try context.save()
+            } catch {
+                // Se o próprio `save()` está falhando (mesmo após uma nova tentativa), não há
+                // como registrar isto de forma durável: o insert de um `HistoryEvent` também
+                // dependeria desse mesmo `save()`. O console é o único lugar que sobra — melhor
+                // que desaparecer sem nenhum rastro.
+                print("[NotificationReconciliationService] Falha ao salvar a reconciliação de notificações: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Tenta ler; se falhar, registra no histórico em vez de simplesmente pular aquele domínio
+    /// em silêncio (o que faria os avisos daquele item ficarem desatualizados sem nenhum rastro
+    /// do motivo).
+    private static func attemptFetch<T>(_ label: String, context: ModelContext, _ operation: () throws -> T?) -> T? {
+        do {
+            return try operation()
+        } catch {
+            log("Não foi possível ler \(label) para reagendar os avisos correspondentes. \(error.localizedDescription)", context: context)
+            return nil
+        }
     }
 
     /// Tenta agendar; se falhar por qualquer motivo que não seja falta de autorização (estado
@@ -98,12 +130,12 @@ enum NotificationReconciliationService {
         } catch NotificationManager.NotificationError.authorizationDenied {
             // Usuário ainda não autorizou notificações; nada a registrar aqui.
         } catch {
-            let event = HistoryEvent(
-                eventType: .settingsChanged,
-                eventDate: Date(),
-                descriptionText: "Não foi possível reagendar os avisos de \(label). \(error.localizedDescription)"
-            )
-            context.insert(event)
+            log("Não foi possível reagendar os avisos de \(label). \(error.localizedDescription)", context: context)
         }
+    }
+
+    private static func log(_ description: String, context: ModelContext) {
+        let event = HistoryEvent(eventType: .settingsChanged, eventDate: Date(), descriptionText: description)
+        context.insert(event)
     }
 }
