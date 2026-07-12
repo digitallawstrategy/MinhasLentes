@@ -8,6 +8,7 @@ import SwiftUI
 /// view como conteúdo de um `Button`/`NavigationLink` por fora, do jeito que `ReminderCard` já
 /// faz para o caso de cartões tocáveis.
 struct AppListRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var systemImage: String?
     /// Sobrepõe `systemImage` quando presente — o único caso hoje é a foto opcional de um item
     /// de estoque. Sempre a mesma moldura do selo de ícone, para não quebrar o alinhamento das
@@ -20,42 +21,79 @@ struct AppListRow: View {
     var trailingTone: AppStatusTone?
 
     var body: some View {
-        HStack(spacing: AppSpacing.sm) {
-            if let leadingImage {
-                Image(uiImage: leadingImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-                    .accessibilityHidden(true)
-            } else if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.subheadline)
-                    .foregroundStyle(tone.color)
-                    .frame(width: 36, height: 36)
-                    .background(tone.color.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-                    .accessibilityHidden(true)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(AppTypography.subheadlineMedium)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(.secondary)
+        // Em tamanhos padrão, título/subtítulo e o valor à direita dividem a mesma linha — cabe
+        // uma data ou status curto sem quebrar. Em accessibility sizes essa mesma linha não cabe
+        // mais os dois lados: o valor à direita (data, "X de Y unidade(s)") quebrava no meio do
+        // texto ("28/01/202" / "7") tentando se espremer numa coluna estreita. Em vez de encolher
+        // a fonte para esconder isso, o valor desce para uma linha própria, abaixo do título,
+        // alinhado à esquerda como o resto do bloco de texto — mesmo padrão de
+        // `FeaturedReminderRow`/`MetricStrip` para este limiar.
+        if dynamicTypeSize.isAccessibilitySize {
+            HStack(alignment: .top, spacing: AppSpacing.sm) {
+                leadingIcon
+                VStack(alignment: .leading, spacing: 2) {
+                    titleBlock
+                    if trailingText != nil {
+                        trailingLabel
+                            .padding(.top, 2)
+                    }
                 }
             }
-            Spacer(minLength: AppSpacing.xs)
-            if let trailingText {
-                Text(trailingText)
-                    .font(AppTypography.captionMedium)
-                    .foregroundStyle(trailingTone?.color ?? .secondary)
-                    .multilineTextAlignment(.trailing)
-                    .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, AppSpacing.xxs)
+            .accessibilityElement(children: .combine)
+        } else {
+            HStack(spacing: AppSpacing.sm) {
+                leadingIcon
+                titleBlock
+                Spacer(minLength: AppSpacing.xs)
+                trailingLabel
+            }
+            .padding(.vertical, AppSpacing.xxs)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private var leadingIcon: some View {
+        if let leadingImage {
+            Image(uiImage: leadingImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 36, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                .accessibilityHidden(true)
+        } else if let systemImage {
+            Image(systemName: systemImage)
+                .font(.subheadline)
+                .foregroundStyle(tone.color)
+                .frame(width: 36, height: 36)
+                .background(tone.color.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(AppTypography.subheadlineMedium)
+            if let subtitle {
+                Text(subtitle)
+                    .font(AppTypography.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, AppSpacing.xxs)
-        .accessibilityElement(children: .combine)
+    }
+
+    // Nunca quebra: uma data ou status é lido de relance, não em duas linhas fragmentadas no
+    // meio de um número. Se não couber mesmo numa linha própria, o próprio layout já resolve.
+    @ViewBuilder
+    private var trailingLabel: some View {
+        if let trailingText {
+            Text(trailingText)
+                .font(AppTypography.captionMedium)
+                .foregroundStyle(trailingTone?.color ?? .secondary)
+                .lineLimit(1)
+        }
     }
 }
 

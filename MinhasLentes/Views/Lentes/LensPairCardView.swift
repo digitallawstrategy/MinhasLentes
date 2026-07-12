@@ -119,21 +119,14 @@ struct LensPairCardView: View {
     }
 
     private var ringView: some View {
-        ZStack {
-            ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tone.color)
-            VStack(spacing: 0) {
-                Text("\(pair.usesRemaining)")
-                    .font(AppTypography.metricValue)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .contentTransition(.numericText(value: Double(pair.usesRemaining)))
-                    .animation(reduceMotion ? nil : .spring(duration: 0.5), value: pair.usesRemaining)
-                Text("restantes")
-                    .font(AppTypography.caption)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(spacing: 2) {
+            UsageCountRing(value: pair.usesRemaining, remainingFraction: remainingFraction, tint: usageStatus.tone.color, diameter: 108, lineWidth: 14)
+            Text("restantes")
+                .font(AppTypography.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
         }
-        .frame(width: 108, height: 108)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Usos restantes")
         .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
