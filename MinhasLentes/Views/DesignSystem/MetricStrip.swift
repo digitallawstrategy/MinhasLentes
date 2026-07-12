@@ -18,17 +18,21 @@ struct MetricStrip: View {
     var body: some View {
         // Em tamanhos de acessibilidade, 2-3 colunas lado a lado não cabem mais — valor e
         // rótulo quebravam no meio da palavra e a data truncava ("28/01/2..."). Cada métrica
-        // vira uma linha própria, valor e rótulo lado a lado em vez de empilhados: mesma leitura
-        // "de relance", só que vertical.
+        // vira um bloco vertical próprio (valor acima, rótulo abaixo), igual ao resto do texto
+        // da tela: nada divide a linha com outro elemento, então nada precisa espremer.
+        //
+        // Achado real: uma versão anterior manteve valor e rótulo lado a lado (`HStack`) com
+        // `.fixedSize()` só no valor — numa data longa ("28/01/2027"), isso consumia quase toda
+        // a largura da linha e sobrava uma coluna de poucos pontos para o rótulo, que (sem
+        // `lineLimit`) quebrava caractere por caractere tentando caber ali. Empilhado, os dois
+        // sempre têm a largura inteira do cartão à disposição.
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 ForEach(items) { item in
-                    HStack(spacing: AppSpacing.xs) {
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(item.value)
                             .font(AppTypography.metricCompact)
                             .foregroundStyle(item.tone == .neutral ? AppColor.primary : item.tone.color)
-                            .lineLimit(1)
-                            .fixedSize()
                         Text(item.label)
                             .font(AppTypography.caption)
                             .foregroundStyle(.secondary)

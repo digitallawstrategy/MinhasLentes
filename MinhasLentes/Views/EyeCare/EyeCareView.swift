@@ -227,7 +227,12 @@ struct EyeCareView: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                     titleBlock
-                    statusBadge
+                    // `.fixedSize()`: dentro de uma List, a medição de altura de linha às vezes
+                    // propõe uma largura errada (subestimada) para conteúdo aninhado em tamanho
+                    // de fonte extremo — o selo, mesmo sozinho na própria linha sem nenhum
+                    // vizinho disputando espaço, truncava ("Falta..."). `.fixedSize()` força a
+                    // medição pelo tamanho ideal do próprio texto, ignorando essa proposta.
+                    statusBadge.fixedSize()
                 }
             } else {
                 HStack(alignment: .top) {

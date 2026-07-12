@@ -136,7 +136,13 @@ struct CleaningSolutionView: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                     solutionTitleBlock(for: solution)
+                    // `.fixedSize()`: dentro de uma List, a medição de altura de linha às vezes
+                    // propõe uma largura errada (subestimada) para conteúdo aninhado em tamanho
+                    // de fonte extremo — o selo, mesmo sozinho na própria linha, truncava
+                    // ("Faltam 90..."). `.fixedSize()` força a medição pelo tamanho ideal do
+                    // próprio texto, ignorando essa proposta.
                     StatusBadge(text: discardStatusText, tone: discardTone, systemImage: "flask.fill")
+                        .fixedSize()
                 }
             } else {
                 HStack(alignment: .top) {
