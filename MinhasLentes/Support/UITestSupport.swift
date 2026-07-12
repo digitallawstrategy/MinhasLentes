@@ -17,6 +17,13 @@ import SwiftData
 /// memória) e não chamam nenhum Service/ViewModel, então nunca disparam agendamento de
 /// notificação nem apresentação de Live Activity. Isso as torna testáveis diretamente com
 /// `TestSupport.makeContext()`, como qualquer outro Service deste projeto.
+///
+/// Escopo, de propósito: `AppContainer` roda qualquer um destes dois argumentos contra um
+/// `ModelConfiguration` em memória (nunca o arquivo real do App Group) — ver o comentário lá.
+/// Isso torna a validação visual determinística, mas também significa que ela não exercita App
+/// Group, leitura do widget/Live Activity a partir do mesmo arquivo, nem `AppMigrationPlan`
+/// contra um banco real pré-existente. São escopos diferentes, não uma lacuna: para validar
+/// essa parte, rode o app sem nenhum dos dois argumentos.
 @MainActor
 enum UITestSupport {
     private static let skipOnboardingArgument = "-UITestSkipOnboarding"

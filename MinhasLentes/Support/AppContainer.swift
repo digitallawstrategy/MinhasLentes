@@ -31,6 +31,13 @@ enum AppContainer {
                 // contrário de reaproveitar o store real e checar "já tem dado?", que dependia
                 // dele estar vazio da primeira vez e não se recuperava sozinho de uma segunda
                 // execução, nem nunca chegaria perto de dado real de uso normal do app).
+                //
+                // Escopo desta escolha, de propósito: isto valida o LAYOUT da Home, não o
+                // armazenamento real. Por não passar pelo App Group, esta execução nunca exercita
+                // `AppGroup.storeURL()`/`migrateLegacyStoreIfNeeded`, a leitura do widget/Live
+                // Activity a partir do mesmo arquivo, nem `AppMigrationPlan` contra um banco
+                // pré-existente de uma versão anterior — para essas verificações, é preciso rodar
+                // sem nenhum dos dois argumentos, contra o armazenamento real.
                 configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             } else {
                 configuration = try Self.realConfiguration(schema: schema)
