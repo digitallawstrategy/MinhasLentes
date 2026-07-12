@@ -400,13 +400,16 @@ struct HomeView: View {
             Button {
                 router.openPair(pair.id)
             } label: {
-                HStack(spacing: AppSpacing.md) {
+                HStack(spacing: AppSpacing.sm) {
                     ZStack {
                         // Traço mais fino que o padrão (14pt) neste anel especificamente: a
-                        // 84x84 fixo, o padrão deixaria só 56pt de diâmetro interno para duas
+                        // 72x72 fixo, o padrão deixaria pouquíssimo espaço interno para duas
                         // linhas de texto — apertado o bastante para sobrepor em Dynamic Type
-                        // maior. 8pt libera 68pt internos, com folga real.
-                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color, lineWidth: 8)
+                        // maior. 7pt libera espaço interno real. 72 (não 84): mesmo tamanho do
+                        // anel de "Lembretes", e reduz um pouco o peso vertical do cartão —
+                        // "Em uso" é o primeiro cartão da tela, então cada ponto de altura conta
+                        // pra deixar mais conteúdo visível antes de rolar.
+                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color, lineWidth: 7)
                         VStack(spacing: 0) {
                             Text("\(pair.usesRemaining)")
                                 .font(AppTypography.metricValue)
@@ -415,12 +418,16 @@ struct HomeView: View {
                             Text("restantes")
                                 .font(AppTypography.caption)
                                 .foregroundStyle(.secondary)
-                                .minimumScaleFactor(0.7)
+                                // 0.4, tão agressivo quanto o número acima: é texto decorativo
+                                // (already `.accessibilityHidden` no pai), então encolher bem
+                                // pequeno em Dynamic Type extremo é preferível a truncar com
+                                // "…" — confirmado no simulador com "Accessibility Large".
+                                .minimumScaleFactor(0.4)
                                 .lineLimit(1)
                         }
                         .padding(.horizontal, 4)
                     }
-                    .frame(width: 84, height: 84)
+                    .frame(width: 72, height: 72)
                     .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: AppSpacing.xxs) {

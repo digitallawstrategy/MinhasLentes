@@ -14,7 +14,16 @@ struct HomeHeaderView: View {
         HStack(alignment: .top, spacing: AppSpacing.sm) {
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 HStack(spacing: AppSpacing.xs) {
-                    AppLogoMark(size: 26)
+                    // O mesmo PNG do ícone do app (Assets.xcassets/AppIcon.appiconset),
+                    // duplicado num imageset comum — um "AppIcon.appiconset" não é acessível via
+                    // Image(_:) de forma confiável, e a marca no cabeçalho precisa ser
+                    // literalmente a mesma arte do ícone, não um desenho à parte tentando lembrá-la.
+                    Image("AppLogoAsset")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 26, height: 26)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .accessibilityHidden(true)
                     Text("Minhas Lentes")
                         .font(AppTypography.headline)
                         .foregroundStyle(.secondary)

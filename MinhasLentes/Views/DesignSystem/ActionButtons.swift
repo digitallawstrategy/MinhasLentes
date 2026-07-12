@@ -29,7 +29,11 @@ struct PrimaryActionButton: View {
             actionLabel(title, systemImage: systemImage)
                 .font(AppTypography.subheadlineMedium)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                // 0.6, não 0.8: confirmado no simulador que 0.8 ainda truncava com "…" em
+                // Dynamic Type "Accessibility Large" com títulos mais longos como "Registrar
+                // cuidado diário". Isto é rótulo de ação de verdade (não decorativo) — encolhe
+                // em vez de esconder texto, mas não mais do que o necessário pra caber.
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
                 .frame(minHeight: compact ? 40 : 52)
                 .padding(.horizontal, AppSpacing.md)
@@ -61,7 +65,11 @@ struct SecondaryActionButton: View {
             actionLabel(title, systemImage: systemImage)
                 .font(AppTypography.subheadlineMedium)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                // 0.6, não 0.8: confirmado no simulador que 0.8 ainda truncava com "…" em
+                // Dynamic Type "Accessibility Large" com títulos mais longos como "Registrar
+                // cuidado diário". Isto é rótulo de ação de verdade (não decorativo) — encolhe
+                // em vez de esconder texto, mas não mais do que o necessário pra caber.
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
                 .frame(minHeight: compact ? 40 : 52)
                 .padding(.horizontal, AppSpacing.md)

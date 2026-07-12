@@ -22,8 +22,12 @@ struct AppCard<Content: View>: View {
     private var isFeatured: Bool { variant == .featured }
 
     var body: some View {
+        // `featured` não usa mais padding maior que o padrão: mais respiro perto da borda
+        // ficava "pesado" num cartão que já é o primeiro da tela (revisão de aparelho real) — o
+        // destaque agora vem só da borda com realce violeta e da sombra, não de ocupar mais
+        // altura vertical.
         VStack(alignment: .leading, spacing: AppSpacing.sm, content: content)
-            .padding(isFeatured ? AppSpacing.lg : AppSpacing.md)
+            .padding(AppSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)

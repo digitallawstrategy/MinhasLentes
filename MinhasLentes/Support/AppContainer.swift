@@ -20,26 +20,13 @@ enum AppContainer {
             return try cached.get()
         }
         do {
-            let schema = Schema([
-                LensPair.self,
-                LensUsage.self,
-                CaseCleaning.self,
-                AppSettings.self,
-                HistoryEvent.self,
-                LensCase.self,
-                RoutineCareLog.self,
-                CleaningSolution.self,
-                LensInventoryItem.self,
-                EyeCareProfessional.self,
-                EyeAppointment.self,
-                WearSession.self,
-            ])
+            let schema = Schema(versionedSchema: AppSchemaV1.self)
             // O banco vive no App Group, não no contêiner privado do app, para que o widget e
             // a Live Activity (processos separados) consigam ler os mesmos dados.
             let url = try AppGroup.storeURL()
             AppGroup.migrateLegacyStoreIfNeeded(to: url)
             let configuration = ModelConfiguration(schema: schema, url: url)
-            let container = try ModelContainer(for: schema, configurations: [configuration])
+            let container = try ModelContainer(for: schema, migrationPlan: AppMigrationPlan.self, configurations: [configuration])
             cached = .success(container)
             return container
         } catch {

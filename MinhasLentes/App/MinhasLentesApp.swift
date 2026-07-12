@@ -23,6 +23,9 @@ struct MinhasLentesApp: App {
             // (nunca apagando) os dados reais atrás dela. Corrige isso antes de qualquer View
             // aparecer, para nunca mostrar o onboarding por engano a quem já usa o app.
             Self.migrateOnboardingFlagIfNeeded(container: container)
+            #if DEBUG
+            Self.seedForUITestingIfRequested(container: container)
+            #endif
         } catch {
             // Falha ao abrir o armazenamento local (ex.: disco cheio, arquivo corrompido).
             // Em vez de encerrar o processo com fatalError, mostramos uma tela explicando o
@@ -41,6 +44,42 @@ struct MinhasLentesApp: App {
         settings.hasCompletedOnboarding = true
         try? context.save()
     }
+
+    #if DEBUG
+    /// Só existe em build DEBUG (não compila em release) e só age com o argumento de
+    /// lançamento `-uiTestSeedData` presente — sem isso, é inerte. Existe para permitir
+    /// screenshot/UI test automatizado direto na Home, sem precisar navegar o onboarding
+    /// manualmente a cada execução. Nunca mexe num armazenamento que já tem dado real: se já
+    /// existir qualquer par, não faz nada, mesmo com o argumento presente — a seguranca aqui é
+    /// deliberadamente maior que a conveniência.
+    private static func seedForUITestingIfRequested(container: ModelContainer) {
+        guard ProcessInfo.processInfo.arguments.contains("-uiTestSeedData") else { return }
+        let context = container.mainContext
+        guard ((try? context.fetchCount(FetchDescriptor<LensPair>())) ?? 0) == 0 else { return }
+
+        let settings = (try? context.fetch(FetchDescriptor<AppSettings>()).first) ?? {
+            let newSettings = AppSettings()
+            context.insert(newSettings)
+            return newSettings
+        }()
+        settings.hasCompletedOnboarding = true
+
+        let startDate = Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date()
+        let pair = LensPair(
+            name: "Par nº 1",
+            sequenceNumber: 1,
+            startDate: startDate,
+            maximumUses: 60,
+            trackingMode: .pair,
+            side: .both
+        )
+        context.insert(pair)
+        context.insert(LensUsage(date: startDate, side: .both, lensPair: pair))
+        context.insert(CaseCleaning(cleaningDate: startDate))
+
+        try? context.save()
+    }
+    #endif
 
     var body: some Scene {
         WindowGroup {
