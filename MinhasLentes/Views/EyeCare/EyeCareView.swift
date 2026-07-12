@@ -5,6 +5,7 @@ import SwiftData
 /// sugere diagnóstico — apenas ajuda a acompanhar contatos e prazos de retorno.
 struct EyeCareView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \EyeCareProfessional.name) private var professionals: [EyeCareProfessional]
     @Query(sort: \EyeAppointment.date, order: .reverse) private var appointments: [EyeAppointment]
     @Query private var allSettings: [AppSettings]
@@ -210,21 +211,30 @@ struct EyeCareView: View {
     private func nextAppointmentCard(for appointment: EyeAppointment) -> some View {
         let days = daysUntil(appointment)
         let daysTone = tone(forDaysUntil: days)
+        let statusBadge = StatusBadge(
+            text: days > 0 ? "Em \(days) dia(s)" : (days == 0 ? "Hoje" : "Atrasada"),
+            tone: daysTone,
+            systemImage: "calendar"
+        )
+        let titleBlock = VStack(alignment: .leading, spacing: 2) {
+            Text(appointment.type.displayName)
+                .font(AppTypography.headline)
+            Text(DateFormatting.shortWithTime.string(from: appointment.date))
+                .font(AppTypography.footnote)
+                .foregroundStyle(.secondary)
+        }
         return AppCard(variant: .featured) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(appointment.type.displayName)
-                        .font(AppTypography.headline)
-                    Text(DateFormatting.shortWithTime.string(from: appointment.date))
-                        .font(AppTypography.footnote)
-                        .foregroundStyle(.secondary)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    titleBlock
+                    statusBadge
                 }
-                Spacer(minLength: AppSpacing.xs)
-                StatusBadge(
-                    text: days > 0 ? "Em \(days) dia(s)" : (days == 0 ? "Hoje" : "Atrasada"),
-                    tone: daysTone,
-                    systemImage: "calendar"
-                )
+            } else {
+                HStack(alignment: .top) {
+                    titleBlock
+                    Spacer(minLength: AppSpacing.xs)
+                    statusBadge
+                }
             }
             if let professional = appointment.professional {
                 Text(professional.name)

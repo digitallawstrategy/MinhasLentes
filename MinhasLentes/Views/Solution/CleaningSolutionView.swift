@@ -7,6 +7,7 @@ import SwiftData
 /// ser permanente.
 struct CleaningSolutionView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \CleaningSolution.openedDate, order: .reverse) private var solutions: [CleaningSolution]
     @Query private var allSettings: [AppSettings]
 
@@ -132,16 +133,17 @@ struct CleaningSolutionView: View {
     /// precisar ler três linhas soltas para entender a situação.
     private func activeSolutionCard(for solution: CleaningSolution) -> some View {
         AppCard(variant: .featured) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(solution.brand) — \(solution.product)")
-                        .font(AppTypography.headline)
-                    Text("Aberto em \(DateFormatting.short.string(from: solution.openedDate))")
-                        .font(AppTypography.footnote)
-                        .foregroundStyle(.secondary)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    solutionTitleBlock(for: solution)
+                    StatusBadge(text: discardStatusText, tone: discardTone, systemImage: "flask.fill")
                 }
-                Spacer(minLength: AppSpacing.xs)
-                StatusBadge(text: discardStatusText, tone: discardTone, systemImage: "flask.fill")
+            } else {
+                HStack(alignment: .top) {
+                    solutionTitleBlock(for: solution)
+                    Spacer(minLength: AppSpacing.xs)
+                    StatusBadge(text: discardStatusText, tone: discardTone, systemImage: "flask.fill")
+                }
             }
             Text("Descarte recomendado em \(DateFormatting.short.string(from: solution.discardDate))")
                 .font(AppTypography.footnote)
@@ -155,6 +157,16 @@ struct CleaningSolutionView: View {
                 .padding(.top, AppSpacing.xxs)
         }
         .padding(.vertical, AppSpacing.xxs)
+    }
+
+    private func solutionTitleBlock(for solution: CleaningSolution) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(solution.brand) — \(solution.product)")
+                .font(AppTypography.headline)
+            Text("Aberto em \(DateFormatting.short.string(from: solution.openedDate))")
+                .font(AppTypography.footnote)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func historyRow(for solution: CleaningSolution) -> some View {
