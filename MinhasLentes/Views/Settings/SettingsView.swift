@@ -13,6 +13,9 @@ struct SettingsView: View {
 
     @State private var viewModel = SettingsViewModel()
     @State private var showFileImporter = false
+    #if DEBUG
+    @State private var uiTestShowHistory = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -56,7 +59,19 @@ struct SettingsView: View {
             }
             .navigationTitle("Configurações")
             .tabBarScrollInset()
-            .task { await viewModel.refreshAuthorizationStatus() }
+            .task {
+                await viewModel.refreshAuthorizationStatus()
+                #if DEBUG
+                if UITestSupport.requestedRoute() == .historico {
+                    uiTestShowHistory = true
+                }
+                #endif
+            }
+            #if DEBUG
+            .navigationDestination(isPresented: $uiTestShowHistory) {
+                HistoryView()
+            }
+            #endif
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json]) { result in
                 viewModel.handlePickedBackupFile(result)
             }

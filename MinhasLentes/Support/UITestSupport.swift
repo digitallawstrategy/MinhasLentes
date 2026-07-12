@@ -29,6 +29,7 @@ enum UITestSupport {
     private static let skipOnboardingArgument = "-UITestSkipOnboarding"
     private static let seedPreviewDataArgument = "-UITestSeedPreviewData"
     private static let selectedTabArgument = "-UITestSelectedTab"
+    private static let openRouteArgument = "-UITestOpenRoute"
 
     /// Nome fixo do par semeado — também serve de marca de "já semeado" para `seedPreviewData`
     /// ser seguro de chamar mais de uma vez sobre o mesmo contexto.
@@ -65,6 +66,25 @@ enum UITestSupport {
         case "settings": return .settings
         default: return nil
         }
+    }
+
+    /// `-UITestOpenRoute <estoque|solucao|historico>` — mesmo propósito de
+    /// `-UITestSelectedTab`, mas para telas que só existem atrás de uma navegação (`Estoque` e
+    /// `Histórico de pares` ficam dentro de Lentes, `Solução` dentro de Cuidados, `Histórico`
+    /// dentro de Configurações). Cada tela verifica sozinha, no `.task`, se a rota pedida é a
+    /// dela — este enum não sabe nada sobre qual aba cada rota pertence, então também é preciso
+    /// passar `-UITestSelectedTab` com a aba certa para a rota realmente aparecer na tela.
+    enum Route: String {
+        case estoque
+        case solucao
+        case historico
+    }
+
+    static func requestedRoute(arguments: [String] = ProcessInfo.processInfo.arguments) -> Route? {
+        guard let flagIndex = arguments.firstIndex(of: openRouteArgument), flagIndex + 1 < arguments.count else {
+            return nil
+        }
+        return Route(rawValue: arguments[flagIndex + 1])
     }
 
     /// Marca o onboarding como concluído, sem mexer em mais nada. Idempotente por natureza: só

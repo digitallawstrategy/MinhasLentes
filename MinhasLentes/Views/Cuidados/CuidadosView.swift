@@ -10,6 +10,9 @@ struct CuidadosView: View {
     @Query(sort: \CleaningSolution.openedDate, order: .reverse) private var solutions: [CleaningSolution]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
     @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
+    #if DEBUG
+    @State private var uiTestShowSolution = false
+    #endif
 
     private var activeCase: LensCase? { cases.first { $0.status == .active } }
     private var activeSolution: CleaningSolution? { solutions.first { $0.status == .active } }
@@ -54,6 +57,16 @@ struct CuidadosView: View {
             .tabBarScrollInset()
             .background(AmbientBackground())
             .navigationTitle("Cuidados")
+            #if DEBUG
+            .task {
+                if UITestSupport.requestedRoute() == .solucao {
+                    uiTestShowSolution = true
+                }
+            }
+            .navigationDestination(isPresented: $uiTestShowSolution) {
+                CleaningSolutionView()
+            }
+            #endif
         }
     }
 
