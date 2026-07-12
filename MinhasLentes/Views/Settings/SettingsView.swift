@@ -41,7 +41,6 @@ struct SettingsView: View {
                 lentesSection
                 healthSection
                 caseSection
-                caseLifecycleSection
                 solutionSection
                 inventorySection
                 appointmentSection
@@ -191,7 +190,7 @@ struct SettingsView: View {
         } header: {
             Text("Lentes")
         } footer: {
-            Text("Na sessão \"Estou usando as lentes\", dispara três avisos (o tempo acima, +1h, +2h) e depois repete no intervalo configurado aqui. Só vale para a próxima sessão iniciada — não reagenda uma sessão já em andamento.")
+            Text("Vale só para a próxima sessão iniciada.")
         }
     }
 
@@ -214,7 +213,7 @@ struct SettingsView: View {
         } header: {
             Text("Faixas de status de utilização")
         } footer: {
-            Text("Definem, pelo percentual de usos restantes, quando o status muda de Vida útil alta para Vida útil moderada, Poucos usos restantes e Limite de usos atingido. É uma leitura da contagem de usos, não uma avaliação da condição física da lente.")
+            Text("Baseado só na contagem de usos, não na condição física da lente.")
         }
     }
 
@@ -237,15 +236,7 @@ struct SettingsView: View {
             ), in: 0...max(0, settings.cleaningIntervalDays - 1))
 
             DatePicker("Horário das notificações", selection: notificationTimeBinding, displayedComponents: .hourAndMinute)
-        } header: {
-            Text("Estojo")
-        } footer: {
-            Text("A antecedência do aviso nunca alcança ou ultrapassa o intervalo de limpeza — se você reduzir o intervalo, a antecedência é ajustada automaticamente.")
-        }
-    }
 
-    private var caseLifecycleSection: some View {
-        Section {
             Stepper("Substituir o estojo a cada: \(settings.caseReplacementIntervalDays) dias", value: Binding(
                 get: { settings.caseReplacementIntervalDays },
                 set: { settings.caseReplacementIntervalDays = $0; saveSettings() }
@@ -261,9 +252,9 @@ struct SettingsView: View {
                 set: { settings.caseOverdueReminderIntervalDays = $0; rescheduleLensCaseNotifications() }
             ), in: 1...30)
         } header: {
-            Text("Ciclo de vida do estojo")
+            Text("Estojo")
         } footer: {
-            Text("Usado apenas para o próximo ciclo iniciado — não altera o prazo de um ciclo já em andamento. Os avisos de 15 e 7 dias antes e no dia recomendado usam sempre uma linguagem sem alarme; o lembrete periódico só começa depois que o prazo já passou.")
+            Text("A antecedência do aviso e a substituição do estojo valem só para o ciclo atual em diante.")
         }
     }
 
@@ -281,7 +272,7 @@ struct SettingsView: View {
         } header: {
             Text("Solução de limpeza")
         } footer: {
-            Text("A validade após aberto e a data impressa no rótulo são sempre informadas por frasco — nunca um prazo padrão do aplicativo.")
+            Text("Sempre informada por frasco, nunca um prazo padrão do app.")
         }
     }
 
@@ -294,7 +285,7 @@ struct SettingsView: View {
         } header: {
             Text("Estoque de lentes")
         } footer: {
-            Text("Avisos de 60, 30 e 7 dias antes e no dia da validade de cada item. Diferente de um item já vencido não usado, não há lembrete repetido — o app apenas impede selecioná-lo sem confirmação explícita ao iniciar um novo par.")
+            Text("Sem lembrete repetido depois de vencido — o app só pede confirmação extra ao usar o item.")
         }
     }
 
@@ -311,7 +302,7 @@ struct SettingsView: View {
         } header: {
             Text("Consultas")
         } footer: {
-            Text("Avisos de 30, 7 e 1 dia antes, e 2 horas antes de cada consulta. O prazo padrão só vale para novas consultas — siga sempre a recomendação do seu oftalmologista quanto ao retorno.")
+            Text("O prazo padrão vale só para novas consultas — siga a recomendação do seu oftalmologista.")
         }
     }
 
@@ -352,7 +343,7 @@ struct SettingsView: View {
         } header: {
             Text("Backup completo (JSON)")
         } footer: {
-            Text("O backup em JSON contém todos os pares, usos, limpezas, ciclos do estojo, cuidados diários, eventos de histórico e configurações, com seus identificadores e relacionamentos — diferente do CSV/PDF, ele pode ser reimportado para restaurar os dados neste ou em outro aparelho.")
+            Text("Backup completo, com relacionamentos preservados — diferente do CSV/PDF, pode ser reimportado para restaurar os dados neste ou em outro aparelho.")
         }
     }
 
@@ -376,10 +367,9 @@ struct SettingsView: View {
     private var persistenceInfoSection: some View {
         Section("Persistência dos dados") {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Atualizar o app ou reinstalar pela mesma conta normalmente preserva os dados.", systemImage: "arrow.triangle.2.circlepath")
-                Label("Apagar o aplicativo do iPhone remove os dados locais imediatamente e sem volta.", systemImage: "trash")
-                Label("Alterar o Bundle Identifier no Xcode cria um novo contêiner vazio — os dados antigos não aparecem no app com o novo identificador.", systemImage: "shippingbox")
-                Label("A forma segura de preservar seus dados é exportar um backup em JSON antes de apagar o app ou trocar o Bundle Identifier.", systemImage: "checkmark.shield")
+                Label("Atualizar ou reinstalar pela mesma conta preserva os dados.", systemImage: "arrow.triangle.2.circlepath")
+                Label("Apagar o app remove os dados locais sem volta.", systemImage: "trash")
+                Label("Exporte um backup em JSON antes de apagar o app.", systemImage: "checkmark.shield")
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
