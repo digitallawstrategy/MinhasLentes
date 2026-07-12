@@ -116,6 +116,11 @@ enum LensPairService {
             do {
                 try context.save()
             } catch {
+                // Sem isso, as inserções/exclusões já aplicadas em memória (mas nunca
+                // confirmadas) ficariam penduradas no contexto e poderiam acabar persistidas de
+                // qualquer forma no próximo `save()` bem-sucedido de outra ação qualquer — um
+                // "uso fantasma" sem relação com o que o usuário pediu daquela vez.
+                context.rollback()
                 throw ServiceError.persistenceFailed(error.localizedDescription)
             }
         }
@@ -366,6 +371,70 @@ enum LensPairService {
 
     // MARK: - Registro de usos
 
+    /// Um pedido de registro de uso, para `registerUsageBatch`. Mesmos campos de
+    /// `registerUsage`, agrupados para poder chegar em lote.
+    struct UsageRequest {
+        let pair: LensPair
+        let date: Date
+        let side: LensSide
+        let notes: String?
+
+        init(pair: LensPair, date: Date, side: LensSide, notes: String? = nil) {
+            self.pair = pair
+            self.date = date
+            self.side = side
+            self.notes = notes
+        }
+    }
+
+    /// Registra um ou mais usos como uma única transação: tudo-ou-nada de verdade, não só na
+    /// intenção. Toda pré-checagem (limite atingido, duplicidade no dia) roda antes de qualquer
+    /// mutação; os objetos `LensUsage`/`HistoryEvent` de todo o lote são inseridos em memória e
+    /// só então há um único `context.save()`. Se esse `save` falhar (mesmo depois da nova
+    /// tentativa automática), `context.rollback()` desfaz as inserções do lote inteiro — sem
+    /// isso, um lote de 3 pares em que o `save` falhasse depois de 2 usos já em memória corria o
+    /// risco de persistir parcialmente numa tentativa de salvamento seguinte não relacionada.
+    ///
+    /// `registerUsage` (um só pedido) chama isto por baixo — o comportamento e os erros para
+    /// quem já usa a versão singular não mudam.
+    @discardableResult
+    static func registerUsageBatch(
+        _ requests: [UsageRequest],
+        allowMultipleUsesPerDay: Bool,
+        forceDuplicate: Bool,
+        context: ModelContext
+    ) throws -> [LensUsage] {
+        guard !requests.isEmpty else { return [] }
+
+        for request in requests {
+            guard !request.pair.hasReachedLimit else {
+                throw ServiceError.limitReached
+            }
+            if !allowMultipleUsesPerDay && !forceDuplicate {
+                let existing = request.pair.usages ?? []
+                if LensStatisticsService.hasUsage(onSameDayAs: request.date, in: existing) {
+                    throw ServiceError.duplicateUsageOnDate
+                }
+            }
+        }
+
+        var created: [LensUsage] = []
+        for request in requests {
+            let usage = LensUsage(date: request.date, side: request.side, notes: request.notes, lensPair: request.pair)
+            context.insert(usage)
+            created.append(usage)
+            logEvent(
+                .usageAdded,
+                date: request.date,
+                pair: request.pair,
+                description: "Uso registrado em \(DateFormatting.short.string(from: request.date)).",
+                context: context
+            )
+        }
+        try save(context: context)
+        return created
+    }
+
     @discardableResult
     static func registerUsage(
         for pair: LensPair,
@@ -376,42 +445,42 @@ enum LensPairService {
         forceDuplicate: Bool,
         context: ModelContext
     ) throws -> LensUsage {
-        guard !pair.hasReachedLimit else {
-            throw ServiceError.limitReached
-        }
-        if !allowMultipleUsesPerDay && !forceDuplicate {
-            let existing = pair.usages ?? []
-            if LensStatisticsService.hasUsage(onSameDayAs: date, in: existing) {
-                throw ServiceError.duplicateUsageOnDate
-            }
-        }
-        let usage = LensUsage(date: date, side: side, notes: notes, lensPair: pair)
-        context.insert(usage)
-        logEvent(
-            .usageAdded,
-            date: date,
-            pair: pair,
-            description: "Uso registrado em \(DateFormatting.short.string(from: date)).",
+        let request = UsageRequest(pair: pair, date: date, side: side, notes: notes)
+        let results = try registerUsageBatch(
+            [request],
+            allowMultipleUsesPerDay: allowMultipleUsesPerDay,
+            forceDuplicate: forceDuplicate,
             context: context
         )
-        try save(context: context)
+        guard let usage = results.first else {
+            throw ServiceError.persistenceFailed("Registro de uso não retornou nenhum resultado.")
+        }
         return usage
     }
 
-    static func deleteUsage(_ usage: LensUsage, context: ModelContext) throws {
-        let pair = usage.lensPair
-        let date = usage.date
-        context.delete(usage)
-        if let pair {
-            logEvent(
-                .usageDeleted,
-                date: date,
-                pair: pair,
-                description: "Uso de \(DateFormatting.short.string(from: date)) excluído.",
-                context: context
-            )
+    /// Mesma garantia de transação única de `registerUsageBatch`, para desfazer. `deleteUsage`
+    /// (um só uso) chama isto por baixo.
+    static func deleteUsageBatch(_ usages: [LensUsage], context: ModelContext) throws {
+        guard !usages.isEmpty else { return }
+        for usage in usages {
+            let pair = usage.lensPair
+            let date = usage.date
+            context.delete(usage)
+            if let pair {
+                logEvent(
+                    .usageDeleted,
+                    date: date,
+                    pair: pair,
+                    description: "Uso de \(DateFormatting.short.string(from: date)) excluído.",
+                    context: context
+                )
+            }
         }
         try save(context: context)
+    }
+
+    static func deleteUsage(_ usage: LensUsage, context: ModelContext) throws {
+        try deleteUsageBatch([usage], context: context)
     }
 
     static func editUsage(_ usage: LensUsage, newDate: Date, newSide: LensSide, newNotes: String?, context: ModelContext) throws {

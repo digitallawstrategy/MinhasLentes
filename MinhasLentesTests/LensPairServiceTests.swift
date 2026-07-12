@@ -348,6 +348,83 @@ final class LensPairServiceTests: XCTestCase {
         XCTAssertTrue(Calendar.current.isDate(usage.date, inSameDayAs: TestSupport.date(2026, 1, 5)))
     }
 
+    // MARK: - Atomicidade do lote
+
+    /// A checagem de `hasReachedLimit` já roda para o lote inteiro antes de qualquer inserção —
+    /// este teste prova isso na própria API do serviço (não só na pré-checagem da ViewModel):
+    /// mesmo chamando `registerUsageBatch` diretamente com um par saudável primeiro e um par no
+    /// limite depois, o par saudável não fica com nenhum uso gravado.
+    func testRegisterUsageBatchLeavesNoPartialWriteWhenAnotherPairInBatchIsAtLimit() throws {
+        let healthyPair = try makePair(maximumUses: 60)
+        let fullPair = try makePair(maximumUses: 1)
+        try LensPairService.registerUsage(
+            for: fullPair, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
+            allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )
+        XCTAssertTrue(fullPair.hasReachedLimit)
+
+        let requests = [
+            LensPairService.UsageRequest(pair: healthyPair, date: TestSupport.date(2026, 7, 11), side: .both),
+            LensPairService.UsageRequest(pair: fullPair, date: TestSupport.date(2026, 7, 11), side: .both),
+        ]
+        XCTAssertThrowsError(try LensPairService.registerUsageBatch(
+            requests, allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )) { error in
+            XCTAssertEqual(error as? LensPairService.ServiceError, .limitReached)
+        }
+
+        XCTAssertEqual(healthyPair.usesCount, 0, "Par saudável não pode ficar com uso parcial de um lote que falhou por causa de outro par")
+        XCTAssertEqual(fullPair.usesCount, 1, "Só o uso já existente antes do lote — nada novo foi gravado")
+    }
+
+    /// Mesma garantia para duplicidade no dia: o segundo par do lote já tem uso na data pedida,
+    /// então o lote inteiro falha, e o primeiro par (que seria válido sozinho) não fica com
+    /// nenhum uso gravado.
+    func testRegisterUsageBatchLeavesNoPartialWriteOnDuplicateDateElsewhereInBatch() throws {
+        let pairA = try makePair()
+        let pairB = try makePair()
+        try LensPairService.registerUsage(
+            for: pairB, date: TestSupport.date(2026, 7, 11), side: .both, notes: nil,
+            allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )
+
+        let requests = [
+            LensPairService.UsageRequest(pair: pairA, date: TestSupport.date(2026, 7, 11), side: .both),
+            LensPairService.UsageRequest(pair: pairB, date: TestSupport.date(2026, 7, 11), side: .both),
+        ]
+        XCTAssertThrowsError(try LensPairService.registerUsageBatch(
+            requests, allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )) { error in
+            XCTAssertEqual(error as? LensPairService.ServiceError, .duplicateUsageOnDate)
+        }
+
+        XCTAssertEqual(pairA.usesCount, 0, "Par A seria válido sozinho, mas não pode ficar com uso parcial de um lote que falhou por causa do par B")
+        XCTAssertEqual(pairB.usesCount, 1, "Só o uso já existente antes do lote")
+    }
+
+    /// `deleteUsageBatch` é a mesma transação única usada pelo desfazer em lote — prova que
+    /// excluir vários usos de pares diferentes de uma vez devolve a contagem corretamente para
+    /// todos, não só para o primeiro.
+    func testDeleteUsageBatchRemovesAllUsagesInOneTransaction() throws {
+        let pairA = try makePair()
+        let pairB = try makePair()
+        let usageA = try LensPairService.registerUsage(
+            for: pairA, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
+            allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )
+        let usageB = try LensPairService.registerUsage(
+            for: pairB, date: TestSupport.date(2026, 7, 10), side: .both, notes: nil,
+            allowMultipleUsesPerDay: false, forceDuplicate: false, context: context
+        )
+        XCTAssertEqual(pairA.usesCount, 1)
+        XCTAssertEqual(pairB.usesCount, 1)
+
+        try LensPairService.deleteUsageBatch([usageA, usageB], context: context)
+
+        XCTAssertEqual(pairA.usesCount, 0)
+        XCTAssertEqual(pairB.usesCount, 0)
+    }
+
     // MARK: - Auxiliar
 
     private func makePair(maximumUses: Int = 60) throws -> LensPair {
