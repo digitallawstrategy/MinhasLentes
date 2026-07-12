@@ -121,11 +121,13 @@ struct LensPairCardView: View {
     private var ringView: some View {
         VStack(spacing: 2) {
             UsageCountRing(value: pair.usesRemaining, remainingFraction: remainingFraction, tint: usageStatus.tone.color, diameter: 108, lineWidth: 14)
-            Text("restantes")
+            // O número dentro do anel é decorativo (tamanho fixo); esta legenda é o texto real,
+            // por extenso, que escala com Dynamic Type — repete o valor para continuar completa
+            // mesmo se só ela for lida.
+            Text("\(pair.usesRemaining) restantes")
                 .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .fixedSize()
+                .multilineTextAlignment(.center)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Usos restantes")

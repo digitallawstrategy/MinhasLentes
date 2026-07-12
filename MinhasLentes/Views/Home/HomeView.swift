@@ -403,17 +403,15 @@ struct HomeView: View {
                 HStack(spacing: AppSpacing.sm) {
                     // 72 (não 84): mesmo tamanho do anel de "Lembretes", e reduz um pouco o peso
                     // vertical do cartão — "Em uso" é o primeiro cartão da tela, então cada ponto
-                    // de altura conta pra deixar mais conteúdo visível antes de rolar. "restantes"
-                    // fica fora do anel (`UsageCountRing` só mostra o número) — nunca precisa
-                    // encolher ou quebrar, porque tem a largura da coluna toda, não o traço do
-                    // anel, para se acomodar.
+                    // de altura conta pra deixar mais conteúdo visível antes de rolar. O número
+                    // dentro do anel é só decorativo (`UsageCountRing`); a legenda abaixo repete o
+                    // valor por extenso, então continua completa mesmo se só ela for lida.
                     VStack(spacing: 2) {
                         UsageCountRing(value: pair.usesRemaining, remainingFraction: fraction, tint: status.tone.color, diameter: 72, lineWidth: 7)
-                        Text("restantes")
+                        Text("\(pair.usesRemaining) restantes")
                             .font(AppTypography.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .fixedSize()
+                            .multilineTextAlignment(.center)
                     }
                     .accessibilityHidden(true)
 
