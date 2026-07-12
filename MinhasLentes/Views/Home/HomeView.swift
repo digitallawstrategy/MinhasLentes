@@ -9,6 +9,7 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
     @Query private var allSettings: [AppSettings]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -396,39 +397,54 @@ struct HomeView: View {
         let usedToday = hasUsageToday(pair)
         let fraction = pair.maximumUses > 0 ? Double(pair.usesRemaining) / Double(pair.maximumUses) : 0
 
+        // 72 (não 84): mesmo tamanho do anel de "Lembretes", e reduz um pouco o peso vertical do
+        // cartão — "Em uso" é o primeiro cartão da tela, então cada ponto de altura conta pra
+        // deixar mais conteúdo visível antes de rolar. O número dentro do anel é só decorativo
+        // (`UsageCountRing`); a legenda abaixo repete o valor por extenso, então continua
+        // completa mesmo se só ela for lida.
+        let ringColumn = VStack(spacing: 2) {
+            UsageCountRing(value: pair.usesRemaining, remainingFraction: fraction, tint: status.tone.color, diameter: 72, lineWidth: 7)
+            Text("\(pair.usesRemaining) restantes")
+                .font(AppTypography.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .accessibilityHidden(true)
+
+        let nameColumn = VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+            Text(pair.name)
+                .font(AppTypography.headline)
+                .foregroundStyle(.primary)
+            StatusBadge(text: status.label, tone: status.tone, systemImage: "shield.fill")
+            SegmentedProgressBar(filledFraction: fraction, tone: status.tone)
+                .padding(.top, AppSpacing.xxs)
+        }
+
         return VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Button {
                 router.openPair(pair.id)
             } label: {
-                HStack(spacing: AppSpacing.sm) {
-                    // 72 (não 84): mesmo tamanho do anel de "Lembretes", e reduz um pouco o peso
-                    // vertical do cartão — "Em uso" é o primeiro cartão da tela, então cada ponto
-                    // de altura conta pra deixar mais conteúdo visível antes de rolar. O número
-                    // dentro do anel é só decorativo (`UsageCountRing`); a legenda abaixo repete o
-                    // valor por extenso, então continua completa mesmo se só ela for lida.
-                    VStack(spacing: 2) {
-                        UsageCountRing(value: pair.usesRemaining, remainingFraction: fraction, tint: status.tone.color, diameter: 72, lineWidth: 7)
-                        Text("\(pair.usesRemaining) restantes")
-                            .font(AppTypography.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                // Em accessibility sizes, a coluna do nome/badge (que já cresce bastante sozinha)
+                // espremia a legenda "N restantes" ao lado do anel numa coluna estreita demais
+                // até para a palavra inteira — o sistema recorria a hifenizar ("restan-"/"tes")
+                // pra não estourar. Empilhado, o anel ganha a largura inteira do cartão pra sua
+                // legenda, do mesmo jeito que `LensPairCardView.ringAndHeadline` já faz.
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: AppSpacing.sm) {
+                        ringColumn
+                        nameColumn
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        Text(pair.name)
-                            .font(AppTypography.headline)
-                            .foregroundStyle(.primary)
-                        StatusBadge(text: status.label, tone: status.tone, systemImage: "shield.fill")
-                        SegmentedProgressBar(filledFraction: fraction, tone: status.tone)
-                            .padding(.top, AppSpacing.xxs)
+                } else {
+                    HStack(spacing: AppSpacing.sm) {
+                        ringColumn
+                        nameColumn
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
                     }
-
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
                 }
             }
             .buttonStyle(.plain)
