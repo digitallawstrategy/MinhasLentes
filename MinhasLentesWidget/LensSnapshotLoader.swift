@@ -39,10 +39,23 @@ struct LensSnapshot {
     )
 }
 
-/// Lê o banco compartilhado do App Group para montar o retrato mostrado no widget. Usa um
-/// schema reduzido (sem `HistoryEvent`/`RoutineCareLog`/`LensInventoryItem`, que só o app
-/// grava e o widget não precisa exibir) — SwiftData não exige que todas as tabelas do arquivo
-/// estejam declaradas no schema de quem está lendo.
+/// Lê o banco compartilhado do App Group para montar o retrato mostrado no widget.
+///
+/// O schema aqui declara TODOS os modelos persistidos, mesmo os que este loader nunca busca
+/// (`HistoryEvent`, `RoutineCareLog`, `LensInventoryItem`) — isto já foi a causa real de um bug
+/// de perda de dados: uma versão anterior deste arquivo usava um schema reduzido, sem essas três
+/// tabelas, e abria o `ModelContainer` em modo leitura/escrita (o padrão). Um `ModelContainer`
+/// aberto assim não é "somente leitura" das tabelas que ele desconhece — qualquer checkpoint/
+/// validação que o SwiftData faça ao abrir ou salvar o store pode reconciliar o arquivo real com
+/// o modelo do processo que o abriu, e um modelo que não sabe de uma tabela pode fazer o
+/// conteúdo dela desaparecer. Isso batia exatamente com o sintoma relatado (cuidados diários
+/// somem do calendário após reinstalar/relançar o app): o processo da extensão é reiniciado
+/// junto com o app a cada novo Run, reabre o container com o schema reduzido antigo, e as
+/// tabelas de fora dele ficavam em risco.
+///
+/// `RoutineCareLog.swift`/`LensInventoryItem.swift` precisaram ser adicionados às exceções de
+/// membership do alvo da extensão em `project.pbxproj` para compilar aqui — `HistoryEvent.swift`
+/// já estava disponível, só não era usado no schema.
 enum LensSnapshotLoader {
     /// Reaberto uma vez por processo da extensão, não a cada atualização do widget — abrir o
     /// arquivo do App Group repetidas vezes, de um processo separado do app, é justamente o
@@ -54,7 +67,7 @@ enum LensSnapshotLoader {
         let schema = Schema([
             LensPair.self, LensUsage.self, CaseCleaning.self, AppSettings.self,
             LensCase.self, CleaningSolution.self, EyeAppointment.self, EyeCareProfessional.self,
-            WearSession.self,
+            WearSession.self, HistoryEvent.self, RoutineCareLog.self, LensInventoryItem.self,
         ])
         let url = try AppGroup.storeURL()
         let configuration = ModelConfiguration(schema: schema, url: url)
