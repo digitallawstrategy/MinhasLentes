@@ -79,6 +79,7 @@ struct CleaningSolutionView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .tabBarScrollInset()
             .background(AmbientBackground())
             .navigationTitle("Solução")
             .sheet(isPresented: $showStartOrReplaceSolution) {

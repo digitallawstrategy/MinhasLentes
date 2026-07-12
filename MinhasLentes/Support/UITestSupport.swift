@@ -28,6 +28,7 @@ import SwiftData
 enum UITestSupport {
     private static let skipOnboardingArgument = "-UITestSkipOnboarding"
     private static let seedPreviewDataArgument = "-UITestSeedPreviewData"
+    private static let selectedTabArgument = "-UITestSelectedTab"
 
     /// Nome fixo do par semeado — também serve de marca de "já semeado" para `seedPreviewData`
     /// ser seguro de chamar mais de uma vez sobre o mesmo contexto.
@@ -46,6 +47,24 @@ enum UITestSupport {
     /// dos dois fluxos de validação visual deve chegar perto de dado real.
     static func isUITestRun(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
         isSkipOnboardingRequested(arguments: arguments) || isSeedPreviewDataRequested(arguments: arguments)
+    }
+
+    /// `-UITestSelectedTab <home|lentes|cuidados|consultas|settings>` — só existe para permitir
+    /// screenshot automatizado de cada aba sem depender de toque simulado (indisponível no
+    /// ambiente onde os prints de validação visual são tirados). Não afeta a navegação real do
+    /// usuário: fora deste argumento, `AppRouter.selectedTab` sempre começa em `.home`.
+    static func requestedTab(arguments: [String] = ProcessInfo.processInfo.arguments) -> AppTab? {
+        guard let flagIndex = arguments.firstIndex(of: selectedTabArgument), flagIndex + 1 < arguments.count else {
+            return nil
+        }
+        switch arguments[flagIndex + 1] {
+        case "home": return .home
+        case "lentes": return .lentes
+        case "cuidados": return .cuidados
+        case "consultas": return .consultas
+        case "settings": return .settings
+        default: return nil
+        }
     }
 
     /// Marca o onboarding como concluído, sem mexer em mais nada. Idempotente por natureza: só

@@ -104,6 +104,7 @@ struct HistoryView: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    .tabBarScrollInset()
                 }
             }
             .background(AmbientBackground())

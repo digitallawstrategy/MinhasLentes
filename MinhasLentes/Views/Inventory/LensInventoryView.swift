@@ -95,6 +95,7 @@ struct LensInventoryView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .tabBarScrollInset()
         .background(AmbientBackground())
         .navigationTitle("Estoque de lentes")
         .navigationBarTitleDisplayMode(.inline)

@@ -37,6 +37,20 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertFalse(UITestSupport.isUITestRun(arguments: []))
     }
 
+    func testRequestedTabParsesValidValues() {
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "home"]), .home)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "lentes"]), .lentes)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "cuidados"]), .cuidados)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "consultas"]), .consultas)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "settings"]), .settings)
+    }
+
+    func testRequestedTabReturnsNilWhenAbsentOrInvalid() {
+        XCTAssertNil(UITestSupport.requestedTab(arguments: []))
+        XCTAssertNil(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab"]))
+        XCTAssertNil(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "unknown"]))
+    }
+
     // MARK: - applySkipOnboarding
 
     func testApplySkipOnboardingMarksSettingsComplete() throws {

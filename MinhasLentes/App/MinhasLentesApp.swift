@@ -58,6 +58,9 @@ struct MinhasLentesApp: App {
         } else if UITestSupport.isSkipOnboardingRequested() {
             try? UITestSupport.applySkipOnboarding(context: context)
         }
+        if let tab = UITestSupport.requestedTab() {
+            AppRouter.shared.selectedTab = tab
+        }
     }
     #endif
 

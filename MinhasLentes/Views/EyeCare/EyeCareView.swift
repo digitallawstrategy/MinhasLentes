@@ -138,6 +138,7 @@ struct EyeCareView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .tabBarScrollInset()
         .background(AmbientBackground())
         .navigationTitle("Consultas")
         .sheet(isPresented: $showAddProfessional) {

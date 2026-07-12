@@ -55,6 +55,7 @@ struct SettingsView: View {
                 #endif
             }
             .navigationTitle("Configurações")
+            .tabBarScrollInset()
             .task { await viewModel.refreshAuthorizationStatus() }
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json]) { result in
                 viewModel.handlePickedBackupFile(result)
