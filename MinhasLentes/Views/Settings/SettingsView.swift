@@ -416,6 +416,11 @@ struct SettingsView: View {
     #if DEBUG
     private var developerToolsSection: some View {
         Section {
+            NavigationLink {
+                DataDiagnosticsView()
+            } label: {
+                Label("Diagnóstico de dados", systemImage: "stethoscope")
+            }
             Button("Agendar notificação de teste em 1 minuto") {
                 Task { await viewModel.scheduleSingleTestNotification() }
             }
