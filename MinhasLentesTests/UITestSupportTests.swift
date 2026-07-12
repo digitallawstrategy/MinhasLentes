@@ -55,6 +55,7 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "estoque"]), .estoque)
         XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "solucao"]), .solucao)
         XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "historico"]), .historico)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "estojo"]), .estojo)
     }
 
     func testRequestedRouteReturnsNilWhenAbsentOrInvalid() {

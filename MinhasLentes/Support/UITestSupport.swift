@@ -68,16 +68,18 @@ enum UITestSupport {
         }
     }
 
-    /// `-UITestOpenRoute <estoque|solucao|historico>` — mesmo propósito de
+    /// `-UITestOpenRoute <estoque|solucao|historico|estojo>` — mesmo propósito de
     /// `-UITestSelectedTab`, mas para telas que só existem atrás de uma navegação (`Estoque` e
-    /// `Histórico de pares` ficam dentro de Lentes, `Solução` dentro de Cuidados, `Histórico`
-    /// dentro de Configurações). Cada tela verifica sozinha, no `.task`, se a rota pedida é a
-    /// dela — este enum não sabe nada sobre qual aba cada rota pertence, então também é preciso
-    /// passar `-UITestSelectedTab` com a aba certa para a rota realmente aparecer na tela.
+    /// `Histórico de pares` ficam dentro de Lentes, `Solução`/`Estojo` dentro de Cuidados,
+    /// `Histórico` dentro de Configurações). Cada tela verifica sozinha, no `.task`, se a rota
+    /// pedida é a dela — este enum não sabe nada sobre qual aba cada rota pertence, então também
+    /// é preciso passar `-UITestSelectedTab` com a aba certa para a rota realmente aparecer na
+    /// tela.
     enum Route: String {
         case estoque
         case solucao
         case historico
+        case estojo
     }
 
     static func requestedRoute(arguments: [String] = ProcessInfo.processInfo.arguments) -> Route? {

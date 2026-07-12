@@ -14,6 +14,7 @@ struct CuidadosView: View {
     @Query private var allSettings: [AppSettings]
     #if DEBUG
     @State private var uiTestShowSolution = false
+    @State private var uiTestShowCase = false
     #endif
 
     private var settings: AppSettings {
@@ -67,10 +68,15 @@ struct CuidadosView: View {
             .task {
                 if UITestSupport.requestedRoute() == .solucao {
                     uiTestShowSolution = true
+                } else if UITestSupport.requestedRoute() == .estojo {
+                    uiTestShowCase = true
                 }
             }
             .navigationDestination(isPresented: $uiTestShowSolution) {
                 CleaningSolutionView()
+            }
+            .navigationDestination(isPresented: $uiTestShowCase) {
+                CaseView()
             }
             #endif
         }
