@@ -79,14 +79,14 @@ struct TodayCareCardView: View {
             }
             if hasRoutineCareToday {
                 StatusBadge(text: "Cuidado diário já registrado hoje", tone: .success, systemImage: "checkmark.circle.fill", fullWidth: true)
-                // Única ação restante nesta seção quando o cuidado diário já foi registrado —
-                // ganha o mesmo destaque preenchido que "Retirei as lentes" ganha no cartão "Em
-                // uso" pelo mesmo motivo.
-                PrimaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", action: onRegisterRoutineCareForOtherDay)
             } else {
                 PrimaryActionButton(title: "Registrar cuidado diário", systemImage: "drop.circle", action: onRegisterRoutineCareToday)
-                SecondaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", fullWidth: false, compact: true, action: onRegisterRoutineCareForOtherDay)
             }
+            // Sempre secundária/compacta, mesmo quando é a única ação da seção: diferente do
+            // botão de sessão do cartão "Em uso", isto é uma correção pontual (registrar um dia
+            // que passou em branco), não o próximo passo natural do fluxo — dar a ela o mesmo
+            // peso do botão principal deixava o cartão com cara de formulário.
+            SecondaryActionButton(title: "Registrar em outro dia", systemImage: "calendar.badge.checkmark", fullWidth: false, compact: true, action: onRegisterRoutineCareForOtherDay)
         }
     }
 

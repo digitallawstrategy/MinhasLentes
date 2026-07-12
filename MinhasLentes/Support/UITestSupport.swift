@@ -69,6 +69,9 @@ enum UITestSupport {
     /// - Cuidado diário de hoje já registrado.
     /// - Estojo ativo com substituição recomendada em exatamente 89 dias — `intervalDays: 89` a
     ///   partir de hoje sempre produz "em 89 dias" na tela, não importa em que dia isto rodar.
+    /// - Limpeza periódica registrada hoje: sem isto, `TodayCareCardView` não tem nenhuma
+    ///   `CaseCleaning` pra basear o cálculo e cai no estado "nenhuma limpeza registrada ainda"
+    ///   — um card urgente/tipo formulário que não corresponde ao estado calmo do mockup.
     /// - Solução de limpeza aberta hoje, para o cartão "Lembretes" ter mais de um item coerente.
     /// - Sessão "Estou usando as lentes" ativa neste par — sem isso, o botão da Home mostraria
     ///   "Estou usando as lentes" em vez de "Retirei as lentes", o estado retratado nos prints
@@ -104,6 +107,7 @@ enum UITestSupport {
 
         context.insert(RoutineCareLog(date: referenceDate))
         context.insert(LensCase(startDate: referenceDate, intervalDays: 89))
+        context.insert(CaseCleaning(cleaningDate: referenceDate))
         context.insert(CleaningSolution(
             brand: "Marca de exemplo",
             product: "Solução multiuso",
