@@ -7,6 +7,7 @@ import SwiftUI
 /// lixeira). O emblema "Em uso agora" é só informativo, não uma ação.
 struct LensPairCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let pair: LensPair
     let settings: AppSettings
@@ -74,12 +75,7 @@ struct LensPairCardView: View {
                 Text("Iniciado em \(DateFormatting.short.string(from: pair.startDate))")
                     .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
-                HStack(spacing: AppSpacing.xs) {
-                    StatusBadge(text: usageStatus.label, tone: usageStatus.tone, systemImage: "shield.fill")
-                    if isWearingSessionActiveHere {
-                        StatusBadge(text: "Em uso agora", tone: .informative, systemImage: "eye.circle.fill")
-                    }
-                }
+                badges
             }
             Spacer()
             Menu {
@@ -96,6 +92,39 @@ struct LensPairCardView: View {
                     .foregroundStyle(.secondary)
             }
             .accessibilityLabel("Mais opções para \(pair.name)")
+        }
+    }
+
+    /// Em tamanhos normais os dois selos cabem lado a lado, compactos. Em accessibility sizes,
+    /// "Vida útil alta" + "Em uso agora" juntos não cabem na largura do cartão — dividir a linha
+    /// truncava ambos ("Vi…"/"Em…"). Empilhados, cada um fica sozinho na própria linha e pode usar
+    /// `lineLimit: nil` (mesmo padrão de `StatusBadge`: quebra em 2+ linhas dentro da pílula em
+    /// vez de truncar).
+    @ViewBuilder
+    private var badges: some View {
+        let usageBadge = StatusBadge(
+            text: usageStatus.label,
+            tone: usageStatus.tone,
+            systemImage: "shield.fill",
+            lineLimit: dynamicTypeSize.isAccessibilitySize ? nil : 1
+        )
+        let wearingBadge = isWearingSessionActiveHere ? StatusBadge(
+            text: "Em uso agora",
+            tone: .informative,
+            systemImage: "eye.circle.fill",
+            lineLimit: dynamicTypeSize.isAccessibilitySize ? nil : 1
+        ) : nil
+
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                usageBadge
+                wearingBadge
+            }
+        } else {
+            HStack(spacing: AppSpacing.xs) {
+                usageBadge
+                wearingBadge
+            }
         }
     }
 
