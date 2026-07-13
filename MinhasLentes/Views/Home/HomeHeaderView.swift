@@ -2,12 +2,13 @@ import SwiftUI
 
 /// Cabeçalho do Início: marca + saudação, no lugar da barra de navegação padrão — a saudação já
 /// cumpre o papel de título de tela, então a navigation bar nativa ficaria redundante aqui (nas
-/// outras abas ela continua normal). O sino leva às notificações em Ajustes (Mais → Notificações),
-/// o único lugar real relacionado a avisos que o app tem — sem badge de "não lidas": o app não
-/// guarda esse conceito, e um indicador que não corresponde a nada real seria decoração enganosa.
+/// outras abas ela continua normal). O sino abre a central de avisos (`NotificationsCenterView`,
+/// pendências reais do app) — nunca um atalho para Configurações. O badge só aparece quando há
+/// pendência de verdade (`hasPendingItems`), nunca como decoração sem correspondência real.
 struct HomeHeaderView: View {
     let greeting: String
     let subtitle: String
+    var hasPendingItems: Bool = false
     let onNotificationsTap: () -> Void
 
     var body: some View {
@@ -56,11 +57,20 @@ struct HomeHeaderView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 40, height: 40)
                     .background(AppColor.surfaceElevated, in: Circle())
+                    .overlay(alignment: .topTrailing) {
+                        if hasPendingItems {
+                            Circle()
+                                .fill(AppColor.warning)
+                                .frame(width: 10, height: 10)
+                                .offset(x: -2, y: 2)
+                        }
+                    }
             }
             .buttonStyle(.plain)
             .pressScale()
-            .accessibilityLabel("Notificações")
-            .accessibilityHint("Abre as configurações de notificações")
+            .accessibilityLabel("Avisos")
+            .accessibilityHint("Abre os avisos pendentes")
+            .accessibilityValue(hasPendingItems ? "Há pendências" : "Tudo em dia")
         }
     }
 }

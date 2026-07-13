@@ -18,11 +18,13 @@ struct HomeView: View {
     @Query(sort: \EyeAppointment.date) private var appointments: [EyeAppointment]
     @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
     @Query(sort: \LensInventoryItem.createdAt, order: .reverse) private var inventoryItems: [LensInventoryItem]
+    @Query(sort: \WearSession.startedAt, order: .reverse) private var wearSessions: [WearSession]
 
     @State private var caseViewModel = CaseCleaningViewModel()
     @State private var pairsViewModel = LensPairsViewModel()
     @State private var routineCareViewModel = RoutineCareViewModel()
     @State private var router = AppRouter.shared
+    @State private var showNotificationsCenter = false
     @State private var showRoutineCarePrompt = false
     @State private var pendingSessionStartPair: LensPair?
     @State private var showRegisterRoutineCareDetails = false
@@ -58,6 +60,30 @@ struct HomeView: View {
 
     private var expiringInventoryItems: [LensInventoryItem] {
         LensInventoryStatisticsService.itemsNearExpiry(items: availableInventoryItems, withinDays: 30)
+    }
+
+    private var activeWearSession: WearSession? {
+        wearSessions.first { $0.status == .active }
+    }
+
+    /// Fonte única do badge do sino e do conteúdo de `NotificationsCenterView` — os dois usam
+    /// exatamente esta mesma lista, então nunca ficam inconsistentes entre si (nunca um badge
+    /// aceso com a central vazia, ou vice-versa).
+    private var pendingItems: [PendingItem] {
+        PendingItemsService.pendingItems(input: PendingItemsInput(
+            hasCareToday: hasRoutineCareToday,
+            dailyCareReminderEnabled: settings.dailyCareReminderEnabled,
+            dailyCareReminderHour: settings.dailyCareReminderHour,
+            activeWearSession: activeWearSession,
+            wearingReminderHours: settings.wearingReminderHours,
+            lastCleaning: lastCleaning,
+            activeCase: activeCase,
+            cleaningIntervalDays: settings.cleaningIntervalDays,
+            advanceReminderDays: settings.advanceReminderDays,
+            activeSolution: activeSolution,
+            nextAppointment: nextAppointment,
+            expiringInventoryItems: expiringInventoryItems
+        ))
     }
 
     /// Verifica todos os registros do dia, não só o primeiro da lista — um registro futuro
@@ -104,8 +130,8 @@ struct HomeView: View {
     private var mainContent: some View {
         ScrollView {
             VStack(spacing: AppSpacing.md) {
-                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle) {
-                    router.selectedTab = .settings
+                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle, hasPendingItems: !pendingItems.isEmpty) {
+                    showNotificationsCenter = true
                 }
 
                 if inUsePairs.isEmpty && reservePairs.isEmpty {
@@ -240,6 +266,9 @@ struct HomeView: View {
     @ViewBuilder
     private func withDialogsAndSheet(_ content: some View) -> some View {
         content
+            .sheet(isPresented: $showNotificationsCenter) {
+                NotificationsCenterView(items: pendingItems, routineCareViewModel: routineCareViewModel, pairsViewModel: pairsViewModel)
+            }
             .alert("Limite atingido", isPresented: $pairsViewModel.showLimitReachedAlert) {
                 Button("Entendi", role: .cancel) {}
             } message: {
