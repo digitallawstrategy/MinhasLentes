@@ -281,36 +281,47 @@ struct EyeCareView: View {
         .padding(.vertical, AppSpacing.xxs)
     }
 
+    // Regra 1 da rodada de consistência: profissional é uma entidade cadastrada, então o corpo da
+    // linha precisa abrir detalhe — só o `NavigationLink` do nome/clínica faz isso (List desenha o
+    // chevron sozinho); Ligar/WhatsApp/Mapas ficam fora dele, como atalhos de linha independentes,
+    // não aninhados dentro do link de navegação.
     private func professionalRow(for professional: EyeCareProfessional) -> some View {
-        HStack(alignment: .top, spacing: AppSpacing.sm) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.subheadline)
-                .foregroundStyle(AppColor.primary)
-                .frame(width: 36, height: 36)
-                .background(AppColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            NavigationLink {
+                ProfessionalDetailView(professional: professional, viewModel: viewModel)
+            } label: {
+                HStack(alignment: .top, spacing: AppSpacing.sm) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColor.primary)
+                        .frame(width: 36, height: 36)
+                        .background(AppColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                        .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(professional.name)
-                    .font(AppTypography.subheadlineMedium)
-                if let clinic = professional.clinic, !clinic.isEmpty {
-                    Text(clinic)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                HStack(spacing: AppSpacing.md) {
-                    if let phone = professional.phone, !phone.isEmpty {
-                        quickActionButton(title: "Ligar", systemImage: "phone.fill") { openURL(telURL(phone)) }
-                    }
-                    if let whatsapp = professional.whatsapp, !whatsapp.isEmpty {
-                        quickActionButton(title: "WhatsApp", systemImage: "message.fill") { openURL(whatsAppURL(whatsapp)) }
-                    }
-                    if let address = professional.address, !address.isEmpty {
-                        quickActionButton(title: "Mapas", systemImage: "map.fill") { openURL(mapsURL(address)) }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(professional.name)
+                            .font(AppTypography.subheadlineMedium)
+                        if let clinic = professional.clinic, !clinic.isEmpty {
+                            Text(clinic)
+                                .font(AppTypography.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-                .padding(.top, 2)
             }
+
+            HStack(spacing: AppSpacing.md) {
+                if let phone = professional.phone, !phone.isEmpty {
+                    quickActionButton(title: "Ligar", systemImage: "phone.fill") { openURL(telURL(phone)) }
+                }
+                if let whatsapp = professional.whatsapp, !whatsapp.isEmpty {
+                    quickActionButton(title: "WhatsApp", systemImage: "message.fill") { openURL(whatsAppURL(whatsapp)) }
+                }
+                if let address = professional.address, !address.isEmpty {
+                    quickActionButton(title: "Mapas", systemImage: "map.fill") { openURL(mapsURL(address)) }
+                }
+            }
+            .padding(.leading, 44)
         }
         .padding(.vertical, AppSpacing.xxs)
     }

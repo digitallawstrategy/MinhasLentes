@@ -48,14 +48,22 @@ struct LensInventoryItemDetailView: View {
                     ImageAttachmentPreview(data: item.photoData, accessibilityLabel: "Foto da caixa de lentes")
                 }
             }
-
-            Section {
-                Button("Editar") { showEdit = true }
-                Button("Excluir", role: .destructive) { showDeleteConfirmation = true }
-            }
         }
         .navigationTitle("\(item.brand) \(item.model)")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Regra 4 da rodada de consistência: editar/excluir moram no toolbar, não como botões
+            // soltos de `Form` com a mesma aparência das linhas informativas acima.
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button("Editar", systemImage: "pencil") { showEdit = true }
+                    Button("Excluir", systemImage: "trash", role: .destructive) { showDeleteConfirmation = true }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Mais opções para \(item.brand) \(item.model)")
+            }
+        }
         .sheet(isPresented: $showEdit) {
             AddOrEditLensInventoryItemSheet(item: item) { brand, model, od, os, side, lot, expiry, initialQuantity, remainingQuantity, photo, notes in
                 Task {

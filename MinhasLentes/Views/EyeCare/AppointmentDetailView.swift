@@ -44,20 +44,28 @@ struct AppointmentDetailView: View {
                     ImageAttachmentPreview(data: appointment.attachmentData, accessibilityLabel: "Foto da receita ou pedido de exame")
                 }
             }
-
-            Section {
-                Button("Editar") { showEdit = true }
-                if appointment.status == .scheduled {
-                    Button("Marcar como realizada") {
-                        Task { await viewModel.markCompleted(appointment, context: modelContext) }
-                    }
-                    Button("Cancelar consulta", role: .destructive) { showCancelConfirmation = true }
-                }
-                Button("Excluir", role: .destructive) { showDeleteConfirmation = true }
-            }
         }
         .navigationTitle(appointment.type.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Regra 4 da rodada de consistência: editar/ações de estado moram no toolbar, não como
+            // botões soltos de `Form` com a mesma aparência das linhas informativas acima.
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button("Editar", systemImage: "pencil") { showEdit = true }
+                    if appointment.status == .scheduled {
+                        Button("Marcar como realizada", systemImage: "checkmark.circle") {
+                            Task { await viewModel.markCompleted(appointment, context: modelContext) }
+                        }
+                        Button("Cancelar consulta", systemImage: "xmark.circle", role: .destructive) { showCancelConfirmation = true }
+                    }
+                    Button("Excluir", systemImage: "trash", role: .destructive) { showDeleteConfirmation = true }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Mais opções para esta consulta")
+            }
+        }
         .sheet(isPresented: $showEdit) {
             AddOrEditAppointmentSheet(
                 appointment: appointment, professionals: professionals, defaultFollowUpMonths: settings.defaultAppointmentIntervalMonths
