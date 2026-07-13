@@ -3,6 +3,7 @@ import SwiftUI
 /// Anel de progresso no estilo do app Fitness da Apple. Representa a fração de usos
 /// restantes: começa cheio e vai diminuindo conforme o par é utilizado.
 struct ProgressRingView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let remainingFraction: Double
     var tint: Color = .accentColor
     var lineWidth: CGFloat = 14
@@ -22,7 +23,7 @@ struct ProgressRingView: View {
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.easeInOut(duration: 0.6), value: clampedFraction)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: clampedFraction)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Usos restantes")

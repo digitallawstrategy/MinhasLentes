@@ -6,6 +6,8 @@ import SwiftUI
 /// se olha o detalhe do par e se faz a gestão dele (editar, mover para reserva, encerrar,
 /// lixeira). O emblema "Em uso agora" é só informativo, não uma ação.
 struct LensPairCardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let pair: LensPair
     let settings: AppSettings
     let onFinishPair: () -> Void
@@ -49,14 +51,12 @@ struct LensPairCardView: View {
     }
 
     var body: some View {
-        SectionCard {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                ringAndHeadline
-                ProgressBarView(fraction: remainingFraction, tint: usageStatus.tintColor)
-                    .animation(.easeInOut(duration: 0.6), value: remainingFraction)
-                detailStats
-            }
+        AppCard {
+            header
+            ringAndHeadline
+            ProgressBarView(fraction: remainingFraction, tint: usageStatus.tone.color)
+                .animation(reduceMotion ? nil : AppAnimation.standard, value: remainingFraction)
+            detailStats
         }
         .alert("Mover \(pair.name) para a lixeira?", isPresented: $showTrashConfirmation) {
             Button("Cancelar", role: .cancel) {}
@@ -68,18 +68,16 @@ struct LensPairCardView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                 Text(pair.name)
                     .font(.title3.weight(.semibold))
                 Text("Iniciado em \(DateFormatting.short.string(from: pair.startDate))")
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    UsageStatusBadgeView(status: usageStatus)
+                HStack(spacing: AppSpacing.xs) {
+                    StatusBadge(text: usageStatus.label, tone: usageStatus.tone, systemImage: "shield.fill")
                     if isWearingSessionActiveHere {
-                        Label("Em uso agora", systemImage: "eye.circle.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
+                        StatusBadge(text: "Em uso agora", tone: .informative, systemImage: "eye.circle.fill")
                     }
                 }
             }
@@ -101,35 +99,53 @@ struct LensPairCardView: View {
         }
     }
 
+    /// `ViewThatFits` alterna para o layout vertical (anel centralizado acima do texto) quando o
+    /// horizontal não cabe — nome de par longo, Dynamic Type grande e telas estreitas combinados
+    /// podiam comprimir ou cortar a coluna de texto no layout único anterior.
     private var ringAndHeadline: some View {
-        HStack(spacing: 20) {
-            ZStack {
-                ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tintColor)
-                VStack(spacing: 0) {
-                    Text("\(pair.usesRemaining)")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                        .contentTransition(.numericText(value: Double(pair.usesRemaining)))
-                        .animation(.spring(duration: 0.5), value: pair.usesRemaining)
-                    Text("restantes")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppSpacing.lg) {
+                ringView
+                usageHeadlineText(alignment: .leading)
+                Spacer()
             }
-            .frame(width: 108, height: 108)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Usos restantes")
-            .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
+            VStack(spacing: AppSpacing.sm) {
+                ringView
+                usageHeadlineText(alignment: .center)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("\(pair.usesCount) de \(pair.maximumUses) usos")
-                    .font(.headline)
-                Text("\(Int((remainingFraction * 100).rounded()))% do limite de utilizações restante")
-                    .font(.footnote)
+    private var ringView: some View {
+        ZStack {
+            ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tone.color)
+            VStack(spacing: 0) {
+                Text("\(pair.usesRemaining)")
+                    .font(AppTypography.metricValue)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .contentTransition(.numericText(value: Double(pair.usesRemaining)))
+                    .animation(reduceMotion ? nil : .spring(duration: 0.5), value: pair.usesRemaining)
+                Text("restantes")
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
+        }
+        .frame(width: 108, height: 108)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Usos restantes")
+        .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
+    }
+
+    private func usageHeadlineText(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: AppSpacing.xxs) {
+            Text("\(pair.usesCount) de \(pair.maximumUses) usos registrados")
+                .font(AppTypography.headline)
+            Text("\(Int((remainingFraction * 100).rounded()))% da vida útil restante")
+                .font(AppTypography.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 

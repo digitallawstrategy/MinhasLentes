@@ -5,6 +5,7 @@ import SwiftData
 /// histórico.
 struct CaseView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
     @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
     @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
@@ -61,11 +62,11 @@ struct CaseView: View {
         return min(max(Double(daysUntilNextCleaning) / Double(settings.cleaningIntervalDays), 0), 1)
     }
 
-    private var countdownTint: Color {
-        guard let daysUntilNextCleaning else { return .accentColor }
-        if daysUntilNextCleaning <= 0 { return .red }
-        if daysUntilNextCleaning <= settings.advanceReminderDays { return .orange }
-        return .green
+    private var countdownTone: AppStatusTone {
+        guard let daysUntilNextCleaning else { return .informative }
+        if daysUntilNextCleaning <= 0 { return .critical }
+        if daysUntilNextCleaning <= settings.advanceReminderDays { return .warning }
+        return .success
     }
 
     private var nextCleaningDate: Date? {
@@ -87,9 +88,10 @@ struct CaseView: View {
 
     @ViewBuilder
     private var caseLifecycleCard: some View {
-        SectionCard(title: "Ciclo do estojo") {
+        AppCard {
+            SectionHeader("Ciclo do estojo")
             if let activeCase {
-                VStack(spacing: 6) {
+                VStack(spacing: AppSpacing.xxs) {
                     StatRow(label: "Início do ciclo atual", value: DateFormatting.short.string(from: activeCase.startDate))
                     StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
                     StatRow(label: "Intervalo configurado", value: "\(activeCase.intervalDays) dias")
@@ -97,53 +99,44 @@ struct CaseView: View {
                         StatRow(label: "Situação", value: caseSituationText(daysUntilCaseReplacement))
                     }
                 }
-                Button {
+                PrimaryActionButton(title: "Substituí o estojo", systemImage: "shippingbox") {
                     showStartOrReplaceCase = true
-                } label: {
-                    Label("Substituí o estojo", systemImage: "shippingbox")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.top, 4)
+                .padding(.top, AppSpacing.xxs)
             } else {
                 Text("Nenhum ciclo de estojo iniciado ainda.")
-                    .font(.subheadline)
+                    .font(AppTypography.subheadline)
                     .foregroundStyle(.secondary)
-                Button {
+                PrimaryActionButton(title: "Iniciar acompanhamento do estojo", systemImage: "shippingbox") {
                     showStartOrReplaceCase = true
-                } label: {
-                    Label("Iniciar acompanhamento do estojo", systemImage: "shippingbox")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.top, 4)
+                .padding(.top, AppSpacing.xxs)
             }
 
             NavigationLink("Ver histórico de ciclos") {
                 LensCaseHistoryView()
             }
-            .font(.subheadline)
-            .padding(.top, 4)
+            .font(AppTypography.subheadline)
+            .padding(.top, AppSpacing.xxs)
         }
     }
 
     @ViewBuilder
     private var routineCareCard: some View {
-        SectionCard(title: "Cuidado diário") {
+        AppCard {
+            SectionHeader("Cuidado diário")
             if let lastRoutineCare {
                 StatRow(label: "Último registro", value: DateFormatting.shortWithTime.string(from: lastRoutineCare.date))
             } else {
                 Text("Nenhum cuidado diário registrado ainda.")
-                    .font(.subheadline)
+                    .font(AppTypography.subheadline)
                     .foregroundStyle(.secondary)
             }
             Text("Descartar a solução usada, limpar o estojo e deixá-lo secar ao ar livre, todos os dias após remover as lentes. O registro rápido do dia fica na aba Início — aqui dá para registrar com mais detalhes ou revisar o histórico.")
-                .font(.footnote)
+                .font(AppTypography.footnote)
                 .foregroundStyle(.secondary)
 
-            Button("Registrar em outro dia") {
+            SecondaryActionButton(title: "Registrar em outro dia", fullWidth: false, compact: true) {
                 routineDate = Date()
                 routineDiscardedSolution = true
                 routineCleanedCase = true
@@ -151,11 +144,10 @@ struct CaseView: View {
                 routineNotes = ""
                 showRegisterRoutineCareDetails = true
             }
-            .buttonStyle(.bordered)
-            .padding(.top, 4)
+            .padding(.top, AppSpacing.xxs)
 
             Divider()
-                .padding(.vertical, 4)
+                .padding(.vertical, AppSpacing.xxs)
             MonthlyCareCalendarView(
                 loggedDates: routineCareLogs.map(\.date),
                 secondaryLoggedDates: cleanings.map(\.cleaningDate)
@@ -163,129 +155,137 @@ struct CaseView: View {
         }
     }
 
-    var body: some View {
-            ScrollView {
-                VStack(spacing: 16) {
-                    caseLifecycleCard
-                    routineCareCard
+    @ViewBuilder
+    private var periodicCleaningCard: some View {
+        AppCard {
+            SectionHeader("Limpeza periódica")
+            VStack(spacing: AppSpacing.xxs) {
+                if let lastCleaning {
+                    StatRow(label: "Última limpeza", value: DateFormatting.short.string(from: lastCleaning.cleaningDate))
+                } else {
+                    StatRow(label: "Última limpeza", value: "Nenhuma registrada")
+                }
+                if let daysSinceLastCleaning {
+                    StatRow(label: "Dias desde a limpeza", value: "\(daysSinceLastCleaning) dia(s)")
+                }
+                if let advanceReminderDate {
+                    StatRow(label: "Aviso antecipado", value: DateFormatting.short.string(from: advanceReminderDate))
+                }
+                if let nextCleaningDate {
+                    StatRow(label: "Prazo da limpeza", value: DateFormatting.short.string(from: nextCleaningDate))
+                }
+                StatRow(label: "Intervalo configurado", value: "\(settings.cleaningIntervalDays) dias")
+            }
 
-                    SectionCard(title: "Estojo") {
-                        VStack(spacing: 6) {
-                            if let lastCleaning {
-                                StatRow(label: "Última limpeza", value: DateFormatting.short.string(from: lastCleaning.cleaningDate))
-                            } else {
-                                StatRow(label: "Última limpeza", value: "Nenhuma registrada")
-                            }
-                            if let daysSinceLastCleaning {
-                                StatRow(label: "Dias desde a limpeza", value: "\(daysSinceLastCleaning) dia(s)")
-                            }
-                            if let advanceReminderDate {
-                                StatRow(label: "Aviso antecipado", value: DateFormatting.short.string(from: advanceReminderDate))
-                            }
-                            if let nextCleaningDate {
-                                StatRow(label: "Prazo da limpeza", value: DateFormatting.short.string(from: nextCleaningDate))
-                            }
-                            StatRow(label: "Intervalo configurado", value: "\(settings.cleaningIntervalDays) dias")
-                        }
+            if let daysUntilNextCleaning {
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    Text(daysUntilNextCleaning <= 0 ? "Limpeza atrasada" : "Faltam \(daysUntilNextCleaning) dia(s) para a próxima limpeza")
+                        .font(AppTypography.footnote.weight(.medium))
+                        .foregroundStyle(countdownTone.color)
+                    ProgressBarView(fraction: countdownFraction, tint: countdownTone.color)
+                        .animation(reduceMotion ? nil : AppAnimation.standard, value: countdownFraction)
+                }
+                .padding(.top, AppSpacing.xxs)
+            }
 
-                        if let daysUntilNextCleaning {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(daysUntilNextCleaning <= 0 ? "Limpeza atrasada" : "Faltam \(daysUntilNextCleaning) dia(s) para a próxima limpeza")
-                                    .font(.footnote.weight(.medium))
-                                    .foregroundStyle(countdownTint)
-                                ProgressBarView(fraction: countdownFraction, tint: countdownTint)
-                                    .animation(.easeInOut(duration: 0.6), value: countdownFraction)
-                            }
-                            .padding(.top, 4)
-                        }
+            VStack(spacing: AppSpacing.sm) {
+                PrimaryActionButton(title: "Limpei o estojo hoje", systemImage: "sparkles") {
+                    Task { await cleaningViewModel.registerCleaningToday(settings: settings, context: modelContext) }
+                }
 
-                        VStack(spacing: 10) {
-                            Button {
-                                Task { await cleaningViewModel.registerCleaningToday(settings: settings, context: modelContext) }
-                            } label: {
-                                Label("Limpei o estojo hoje", systemImage: "sparkles")
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
+                SecondaryActionButton(title: "Registrar em outra data", fullWidth: false, compact: true) {
+                    customDate = Date()
+                    customNotes = ""
+                    showRegisterOtherDate = true
+                }
+            }
+            .padding(.top, AppSpacing.xxs)
+        }
+    }
 
-                            Button("Registrar em outra data") {
-                                customDate = Date()
-                                customNotes = ""
-                                showRegisterOtherDate = true
-                            }
-                            .font(.subheadline)
-                        }
-                        .padding(.top, 4)
-                    }
-
-                    SectionCard(title: "Histórico de limpezas") {
-                        if cleanings.isEmpty {
-                            Text("Nenhuma limpeza registrada ainda.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            VStack(alignment: .leading, spacing: 10) {
-                                ForEach(cleanings) { cleaning in
-                                    HStack(alignment: .top) {
-                                        Image(systemName: "sparkles")
-                                            .foregroundStyle(Color.accentColor)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))
-                                                .font(.subheadline.weight(.medium))
-                                            if let notes = cleaning.notes, !notes.isEmpty {
-                                                Text(notes)
-                                                    .font(.footnote)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-                                        Spacer()
-                                        Button {
-                                            cleaningToEdit = cleaning
-                                        } label: {
-                                            Image(systemName: "pencil")
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Editar limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
-
-                                        Button(role: .destructive) {
-                                            cleaningToDelete = cleaning
-                                        } label: {
-                                            Image(systemName: "trash")
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Excluir limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
-                                    }
+    @ViewBuilder
+    private var cleaningHistoryCard: some View {
+        AppCard {
+            SectionHeader("Histórico de limpezas")
+            if cleanings.isEmpty {
+                Text("Nenhuma limpeza registrada ainda.")
+                    .font(AppTypography.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    ForEach(cleanings) { cleaning in
+                        HStack(alignment: .top) {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(AppColor.primary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))
+                                    .font(AppTypography.subheadlineMedium)
+                                if let notes = cleaning.notes, !notes.isEmpty {
+                                    Text(notes)
+                                        .font(AppTypography.footnote)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
+                            Spacer()
+                            Button {
+                                cleaningToEdit = cleaning
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Editar limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
+
+                            Button(role: .destructive) {
+                                cleaningToDelete = cleaning
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Excluir limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
             }
+        }
+    }
+
+    private var toastTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
+    }
+
+    var body: some View {
+            ScrollView {
+                VStack(spacing: AppSpacing.md) {
+                    caseLifecycleCard
+                    routineCareCard
+                    periodicCleaningCard
+                    cleaningHistoryCard
+                }
+                .padding(.horizontal)
+                .padding(.top, AppSpacing.xs)
+                .padding(.bottom, AppSpacing.sm)
+            }
+            .tabBarScrollInset()
             .navigationTitle("Estojo")
             .overlay(alignment: .bottom) {
                 if cleaningViewModel.showUndoToast, let message = cleaningViewModel.toastMessage {
                     ConfirmationToast(message: message, actionTitle: "Desfazer") {
                         Task { await cleaningViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
                     }
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, AppSpacing.xs)
+                    .transition(toastTransition)
                 } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
                     ConfirmationToast(message: message, actionTitle: "Desfazer") {
                         routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
                     }
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, AppSpacing.xs)
+                    .transition(toastTransition)
                 }
             }
-            .animation(.snappy, value: cleaningViewModel.showUndoToast)
-            .animation(.snappy, value: routineCareViewModel.showUndoToast)
+            .animation(reduceMotion ? nil : AppAnimation.standard, value: cleaningViewModel.showUndoToast)
+            .animation(reduceMotion ? nil : AppAnimation.standard, value: routineCareViewModel.showUndoToast)
             .sheet(isPresented: $showRegisterOtherDate) {
                 NavigationStack {
                     Form {

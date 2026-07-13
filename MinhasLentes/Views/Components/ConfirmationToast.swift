@@ -9,7 +9,7 @@ struct ConfirmationToast: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(AppColor.success)
             Text(message)
                 .font(.subheadline)
                 .lineLimit(2)

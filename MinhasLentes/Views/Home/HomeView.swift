@@ -4,9 +4,11 @@ import SwiftData
 /// Aba Início: o hub de ações do dia — registrar o uso de hoje, alternar a sessão "estou
 /// usando as lentes", registrar o cuidado diário do estojo e, quando pertinente, a limpeza
 /// periódica. Edição, encerramento e detalhe administrativo ficam em Lentes/Cuidados; tocar
-/// num par aqui leva direto ao diário dele lá.
+/// num par aqui leva direto ao diário dele lá. Prioridade visual, nesta ordem: situação das
+/// lentes em uso, ação principal do momento, sessão ativa, cuidados de hoje, lembretes.
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
     @Query private var allSettings: [AppSettings]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -64,6 +66,21 @@ struct HomeView: View {
         routineCareLogs.contains { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
     }
 
+    /// Mesma janela usada por `TodayCareCardView` para decidir se a limpeza periódica precisa
+    /// de destaque — replicada aqui só para a checagem de "tudo em dia", sem acoplar as Views.
+    private var isCleaningDue: Bool {
+        guard let lastCleaning else { return true }
+        let nextDate = LensStatisticsService.nextCleaningDate(lastCleaningDate: lastCleaning.cleaningDate, intervalDays: settings.cleaningIntervalDays)
+        return LensStatisticsService.daysUntil(nextDate) <= settings.advanceReminderDays
+    }
+
+    /// Nada pendente para hoje: sem uso a registrar, cuidado diário feito, limpeza periódica
+    /// fora da janela de aviso e sem lembretes — mostra uma mensagem discreta no lugar do
+    /// cartão de lembretes, em vez de somar mais um cartão à tela.
+    private var isEverythingSettled: Bool {
+        pairsNeedingUsageToday.isEmpty && hasRoutineCareToday && !isCleaningDue && reminderItems.isEmpty
+    }
+
     private var greeting: String {
         switch Calendar.current.component(.hour, from: Date()) {
         case 0..<12: return "Bom dia"
@@ -71,6 +88,11 @@ struct HomeView: View {
         default: return "Boa noite"
         }
     }
+
+    /// Fixa e não some quando "tudo em dia" — essa confirmação já tem seu próprio lugar
+    /// discreto (`everythingSettledRow`); duplicá-la aqui só repetiria a mesma frase duas vezes
+    /// na mesma tela.
+    private let greetingSubtitle = "Vamos cuidar bem das suas lentes hoje."
 
     var body: some View {
         NavigationStack {
@@ -80,18 +102,28 @@ struct HomeView: View {
 
     private var mainContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                Text(greeting)
-                    .font(.title3.weight(.semibold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: AppSpacing.md) {
+                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle) {
+                    router.selectedTab = .settings
+                }
 
                 if inUsePairs.isEmpty && reservePairs.isEmpty {
-                    emptyState
+                    EmptyStateView(
+                        title: "Nenhum par cadastrado",
+                        systemImage: "eyeglasses",
+                        description: "Vá para a aba Lentes para iniciar seu primeiro par.",
+                        actionTitle: "Ir para Lentes",
+                        actionSystemImage: "arrow.right.circle.fill"
+                    ) {
+                        router.selectedTab = .lentes
+                    }
                 } else {
                     summaryContent
                 }
 
-                if !reminderItems.isEmpty {
+                if isEverythingSettled {
+                    everythingSettledRow
+                } else if !reminderItems.isEmpty {
                     remindersCard
                 }
 
@@ -117,10 +149,13 @@ struct HomeView: View {
                 )
             }
             .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
+            .padding(.top, AppSpacing.xs)
+            .padding(.bottom, AppSpacing.sm)
         }
-        .navigationTitle("Minhas Lentes")
+        .tabBarScrollInset()
+        .background(AmbientBackground())
+        .navigationTitle("Início")
+        .toolbar(.hidden, for: .navigationBar)
         .task {
             pairsViewModel.refreshWearingSessionState(context: modelContext)
             await endPendingWearingSessionIfNeeded()
@@ -133,25 +168,31 @@ struct HomeView: View {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     Task { await caseViewModel.undoLastRegisteredCleaning(settings: settings, context: modelContext) }
                 }
-                .padding(.bottom, 8)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, AppSpacing.xs)
+                .transition(toastTransition)
             } else if pairsViewModel.showUndoToast, let message = pairsViewModel.toastMessage {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     pairsViewModel.undoLastRegisteredUsage(context: modelContext)
                 }
-                .padding(.bottom, 8)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, AppSpacing.xs)
+                .transition(toastTransition)
             } else if routineCareViewModel.showUndoToast, let message = routineCareViewModel.toastMessage {
                 ConfirmationToast(message: message, actionTitle: "Desfazer") {
                     routineCareViewModel.undoLastRegisteredRoutineCare(context: modelContext)
                 }
-                .padding(.bottom, 8)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, AppSpacing.xs)
+                .transition(toastTransition)
             }
         }
-        .animation(.snappy, value: caseViewModel.showUndoToast)
-        .animation(.snappy, value: pairsViewModel.showUndoToast)
-        .animation(.snappy, value: routineCareViewModel.showUndoToast)
+        .animation(reduceMotion ? nil : AppAnimation.standard, value: caseViewModel.showUndoToast)
+        .animation(reduceMotion ? nil : AppAnimation.standard, value: pairsViewModel.showUndoToast)
+        .animation(reduceMotion ? nil : AppAnimation.standard, value: routineCareViewModel.showUndoToast)
+    }
+
+    /// Sem Reduce Motion: desliza e some. Com Reduce Motion: só aparece/desaparece — a
+    /// movimentação é exatamente o que essa preferência de acessibilidade pede para evitar.
+    private var toastTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
     }
 
     @ViewBuilder
@@ -296,36 +337,33 @@ struct HomeView: View {
     @ViewBuilder
     private var summaryContent: some View {
         if !inUsePairs.isEmpty {
-            SectionCard(title: "Em uso") {
-                VStack(spacing: 12) {
-                    if pairsNeedingUsageToday.count > 1 {
-                        registerAllUsageButton
-                        Divider()
+            AppCard(variant: .featured) {
+                SectionHeader("Em uso") {
+                    if pairsNeedingUsageToday.isEmpty {
+                        StatusBadge(text: "Tudo certo", tone: .success, systemImage: "checkmark.circle.fill")
                     }
-                    ForEach(inUsePairs) { pair in
-                        pairActionCard(for: pair)
-                        if pair.id != inUsePairs.last?.id {
-                            Divider()
-                        }
+                }
+                if pairsNeedingUsageToday.count > 1 {
+                    registerAllUsageButton
+                    Divider()
+                }
+                ForEach(inUsePairs) { pair in
+                    pairActionCard(for: pair)
+                    if pair.id != inUsePairs.last?.id {
+                        Divider()
                     }
                 }
             }
         }
         if !reservePairs.isEmpty {
-            Button {
+            ReminderCard(
+                systemImage: "tray.and.arrow.down",
+                title: "Reservas disponíveis",
+                detail: "\(reservePairs.count) par(es)",
+                tone: .neutral
+            ) {
                 router.selectedTab = .lentes
-            } label: {
-                HStack {
-                    Text("\(reservePairs.count) par(es) reserva disponível(is)")
-                        .font(.subheadline)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -338,14 +376,12 @@ struct HomeView: View {
     }
 
     private var registerAllUsageButton: some View {
-        Button {
+        PrimaryActionButton(
+            title: "Registrar uso nos \(pairsNeedingUsageToday.count) pares pendentes",
+            systemImage: "checkmark.circle.fill"
+        ) {
             pairsViewModel.registerUsageForAllInUsePairs(pairsNeedingUsageToday, settings: settings, context: modelContext)
-        } label: {
-            Label("Registrar uso nos \(pairsNeedingUsageToday.count) pares pendentes", systemImage: "checkmark.circle.fill")
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
     }
 
     private func pairActionCard(for pair: LensPair) -> some View {
@@ -358,55 +394,116 @@ struct HomeView: View {
         )
         let isWearingHere = pairsViewModel.wearingSessionPairID == pair.id
         let usedToday = hasUsageToday(pair)
+        let fraction = pair.maximumUses > 0 ? Double(pair.usesRemaining) / Double(pair.maximumUses) : 0
 
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Button {
                 router.openPair(pair.id)
             } label: {
-                HStack(spacing: 10) {
-                    Text(status.emoji)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(pair.name)
-                            .font(.subheadline.weight(.medium))
-                        Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes — \(status.label)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                HStack(spacing: AppSpacing.sm) {
+                    ZStack {
+                        // Traço mais fino que o padrão (14pt) neste anel especificamente: a
+                        // 72x72 fixo, o padrão deixaria pouquíssimo espaço interno para duas
+                        // linhas de texto — apertado o bastante para sobrepor em Dynamic Type
+                        // maior. 7pt libera espaço interno real. 72 (não 84): mesmo tamanho do
+                        // anel de "Lembretes", e reduz um pouco o peso vertical do cartão —
+                        // "Em uso" é o primeiro cartão da tela, então cada ponto de altura conta
+                        // pra deixar mais conteúdo visível antes de rolar.
+                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color, lineWidth: 7)
+                        VStack(spacing: 0) {
+                            Text("\(pair.usesRemaining)")
+                                .font(AppTypography.metricValue)
+                                .minimumScaleFactor(0.4)
+                                .lineLimit(1)
+                            Text("restantes")
+                                .font(AppTypography.caption)
+                                .foregroundStyle(.secondary)
+                                // 0.4, tão agressivo quanto o número acima: é texto decorativo
+                                // (already `.accessibilityHidden` no pai), então encolher bem
+                                // pequeno em Dynamic Type extremo é preferível a truncar com
+                                // "…" — confirmado no simulador com "Accessibility Large".
+                                .minimumScaleFactor(0.4)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 4)
                     }
-                    Spacer()
+                    .frame(width: 72, height: 72)
+                    .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                        Text(pair.name)
+                            .font(AppTypography.headline)
+                            .foregroundStyle(.primary)
+                        StatusBadge(text: status.label, tone: status.tone, systemImage: "shield.fill")
+                        SegmentedProgressBar(filledFraction: fraction, tone: status.tone)
+                            .padding(.top, AppSpacing.xxs)
+                    }
+
+                    Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
                 }
             }
             .buttonStyle(.plain)
+            .pressScale()
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(pair.name), \(status.label)")
+            .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
+            .accessibilityHint("Abre o diário deste par")
 
-            HStack(spacing: 8) {
-                if usedToday {
-                    Label("Uso registrado hoje", systemImage: "checkmark.circle.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.green)
-                } else {
-                    Button {
-                        pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
-                    } label: {
-                        Text("Registrar uso hoje")
-                            .font(.caption.weight(.medium))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(pair.hasReachedLimit)
+            pairActionRow(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
+        }
+    }
+
+    /// `ViewThatFits` alterna para empilhado quando os dois botões não cabem lado a lado — nome
+    /// de par longo + Dynamic Type grande + tela estreita (iPhone SE) é exatamente esse caso;
+    /// truncar o texto do botão em vez de quebrar a linha esconderia a ação, não só o rótulo.
+    ///
+    /// O candidato horizontal usa filhos de largura natural (`fullWidth: false`), não
+    /// `.infinity`: um filho `.infinity` sempre "cabe" pra `ViewThatFits` (sua largura mínima é
+    /// pequena mesmo que o conteúdo precise embrulhar depois de layout), o que fazia o
+    /// candidato horizontal ser escolhido mesmo quando o texto não ia caber de verdade,
+    /// resultando em uma pílula quebrando em duas linhas. Com largura natural, `ViewThatFits`
+    /// mede o tamanho real do conteúdo e só cai pro vertical quando genuinamente precisa.
+    @ViewBuilder
+    private func pairActionRow(for pair: LensPair, usedToday: Bool, isWearingHere: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppSpacing.sm) {
+                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere, fullWidth: false)
+            }
+            .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                pairActionRowContent(for: pair, usedToday: usedToday, isWearingHere: isWearingHere, fullWidth: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pairActionRowContent(for pair: LensPair, usedToday: Bool, isWearingHere: Bool, fullWidth: Bool) -> some View {
+        if usedToday {
+            StatusBadge(text: "Uso registrado hoje", tone: .success, systemImage: "checkmark.circle.fill", fullWidth: fullWidth)
+        } else {
+            PrimaryActionButton(title: "Registrar uso hoje", isDisabled: pair.hasReachedLimit, fullWidth: fullWidth) {
+                pairsViewModel.registerUsageToday(for: pair, side: pair.side, settings: settings, context: modelContext)
+            }
+        }
+        if pairsViewModel.wearingSessionPairID == nil || isWearingHere {
+            // Mesma família de cor (indigo) nos dois estados — a hierarquia vem do estilo
+            // preenchido vs. contornado, não de trocar para vermelho; vermelho fica reservado
+            // para crítico/destrutivo, e encerrar uma sessão de uso não é nem um nem outro.
+            // Preenchido quando é a única ação restante na linha (uso já registrado hoje);
+            // contornado quando "Registrar uso hoje" ainda disputa a atenção como ação primária —
+            // só um botão preenchido por vez, para não competir consigo mesmo.
+            let title = isWearingHere ? "Retirei as lentes" : "Estou usando as lentes"
+            if usedToday {
+                PrimaryActionButton(title: title, fullWidth: fullWidth) {
+                    handleWearingSessionToggle(for: pair)
                 }
-                if pairsViewModel.wearingSessionPairID == nil || isWearingHere {
-                    Spacer()
-                    Button {
-                        handleWearingSessionToggle(for: pair)
-                    } label: {
-                        Text(isWearingHere ? "Retirei as lentes" : "Estou usando as lentes")
-                            .font(.caption.weight(.medium))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tint(isWearingHere ? .red : .accentColor)
+            } else {
+                SecondaryActionButton(title: title, fullWidth: fullWidth) {
+                    handleWearingSessionToggle(for: pair)
                 }
             }
         }
@@ -436,6 +533,22 @@ struct HomeView: View {
         }
     }
 
+    /// Deliberadamente sem `AppCard` — teria o mesmo peso visual das ações principais. Isto é
+    /// uma confirmação silenciosa, não mais um cartão para competir por atenção.
+    private var everythingSettledRow: some View {
+        HStack(spacing: AppSpacing.xs) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(AppColor.success)
+                .accessibilityHidden(true)
+            Text("Você está com tudo em dia.")
+                .font(AppTypography.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, AppSpacing.xs)
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: - Lembretes
 
     /// Identidade estável por tipo de lembrete — usar `UUID()` recalculado a cada renderização
@@ -451,60 +564,74 @@ struct HomeView: View {
         let title: String
         let detail: String
         let tab: AppTab
+        /// `nil` quando o lembrete não tem uma contagem de dias própria (ex.: estoque, que é uma
+        /// contagem de caixas) — nesse caso ele nunca vira o item em destaque com anel.
+        var daysRemaining: Int? = nil
+        var tone: AppStatusTone = .informative
     }
 
+    /// Mais urgente primeiro (menor `daysRemaining`), para que o item em destaque do cartão seja
+    /// sempre o que precisa de mais atenção, não só o primeiro por ordem de inserção.
     private var reminderItems: [ReminderItem] {
         var items: [ReminderItem] = []
         if let activeCase {
-            items.append(ReminderItem(id: .lensCase, icon: "shippingbox", title: "Estojo", detail: caseReminderDetail(activeCase), tab: .cuidados))
+            let days = LensStatisticsService.daysUntil(activeCase.nextRecommendedReplacementDate)
+            items.append(ReminderItem(id: .lensCase, icon: "shippingbox", title: "Estojo", detail: caseReminderDetail(activeCase), tab: .cuidados, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if let activeSolution {
-            items.append(ReminderItem(id: .solution, icon: "flask", title: "Solução", detail: solutionReminderDetail(activeSolution), tab: .cuidados))
+            let days = LensStatisticsService.daysUntil(activeSolution.discardDate)
+            items.append(ReminderItem(id: .solution, icon: "flask", title: "Solução", detail: solutionReminderDetail(activeSolution), tab: .cuidados, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if let nextAppointment {
-            items.append(ReminderItem(id: .appointment, icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas))
+            let days = LensStatisticsService.daysUntil(nextAppointment.date)
+            items.append(ReminderItem(id: .appointment, icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if !expiringInventoryItems.isEmpty {
-            items.append(ReminderItem(id: .inventory, icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes))
+            items.append(ReminderItem(id: .inventory, icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes, tone: .warning))
         }
-        return items
+        return items.sorted { lhs, rhs in
+            switch (lhs.daysRemaining, rhs.daysRemaining) {
+            case let (l?, r?): return l < r
+            case (nil, _): return false
+            case (_, nil): return true
+            }
+        }
     }
 
+    private func reminderTone(daysRemaining: Int) -> AppStatusTone {
+        if daysRemaining <= 0 { return .critical }
+        if daysRemaining <= settings.advanceReminderDays { return .warning }
+        return .informative
+    }
+
+    /// O primeiro item (o mais urgente, após a ordenação acima) ganha o tratamento em destaque
+    /// com anel quando tem uma contagem de dias própria; os demais continuam como linha simples —
+    /// nenhuma informação é perdida, só o mais urgente ganha mais peso visual.
     private var remindersCard: some View {
-        SectionCard(title: "Lembretes") {
-            VStack(spacing: 10) {
-                ForEach(Array(reminderItems.enumerated()), id: \.element.id) { index, item in
-                    reminderRow(icon: item.icon, title: item.title, detail: item.detail, tab: item.tab)
-                    if index != reminderItems.count - 1 {
-                        Divider()
+        AppCard {
+            SectionHeader("Lembretes")
+            ForEach(Array(reminderItems.enumerated()), id: \.element.id) { index, item in
+                if index == 0, let days = item.daysRemaining {
+                    FeaturedReminderRow(
+                        systemImage: item.icon,
+                        title: item.title,
+                        detail: item.detail,
+                        ringValue: "\(abs(days))",
+                        ringFraction: min(max(Double(days) / 90, 0), 1),
+                        tone: item.tone
+                    ) {
+                        router.selectedTab = item.tab
+                    }
+                } else {
+                    ReminderCard(systemImage: item.icon, title: item.title, detail: item.detail, tone: item.tone) {
+                        router.selectedTab = item.tab
                     }
                 }
-            }
-        }
-    }
-
-    private func reminderRow(icon: String, title: String, detail: String, tab: AppTab) -> some View {
-        Button {
-            router.selectedTab = tab
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 20)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if index != reminderItems.count - 1 {
+                    Divider()
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
         }
-        .buttonStyle(.plain)
     }
 
     private func caseReminderDetail(_ lensCase: LensCase) -> String {
@@ -541,24 +668,6 @@ struct HomeView: View {
         guard router.pendingEndWearingSession else { return }
         router.pendingEndWearingSession = false
         await pairsViewModel.endWearingSession(context: modelContext)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            ContentUnavailableView(
-                "Nenhum par cadastrado",
-                systemImage: "eyeglasses",
-                description: Text("Vá para a aba Lentes para iniciar seu primeiro par.")
-            )
-            Button {
-                router.selectedTab = .lentes
-            } label: {
-                Label("Ir para Lentes", systemImage: "arrow.right.circle.fill")
-                    .font(.headline)
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(.top, 40)
     }
 }
 

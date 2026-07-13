@@ -51,21 +51,33 @@ struct LensPairsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: AppSpacing.md) {
                     inventoryLink
                     if finishedPairsCount > 0 {
                         pairHistoryLink
                     }
                     if inUsePairs.isEmpty && reservePairs.isEmpty {
-                        emptyState
+                        EmptyStateView(
+                            title: "Nenhum par cadastrado",
+                            systemImage: "eyeglasses",
+                            description: "Inicie um novo par de lentes para começar a registrar os usos.",
+                            actionTitle: "Iniciar novo par",
+                            actionSystemImage: "plus.circle.fill"
+                        ) {
+                            startNewPairSides = startableSides
+                            showStartNewPair = true
+                        }
+                        .padding(.top, AppSpacing.xl)
                     } else {
                         dashboardContent
                     }
                 }
                 .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+                .padding(.top, AppSpacing.xs)
+                .padding(.bottom, AppSpacing.sm)
             }
+            .tabBarScrollInset()
+            .background(AmbientBackground())
             .navigationTitle("Lentes")
             .task {
                 viewModel.refreshWearingSessionState(context: modelContext)
@@ -151,6 +163,9 @@ struct LensPairsView: View {
         }
     }
 
+    /// `NavigationLink`, não `ReminderCard`: é uma entrada de navegação, não uma ação — o
+    /// VoiceOver anuncia as duas de formas diferentes ("abre..." vs. "toque duplo para
+    /// ativar"), e essa distinção é real, não só estética.
     private var inventoryLink: some View {
         NavigationLink {
             LensInventoryView()
@@ -158,21 +173,21 @@ struct LensPairsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Label("Estoque de lentes", systemImage: "shippingbox")
-                        .font(.subheadline.weight(.medium))
+                        .font(AppTypography.subheadlineMedium)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.caption)
+                        .font(AppTypography.caption)
                         .foregroundStyle(.tertiary)
                 }
                 if !availableInventoryItems.isEmpty {
                     Text(inventorySummaryText)
-                        .font(.caption)
+                        .font(AppTypography.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, AppSpacing.xxs)
     }
 
     private var inventorySummaryText: String {
@@ -190,18 +205,18 @@ struct LensPairsView: View {
         } label: {
             HStack {
                 Label("Histórico de pares", systemImage: "clock.arrow.circlepath")
-                    .font(.subheadline.weight(.medium))
+                    .font(AppTypography.subheadlineMedium)
                 Spacer()
                 Text("\(finishedPairsCount)")
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
                 Image(systemName: "chevron.right")
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.tertiary)
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, AppSpacing.xxs)
     }
 
     @ViewBuilder
@@ -232,69 +247,47 @@ struct LensPairsView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            ContentUnavailableView(
-                "Nenhum par cadastrado",
-                systemImage: "eyeglasses",
-                description: Text("Inicie um novo par de lentes para começar a registrar os usos.")
-            )
-            Button {
-                startNewPairSides = startableSides
-                showStartNewPair = true
-            } label: {
-                Label("Iniciar novo par", systemImage: "plus.circle.fill")
-                    .font(.headline)
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(.top, 40)
-    }
-
     private var noPairInUseNotice: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: AppSpacing.sm) {
             Image(systemName: "tray.and.arrow.up")
                 .font(.title2)
                 .foregroundStyle(.secondary)
             Text("Nenhum par em uso")
-                .font(.headline)
+                .font(AppTypography.headline)
             Text("Ative uma das reservas abaixo, ou inicie um par novo pelo botão + no topo.")
-                .font(.footnote)
+                .font(AppTypography.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, AppSpacing.lg)
     }
 
     private var reservesSection: some View {
-        SectionCard(title: "Reservas") {
-            VStack(spacing: 10) {
-                ForEach(reservePairs) { pair in
-                    reserveRow(for: pair)
-                    if pair.id != reservePairs.last?.id {
-                        Divider()
-                    }
+        AppCard {
+            SectionHeader("Reservas")
+            ForEach(reservePairs) { pair in
+                reserveRow(for: pair)
+                if pair.id != reservePairs.last?.id {
+                    Divider()
                 }
             }
         }
     }
 
     private func reserveRow(for pair: LensPair) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppSpacing.sm) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(pair.name)
-                    .font(.subheadline.weight(.medium))
+                    .font(AppTypography.subheadlineMedium)
                 Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Usar agora") {
+            SecondaryActionButton(title: "Usar agora", fullWidth: false, compact: true) {
                 viewModel.promoteToInUse(pair, context: modelContext)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
             Menu {
                 Button("Editar par", systemImage: "pencil") { pairToEdit = pair }
                 Button("Ver diário do par", systemImage: "book.pages") { pairForDiary = pair }

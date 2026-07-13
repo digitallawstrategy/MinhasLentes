@@ -11,7 +11,7 @@ struct NotificationPermissionView: View {
 
             Image(systemName: "bell.badge")
                 .font(.system(size: 56))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(AppColor.primary)
                 .accessibilityHidden(true)
 
             VStack(spacing: 12) {

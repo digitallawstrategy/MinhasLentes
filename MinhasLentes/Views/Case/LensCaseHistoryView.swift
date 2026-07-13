@@ -34,7 +34,7 @@ struct LensCaseHistoryView: View {
                             Button("Editar") {
                                 caseToEdit = lensCase
                             }
-                            .tint(.blue)
+                            .tint(AppColor.primary)
                         }
                 }
             }
@@ -72,24 +72,24 @@ struct LensCaseHistoryView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(DateFormatting.short.string(from: lensCase.startDate))
-                    .font(.subheadline.weight(.medium))
+                    .font(AppTypography.subheadlineMedium)
                 Spacer()
                 Text(lensCase.status.displayName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(lensCase.status == .active ? Color.green : Color.secondary)
+                    .font(AppTypography.captionSemibold)
+                    .foregroundStyle(lensCase.status == .active ? AppColor.success : Color.secondary)
             }
             if let replacedAt = lensCase.replacedAt {
                 Text("Substituído em \(DateFormatting.short.string(from: replacedAt))")
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             } else {
                 Text("Substituição recomendada em \(DateFormatting.short.string(from: lensCase.nextRecommendedReplacementDate))")
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
             if let notes = lensCase.notes, !notes.isEmpty {
                 Text(notes)
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
             }
         }

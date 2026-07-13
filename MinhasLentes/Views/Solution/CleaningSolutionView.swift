@@ -29,8 +29,8 @@ struct CleaningSolutionView: View {
 
     private func solutionSituationText(_ days: Int) -> String {
         if days > 0 { return "Faltam \(days) dia(s)" }
-        if days == 0 { return "Validade recomendada para hoje" }
-        return "Validade recomendada há \(-days) dia(s)"
+        if days == 0 { return "Descarte recomendado para hoje" }
+        return "Descarte recomendado há \(-days) dia(s)"
     }
 
     var body: some View {
@@ -41,7 +41,7 @@ struct CleaningSolutionView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { solutionToDelete = activeSolution }
                                 Button("Editar") { solutionToEdit = activeSolution }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                         Button {
                             showStartOrReplaceSolution = true
@@ -50,7 +50,7 @@ struct CleaningSolutionView: View {
                         }
                     } else {
                         Text("Nenhum frasco de solução registrado ainda.")
-                            .font(.subheadline)
+                            .font(AppTypography.subheadline)
                             .foregroundStyle(.secondary)
                         Button {
                             showStartOrReplaceSolution = true
@@ -67,7 +67,7 @@ struct CleaningSolutionView: View {
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button("Excluir", role: .destructive) { solutionToDelete = solution }
                                     Button("Editar") { solutionToEdit = solution }
-                                        .tint(.blue)
+                                        .tint(AppColor.primary)
                                 }
                         }
                     }
@@ -124,19 +124,19 @@ struct CleaningSolutionView: View {
             Text("\(solution.brand) — \(solution.product)")
                 .font(.subheadline.weight(.semibold))
             Text("Aberto em \(DateFormatting.short.string(from: solution.openedDate))")
-                .font(.caption)
+                .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
             Text("Descarte recomendado em \(DateFormatting.short.string(from: solution.discardDate))")
-                .font(.caption)
+                .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
             if let daysUntilDiscard {
                 Text(solutionSituationText(daysUntilDiscard))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(daysUntilDiscard <= 0 ? Color.orange : Color.secondary)
+                    .font(AppTypography.captionMedium)
+                    .foregroundStyle(daysUntilDiscard <= 0 ? AppColor.warning : Color.secondary)
             }
             if let notes = solution.notes, !notes.isEmpty {
                 Text(notes)
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
             }
         }
@@ -147,23 +147,23 @@ struct CleaningSolutionView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("\(solution.brand) — \(solution.product)")
-                    .font(.subheadline.weight(.medium))
+                    .font(AppTypography.subheadlineMedium)
                 Spacer()
                 Text(solution.status.displayName)
-                    .font(.caption.weight(.semibold))
+                    .font(AppTypography.captionSemibold)
                     .foregroundStyle(.secondary)
             }
             Text("Aberto em \(DateFormatting.short.string(from: solution.openedDate))")
-                .font(.caption)
+                .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
             if let finishedAt = solution.finishedAt {
                 Text("Finalizado em \(DateFormatting.short.string(from: finishedAt))")
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
             if let notes = solution.notes, !notes.isEmpty {
                 Text(notes)
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
             }
         }

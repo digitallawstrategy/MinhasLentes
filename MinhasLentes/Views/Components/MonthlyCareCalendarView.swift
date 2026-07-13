@@ -64,10 +64,11 @@ struct MonthlyCareCalendarView: View {
                     Image(systemName: "chevron.left")
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Mês anterior")
 
                 Spacer()
                 Text(monthTitle)
-                    .font(.footnote.weight(.semibold))
+                    .font(AppTypography.footnote.weight(.semibold))
                 Spacer()
 
                 Button {
@@ -78,6 +79,7 @@ struct MonthlyCareCalendarView: View {
                 .buttonStyle(.plain)
                 .disabled(isCurrentMonth)
                 .opacity(isCurrentMonth ? 0.3 : 1)
+                .accessibilityLabel("Próximo mês")
             }
 
             LazyVGrid(columns: columns, spacing: 6) {
@@ -93,8 +95,8 @@ struct MonthlyCareCalendarView: View {
 
             if !secondaryLoggedDates.isEmpty {
                 HStack(spacing: 12) {
-                    legendItem(color: .accentColor, label: "Cuidado diário")
-                    legendItem(color: .orange, label: "Limpeza periódica")
+                    legendItem(color: AppColor.primary, label: "Cuidado diário")
+                    legendItem(color: AppColor.secondary, label: "Limpeza periódica")
                 }
                 .padding(.top, 2)
             }
@@ -104,10 +106,12 @@ struct MonthlyCareCalendarView: View {
     private func legendItem(color: Color, label: String) -> some View {
         HStack(spacing: 4) {
             Circle().fill(color).frame(width: 6, height: 6)
+                .accessibilityHidden(true)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -118,7 +122,7 @@ struct MonthlyCareCalendarView: View {
             let isFuture = date > Date()
             ZStack(alignment: .bottomTrailing) {
                 Circle()
-                    .fill(isLogged ? Color.accentColor : Color.clear)
+                    .fill(isLogged ? AppColor.primary : Color.clear)
                     .overlay(
                         Circle().strokeBorder(isFuture ? Color.clear : Color.secondary.opacity(0.35), lineWidth: 1)
                     )
@@ -130,15 +134,38 @@ struct MonthlyCareCalendarView: View {
                     )
                 if isSecondaryLogged {
                     Circle()
-                        .fill(Color.orange)
+                        .fill(AppColor.secondary)
                         .frame(width: 7, height: 7)
                         .overlay(Circle().strokeBorder(.background, lineWidth: 1))
                 }
             }
             .frame(width: 24, height: 24)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(dayAccessibilityLabel(date))
+            .accessibilityValue(dayAccessibilityValue(isLogged: isLogged, isSecondaryLogged: isSecondaryLogged, isFuture: isFuture))
         } else {
             Color.clear.frame(width: 24, height: 24)
+                .accessibilityHidden(true)
         }
+    }
+
+    /// Dia + mês por extenso — o mês exibido já dá contexto suficiente sem precisar repetir o
+    /// ano em toda célula.
+    private func dayAccessibilityLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.dateFormat = "d 'de' MMMM"
+        return formatter.string(from: date)
+    }
+
+    /// Cor sozinha nunca é a única forma de saber se um dia tem registro — isto é o equivalente
+    /// em texto do preenchimento/marcador que a célula já mostra visualmente.
+    private func dayAccessibilityValue(isLogged: Bool, isSecondaryLogged: Bool, isFuture: Bool) -> String {
+        if isFuture { return "Dia futuro" }
+        var parts: [String] = []
+        if isLogged { parts.append("Cuidado diário registrado") }
+        if isSecondaryLogged { parts.append("Limpeza periódica registrada") }
+        return parts.isEmpty ? "Sem registro" : parts.joined(separator: ", ")
     }
 
     private func changeMonth(by value: Int) {

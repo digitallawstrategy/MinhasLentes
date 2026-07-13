@@ -23,6 +23,9 @@ struct MinhasLentesApp: App {
             // (nunca apagando) os dados reais atrás dela. Corrige isso antes de qualquer View
             // aparecer, para nunca mostrar o onboarding por engano a quem já usa o app.
             Self.migrateOnboardingFlagIfNeeded(container: container)
+            #if DEBUG
+            Self.applyUITestArgumentsIfNeeded(container: container)
+            #endif
         } catch {
             // Falha ao abrir o armazenamento local (ex.: disco cheio, arquivo corrompido).
             // Em vez de encerrar o processo com fatalError, mostramos uma tela explicando o
@@ -41,6 +44,22 @@ struct MinhasLentesApp: App {
         settings.hasCompletedOnboarding = true
         try? context.save()
     }
+
+    #if DEBUG
+    /// Só existe em build DEBUG (não compila em release). Roda contra o `ModelContainer`
+    /// isolado em memória que `AppContainer.shared()` já retorna quando qualquer um dos dois
+    /// argumentos de `UITestSupport` está presente — nunca é o armazenamento real do App Group.
+    /// A lógica de cada argumento fica em `UITestSupport`, testável direto por unidade; aqui só
+    /// decide qual chamar.
+    private static func applyUITestArgumentsIfNeeded(container: ModelContainer) {
+        let context = container.mainContext
+        if UITestSupport.isSeedPreviewDataRequested() {
+            try? UITestSupport.seedPreviewData(context: context)
+        } else if UITestSupport.isSkipOnboardingRequested() {
+            try? UITestSupport.applySkipOnboarding(context: context)
+        }
+    }
+    #endif
 
     var body: some Scene {
         WindowGroup {

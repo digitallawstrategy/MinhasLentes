@@ -34,14 +34,14 @@ struct EyeCareView: View {
         List {
             Section {
                 Text("Siga sempre a recomendação do seu oftalmologista. Este aplicativo não sugere diagnóstico — apenas ajuda a acompanhar contatos e prazos.")
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
             }
 
             Section("Profissionais") {
                 if professionals.isEmpty {
                     Text("Nenhum profissional cadastrado.")
-                        .font(.subheadline)
+                        .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(professionals) { professional in
@@ -49,7 +49,7 @@ struct EyeCareView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { professionalToDelete = professional }
                                 Button("Editar") { professionalToEdit = professional }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                     }
                 }
@@ -63,7 +63,7 @@ struct EyeCareView: View {
             Section("Consultas agendadas") {
                 if scheduledAppointments.isEmpty {
                     Text("Nenhuma consulta agendada.")
-                        .font(.subheadline)
+                        .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(scheduledAppointments) { appointment in
@@ -71,15 +71,15 @@ struct EyeCareView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                                 Button("Cancelar") {
                                     Task { await viewModel.cancelAppointment(appointment, context: modelContext) }
                                 }
-                                .tint(.orange)
+                                .tint(AppColor.warning)
                                 Button("Realizada") {
                                     Task { await viewModel.markCompleted(appointment, context: modelContext) }
                                 }
-                                .tint(.green)
+                                .tint(AppColor.success)
                             }
                     }
                 }
@@ -97,7 +97,7 @@ struct EyeCareView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }
-                                    .tint(.blue)
+                                    .tint(AppColor.primary)
                             }
                     }
                 }
@@ -173,10 +173,10 @@ struct EyeCareView: View {
     private func professionalRow(for professional: EyeCareProfessional) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(professional.name)
-                .font(.subheadline.weight(.medium))
+                .font(AppTypography.subheadlineMedium)
             if let clinic = professional.clinic, !clinic.isEmpty {
                 Text(clinic)
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 20) {
@@ -186,7 +186,7 @@ struct EyeCareView: View {
                     } label: {
                         Label("Ligar", systemImage: "phone.fill")
                     }
-                    .font(.caption)
+                    .font(AppTypography.caption)
                 }
                 if let whatsapp = professional.whatsapp, !whatsapp.isEmpty {
                     Button {
@@ -194,7 +194,7 @@ struct EyeCareView: View {
                     } label: {
                         Label("WhatsApp", systemImage: "message.fill")
                     }
-                    .font(.caption)
+                    .font(AppTypography.caption)
                 }
                 if let address = professional.address, !address.isEmpty {
                     Button {
@@ -202,7 +202,7 @@ struct EyeCareView: View {
                     } label: {
                         Label("Mapas", systemImage: "map.fill")
                     }
-                    .font(.caption)
+                    .font(AppTypography.caption)
                 }
             }
             .buttonStyle(.borderless)
@@ -215,23 +215,23 @@ struct EyeCareView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(appointment.type.displayName)
-                    .font(.subheadline.weight(.medium))
+                    .font(AppTypography.subheadlineMedium)
                 Spacer()
                 Text(appointment.status.displayName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(appointment.status == .scheduled ? Color.accentColor : .secondary)
+                    .font(AppTypography.captionSemibold)
+                    .foregroundStyle(appointment.status == .scheduled ? AppColor.primary : .secondary)
             }
             Text(DateFormatting.shortWithTime.string(from: appointment.date))
-                .font(.caption)
+                .font(AppTypography.caption)
                 .foregroundStyle(.secondary)
             if let professional = appointment.professional {
                 Text(professional.name)
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
             if let notes = appointment.notes, !notes.isEmpty {
                 Text(notes)
-                    .font(.footnote)
+                    .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
             }
         }

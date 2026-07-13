@@ -62,9 +62,9 @@ struct TrashView: View {
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(pair.name)
-                    .font(.subheadline.weight(.medium))
+                    .font(AppTypography.subheadlineMedium)
                 Text("Excluído para sempre em \(daysLeft) dia(s), a menos que restaurado")
-                    .font(.caption)
+                    .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()

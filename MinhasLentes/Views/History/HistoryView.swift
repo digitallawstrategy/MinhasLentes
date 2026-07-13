@@ -34,13 +34,13 @@ struct HistoryView: View {
             if let pair = viewModel.pair(for: event, context: modelContext) {
                 Button("Mover para a lixeira", role: .destructive) { viewModel.pairToTrash = pair }
                 Button("Editar par") { viewModel.pairToEdit = pair }
-                    .tint(.blue)
+                    .tint(AppColor.primary)
             }
         case .pairFinished:
             if let pair = viewModel.pair(for: event, context: modelContext), pair.status == .finished {
                 Button("Mover para a lixeira", role: .destructive) { viewModel.pairToTrash = pair }
                 Button("Reabrir par") { viewModel.pairToReopen = pair }
-                    .tint(.green)
+                    .tint(AppColor.success)
             }
         default:
             Button("Excluir", role: .destructive) {
@@ -76,7 +76,7 @@ struct HistoryView: View {
                                                 Button("Editar") {
                                                     viewModel.editingUsage = usage
                                                 }
-                                                .tint(.blue)
+                                                .tint(AppColor.primary)
                                             } else if let cleaning = item.underlyingCleaning {
                                                 Button("Excluir", role: .destructive) {
                                                     viewModel.cleaningToDelete = cleaning
@@ -84,7 +84,7 @@ struct HistoryView: View {
                                                 Button("Editar") {
                                                     viewModel.cleaningToEdit = cleaning
                                                 }
-                                                .tint(.blue)
+                                                .tint(AppColor.primary)
                                             } else if let routineCare = item.underlyingRoutineCare {
                                                 Button("Excluir", role: .destructive) {
                                                     viewModel.routineCareToDelete = routineCare
@@ -92,7 +92,7 @@ struct HistoryView: View {
                                                 Button("Editar") {
                                                     viewModel.routineCareToEdit = routineCare
                                                 }
-                                                .tint(.blue)
+                                                .tint(AppColor.primary)
                                             } else if let event = item.underlyingEvent {
                                                 eventSwipeActions(for: event)
                                             }
