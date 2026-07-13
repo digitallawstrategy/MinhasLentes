@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 #if DEBUG
 /// Suporte a validação visual automatizada (Codex/Xcode abrindo o app direto na Home, sem
@@ -28,6 +29,7 @@ import SwiftData
 enum UITestSupport {
     private static let skipOnboardingArgument = "-UITestSkipOnboarding"
     private static let seedPreviewDataArgument = "-UITestSeedPreviewData"
+    private static let seedPendingItemsPreviewDataArgument = "-UITestSeedPendingItemsPreviewData"
     private static let selectedTabArgument = "-UITestSelectedTab"
     private static let openRouteArgument = "-UITestOpenRoute"
 
@@ -43,11 +45,19 @@ enum UITestSupport {
         arguments.contains(seedPreviewDataArgument)
     }
 
-    /// `true` se qualquer um dos dois argumentos estiver presente — `AppContainer` usa isto
+    /// Variante de `isSeedPreviewDataRequested` que produz o estado "com pendências" da central
+    /// de avisos — ver `seedPendingItemsPreviewData`.
+    static func isSeedPendingItemsPreviewDataRequested(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        arguments.contains(seedPendingItemsPreviewDataArgument)
+    }
+
+    /// `true` se qualquer um dos três argumentos estiver presente — `AppContainer` usa isto
     /// para decidir se abre o armazenamento real do App Group ou um isolado em memória; nenhum
-    /// dos dois fluxos de validação visual deve chegar perto de dado real.
+    /// dos fluxos de validação visual deve chegar perto de dado real.
     static func isUITestRun(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
-        isSkipOnboardingRequested(arguments: arguments) || isSeedPreviewDataRequested(arguments: arguments)
+        isSkipOnboardingRequested(arguments: arguments)
+            || isSeedPreviewDataRequested(arguments: arguments)
+            || isSeedPendingItemsPreviewDataRequested(arguments: arguments)
     }
 
     /// `-UITestSelectedTab <home|lentes|cuidados|consultas|settings>` — só existe para permitir
@@ -80,6 +90,14 @@ enum UITestSupport {
         case solucao
         case historico
         case estojo
+        /// Abre `NotificationsCenterView` a partir da Home (o sino).
+        case notificacoes
+        /// Abre `AppointmentDetailView` para a consulta semeada por `seedPreviewData`, a partir
+        /// da aba Consultas.
+        case consultaDetalhe
+        /// Abre `LensInventoryItemDetailView` para o item semeado por `seedPreviewData`, a
+        /// partir de Estoque (dentro de Lentes) — precisa de `-UITestSelectedTab lentes`.
+        case estoqueDetalhe
     }
 
     static func requestedRoute(arguments: [String] = ProcessInfo.processInfo.arguments) -> Route? {
@@ -163,13 +181,96 @@ enum UITestSupport {
         context.insert(LensInventoryItem(
             brand: "Marca de exemplo",
             model: "Lentes de reserva",
+            prescriptionOD: "-2.00",
+            prescriptionOS: "-1.75",
             side: .both,
+            lot: "L2026",
             expiryDate: inventoryExpiryDate,
-            initialQuantity: 4
+            initialQuantity: 4,
+            photoData: placeholderImageData(color: .systemGreen),
+            notes: "Comprada na ótica de exemplo."
+        ))
+
+        // Profissional + consulta com receita e anexo, para a tela de detalhe de consulta
+        // (`-UITestOpenRoute consultaDetalhe`) ter conteúdo real para capturar.
+        let professional = EyeCareProfessional(name: "Dra. Exemplo", clinic: "Clínica de exemplo")
+        context.insert(professional)
+        let appointmentDate = calendar.date(byAdding: .day, value: 20, to: referenceDate) ?? referenceDate
+        context.insert(EyeAppointment(
+            date: appointmentDate,
+            type: .routine,
+            notes: "Trazer óculos atuais.",
+            prescription: "OD -2.00 / OE -1.75",
+            attachmentData: placeholderImageData(color: .systemBlue),
+            recommendedFollowUpMonths: 12,
+            professional: professional
         ))
 
         try context.save()
         return pair
+    }
+
+    /// Segunda seed, independente de `seedPreviewData`: propositalmente NÃO registra o cuidado
+    /// diário de hoje e mantém uma sessão de uso ativa mais antiga que `wearingReminderHours` —
+    /// produz o estado "com pendências" da central de avisos (`-UITestOpenRoute notificacoes`),
+    /// já que `seedPreviewData` sozinha sempre produz "tudo em dia". Mesmo idempotência por nome
+    /// de par que `seedPreviewData`.
+    @discardableResult
+    static func seedPendingItemsPreviewData(context: ModelContext, referenceDate: Date = Date()) throws -> LensPair {
+        let calendar = Calendar.current
+
+        let existingDescriptor = FetchDescriptor<LensPair>(
+            predicate: #Predicate { $0.name == "Par nº 1" && $0.sequenceNumber == 1 }
+        )
+        if let existing = try context.fetch(existingDescriptor).first {
+            return existing
+        }
+
+        let settings = try AppSettingsStore.currentSettings(context: context)
+        settings.hasCompletedOnboarding = true
+
+        let pairStartDate = calendar.date(byAdding: .day, value: -2, to: referenceDate) ?? referenceDate
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: referenceDate) ?? referenceDate
+
+        let pair = LensPair(
+            name: seededPairName,
+            sequenceNumber: 1,
+            startDate: pairStartDate,
+            maximumUses: 60,
+            trackingMode: .pair,
+            side: .both
+        )
+        context.insert(pair)
+        context.insert(LensUsage(date: yesterday, side: .both, lensPair: pair))
+        context.insert(LensUsage(date: referenceDate, side: .both, lensPair: pair))
+
+        // Sem RoutineCareLog de hoje, de propósito — é a pendência de "cuidado diário".
+        context.insert(LensCase(startDate: referenceDate, intervalDays: 89))
+        context.insert(CaseCleaning(cleaningDate: referenceDate))
+        context.insert(CleaningSolution(
+            brand: "Marca de exemplo",
+            product: "Solução multiuso",
+            openedDate: referenceDate,
+            postOpeningShelfLifeDays: 90
+        ))
+        // 10h atrás: excede o `wearingReminderHours` padrão (8h) — é a pendência de "sessão de
+        // uso excessiva".
+        let sessionStart = calendar.date(byAdding: .hour, value: -10, to: referenceDate) ?? referenceDate
+        context.insert(WearSession(startedAt: sessionStart, lensPair: pair))
+
+        try context.save()
+        return pair
+    }
+
+    /// Imagem sólida pequena, só para a validação visual ter algo real para renderizar nas telas
+    /// de detalhe (foto de receita/caixa) — nunca usada fora de build DEBUG.
+    private static func placeholderImageData(color: UIColor) -> Data? {
+        let size = CGSize(width: 200, height: 200)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            color.setFill()
+            UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+        }.pngData()
     }
 }
 #endif

@@ -17,6 +17,9 @@ struct EyeCareView: View {
     @State private var showScheduleAppointment = false
     @State private var appointmentToEdit: EyeAppointment?
     @State private var appointmentToDelete: EyeAppointment?
+    #if DEBUG
+    @State private var uiTestShowAppointmentDetail = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -154,6 +157,18 @@ struct EyeCareView: View {
         .tabBarScrollInset()
         .background(AmbientBackground())
         .navigationTitle("Consultas")
+        #if DEBUG
+        .task {
+            if UITestSupport.requestedRoute() == .consultaDetalhe {
+                uiTestShowAppointmentDetail = true
+            }
+        }
+        .navigationDestination(isPresented: $uiTestShowAppointmentDetail) {
+            if let appointment = appointments.first {
+                AppointmentDetailView(appointment: appointment, professionals: professionals, settings: settings, viewModel: viewModel)
+            }
+        }
+        #endif
         .sheet(isPresented: $showAddProfessional) {
             AddOrEditProfessionalSheet(professional: nil) { name, clinic, phone, whatsapp, email, address, notes in
                 viewModel.addProfessional(name: name, clinic: clinic, phone: phone, whatsapp: whatsapp, email: email, address: address, notes: notes, context: modelContext)

@@ -13,6 +13,9 @@ struct LensInventoryView: View {
     @State private var showAddItem = false
     @State private var itemToEdit: LensInventoryItem?
     @State private var itemToDelete: LensInventoryItem?
+    #if DEBUG
+    @State private var uiTestShowItemDetail = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -107,6 +110,18 @@ struct LensInventoryView: View {
         .background(AmbientBackground())
         .navigationTitle("Estoque de lentes")
         .navigationBarTitleDisplayMode(.inline)
+        #if DEBUG
+        .task {
+            if UITestSupport.requestedRoute() == .estoqueDetalhe {
+                uiTestShowItemDetail = true
+            }
+        }
+        .navigationDestination(isPresented: $uiTestShowItemDetail) {
+            if let item = items.first {
+                LensInventoryItemDetailView(item: item, settings: settings, viewModel: viewModel)
+            }
+        }
+        #endif
         .sheet(isPresented: $showAddItem) {
             AddOrEditLensInventoryItemSheet(item: nil) { brand, model, od, os, side, lot, expiry, initialQuantity, _, photo, notes in
                 Task {

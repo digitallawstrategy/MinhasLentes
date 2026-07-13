@@ -96,7 +96,7 @@ struct LensPairsView: View {
                 viewModel.refreshWearingSessionState(context: modelContext)
                 openPendingPairIfNeeded()
                 #if DEBUG
-                if UITestSupport.requestedRoute() == .estoque {
+                if UITestSupport.requestedRoute() == .estoque || UITestSupport.requestedRoute() == .estoqueDetalhe {
                     uiTestShowInventory = true
                 }
                 #endif

@@ -188,6 +188,11 @@ struct HomeView: View {
         .task {
             pairsViewModel.refreshWearingSessionState(context: modelContext)
             await endPendingWearingSessionIfNeeded()
+            #if DEBUG
+            if UITestSupport.requestedRoute() == .notificacoes {
+                showNotificationsCenter = true
+            }
+            #endif
         }
         .onChange(of: router.pendingEndWearingSession) { _, _ in
             Task { await endPendingWearingSessionIfNeeded() }
