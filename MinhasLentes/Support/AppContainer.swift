@@ -38,7 +38,7 @@ enum AppContainer {
                 // Activity a partir do mesmo arquivo, nem `AppMigrationPlan` contra um banco
                 // pré-existente de uma versão anterior — para essas verificações, é preciso rodar
                 // sem nenhum dos dois argumentos, contra o armazenamento real.
-                configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
             } else {
                 configuration = try Self.realConfiguration(schema: schema)
             }
@@ -59,6 +59,11 @@ enum AppContainer {
         // a Live Activity (processos separados) consigam ler os mesmos dados.
         let url = try AppGroup.storeURL()
         AppGroup.migrateLegacyStoreIfNeeded(to: url)
-        return ModelConfiguration(schema: schema, url: url)
+        // `cloudKitDatabase: .none` explícito — o padrão de `ModelConfiguration` é `.automatic`,
+        // que (agora que o app tem o entitlement de CloudKit) tentaria sincronizar este store
+        // sozinho. Este é o store legado, local-only, que nunca deve sincronizar por si — o
+        // store com CloudKit é um arquivo separado, deliberadamente, para nunca arriscar os
+        // dados já existentes de quem já tem o app instalado (ver `CloudSyncMigrationService`).
+        return ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
     }
 }

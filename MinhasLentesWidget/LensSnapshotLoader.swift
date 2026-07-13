@@ -87,7 +87,11 @@ enum LensSnapshotLoader {
             WearSession.self, HistoryEvent.self, RoutineCareLog.self, LensInventoryItem.self,
         ])
         let url = try AppGroup.storeURL()
-        let configuration = ModelConfiguration(schema: schema, url: url)
+        // `cloudKitDatabase: .none` explícito, por clareza e defesa: este alvo (extensão do
+        // widget) não tem o entitlement de CloudKit hoje, mas deixar implícito dependeria disso
+        // continuar assim para sempre — o padrão de `ModelConfiguration` é `.automatic`, não
+        // `.none`.
+        let configuration = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         cachedContainer = container
         return container

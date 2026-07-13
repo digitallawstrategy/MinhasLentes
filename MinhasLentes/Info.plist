@@ -13,5 +13,12 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Necessário para o CloudKit entregar notificações push silenciosas de sincronização em
+	     segundo plano — sem isto, o mirroring do SwiftData/CloudKit só atualiza quando o app está
+	     em primeiro plano. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>
