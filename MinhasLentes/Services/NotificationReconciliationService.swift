@@ -98,6 +98,15 @@ enum NotificationReconciliationService {
             }
         }
 
+        if let hasCareToday = attemptFetch("o cuidado diário", context: context, { try RoutineCareService.hasCareToday(context: context) }) {
+            await NotificationManager.shared.cancelDailyCareReminderNotification()
+            if !hasCareToday {
+                await attempt("cuidado diário", context: context) {
+                    try await NotificationManager.shared.scheduleDailyCareReminderIfNeeded(settings: settings)
+                }
+            }
+        }
+
         WidgetCenter.shared.reloadAllTimelines()
         do {
             try context.save()

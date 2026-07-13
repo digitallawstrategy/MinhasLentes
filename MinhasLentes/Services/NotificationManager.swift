@@ -28,6 +28,8 @@ final class NotificationManager: NSObject {
     nonisolated static let caseDueIdentifier = "estojo.substituicao.dia-recomendado"
     nonisolated static let caseOverdueRepeatIdentifier = "estojo.substituicao.lembrete-periodico"
 
+    nonisolated static let dailyCareReminderIdentifier = "cuidado-diario.lembrete"
+
     nonisolated static let solution30DayIdentifier = "solucao.aviso-30dias"
     nonisolated static let solution7DayIdentifier = "solucao.aviso-7dias"
     nonisolated static let solutionDueIdentifier = "solucao.dia-descarte"
@@ -634,6 +636,51 @@ final class NotificationManager: NSObject {
         }
     }
 
+    // MARK: - Cuidado diário do estojo
+
+    /// Cancela o lembrete de cuidado diário pendente, se houver.
+    func cancelDailyCareReminderNotification() async {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.dailyCareReminderIdentifier])
+    }
+
+    /// Idempotente — seguro chamar toda vez que o app abre ou volta ao primeiro plano: não
+    /// agenda duplicado se já houver um pendente. Gatilho diário fixo na hora configurada
+    /// (`UNCalendarNotificationTrigger` com `repeats: true`, diferente do intervalo repetitivo
+    /// usado em estojo/solução vencidos) — dispara todo dia até ser cancelado.
+    ///
+    /// Limite conhecido, deliberado: como o gatilho é diário e recorrente, ele só é
+    /// cancelado quando `RoutineCareViewModel` registra o cuidado do dia (ou na próxima
+    /// reconciliação, se o app não estiver aberto nesse momento) — não há garantia de
+    /// re-agendamento exato à meia-noite; o próximo cold launch ou retorno de foreground é quem
+    /// re-arma o lembrete do dia seguinte, mesmo padrão best-effort já usado em
+    /// `refreshOverdueCaseReminder`/`refreshWearingExcessiveRepeatReminder`.
+    func scheduleDailyCareReminderIfNeeded(settings: AppSettings) async throws {
+        guard settings.dailyCareReminderEnabled else { return }
+        guard await authorizationStatus() == .authorized else {
+            throw NotificationError.authorizationDenied
+        }
+
+        let pending = await pendingNotifications()
+        guard !pending.contains(where: { $0.identifier == Self.dailyCareReminderIdentifier }) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Cuidado diário"
+        content.body = "Você ainda não registrou o cuidado diário do estojo hoje."
+        if settings.soundEnabled { content.sound = .default }
+        if settings.badgeEnabled { content.badge = 1 }
+
+        var components = DateComponents()
+        components.hour = settings.dailyCareReminderHour
+        components.minute = 0
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        let request = UNNotificationRequest(identifier: Self.dailyCareReminderIdentifier, content: content, trigger: trigger)
+        do {
+            try await center.add(request)
+        } catch {
+            throw NotificationError.schedulingFailed(error.localizedDescription)
+        }
+    }
+
     /// Abre a tela de Ajustes do aplicativo no iOS, usada quando as notificações do sistema
     /// estão desativadas.
     func openSystemSettings() {
@@ -739,6 +786,8 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 // Identificadores de consulta são por consulta (`consulta.<uuid>.<marco>`).
                 AppRouter.shared.openConsultas()
             case let id where wearingIdentifiers.contains(id):
+                AppRouter.shared.openHome()
+            case Self.dailyCareReminderIdentifier:
                 AppRouter.shared.openHome()
             default:
                 break

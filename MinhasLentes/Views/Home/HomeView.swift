@@ -64,7 +64,7 @@ struct HomeView: View {
     /// (relógio errado, engano de data em "Registrar em outro dia") ordenaria antes do de hoje e
     /// faria o app deixar de perceber um cuidado diário já feito hoje.
     private var hasRoutineCareToday: Bool {
-        routineCareLogs.contains { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
+        RoutineCareService.hasCare(onSameDayAs: Date(), in: routineCareLogs)
     }
 
     /// Mesma janela usada por `TodayCareCardView` para decidir se a limpeza periódica precisa
