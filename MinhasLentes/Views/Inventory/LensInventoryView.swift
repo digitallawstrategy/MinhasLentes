@@ -100,23 +100,23 @@ struct LensInventoryView: View {
         .navigationTitle("Estoque de lentes")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddItem) {
-            AddOrEditLensInventoryItemSheet(item: nil) { brand, model, od, os, side, lot, expiry, quantity, photo, notes in
+            AddOrEditLensInventoryItemSheet(item: nil) { brand, model, od, os, side, lot, expiry, initialQuantity, _, photo, notes in
                 Task {
                     await viewModel.addItem(
                         brand: brand, model: model, prescriptionOD: od, prescriptionOS: os, side: side,
-                        lot: lot, expiryDate: expiry, initialQuantity: quantity, photoData: photo, notes: notes,
+                        lot: lot, expiryDate: expiry, initialQuantity: initialQuantity, photoData: photo, notes: notes,
                         settings: settings, context: modelContext
                     )
                 }
             }
         }
         .sheet(item: $itemToEdit) { item in
-            AddOrEditLensInventoryItemSheet(item: item) { brand, model, od, os, side, lot, expiry, quantity, photo, notes in
+            AddOrEditLensInventoryItemSheet(item: item) { brand, model, od, os, side, lot, expiry, initialQuantity, remainingQuantity, photo, notes in
                 Task {
                     await viewModel.editItem(
                         item, brand: brand, model: model, prescriptionOD: od, prescriptionOS: os, side: side,
-                        lot: lot, expiryDate: expiry, remainingQuantity: quantity, photoData: photo, notes: notes,
-                        settings: settings, context: modelContext
+                        lot: lot, expiryDate: expiry, initialQuantity: initialQuantity, remainingQuantity: remainingQuantity,
+                        photoData: photo, notes: notes, settings: settings, context: modelContext
                     )
                 }
             }

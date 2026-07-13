@@ -8,7 +8,7 @@ struct AddOrEditLensInventoryItemSheet: View {
     let item: LensInventoryItem?
     let onSave: (
         _ brand: String, _ model: String, _ prescriptionOD: String?, _ prescriptionOS: String?, _ side: LensSide,
-        _ lot: String?, _ expiryDate: Date?, _ quantity: Int, _ photoData: Data?, _ notes: String?
+        _ lot: String?, _ expiryDate: Date?, _ initialQuantity: Int, _ remainingQuantity: Int, _ photoData: Data?, _ notes: String?
     ) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -20,12 +20,17 @@ struct AddOrEditLensInventoryItemSheet: View {
     @State private var lot: String
     @State private var hasExpiryDate: Bool
     @State private var expiryDate: Date
-    @State private var quantity: Int
+    /// Em criação, é a única quantidade (o item nasce com restante == inicial). Em edição, é a
+    /// quantidade total corrigível — `remainingQuantity` abaixo nunca pode passar dela (ver
+    /// `.onChange` no corpo), o que torna um estado como "5 de 1" impossível de digitar na UI,
+    /// não só bloqueado depois no serviço.
+    @State private var initialQuantity: Int
+    @State private var remainingQuantity: Int
     @State private var notes: String
     @State private var photoData: Data?
     @State private var photoPickerItem: PhotosPickerItem?
 
-    init(item: LensInventoryItem?, onSave: @escaping (String, String, String?, String?, LensSide, String?, Date?, Int, Data?, String?) -> Void) {
+    init(item: LensInventoryItem?, onSave: @escaping (String, String, String?, String?, LensSide, String?, Date?, Int, Int, Data?, String?) -> Void) {
         self.item = item
         self.onSave = onSave
         _brand = State(initialValue: item?.brand ?? "")
@@ -36,7 +41,8 @@ struct AddOrEditLensInventoryItemSheet: View {
         _lot = State(initialValue: item?.lot ?? "")
         _hasExpiryDate = State(initialValue: item?.expiryDate != nil)
         _expiryDate = State(initialValue: item?.expiryDate ?? Date())
-        _quantity = State(initialValue: item?.remainingQuantity ?? 1)
+        _initialQuantity = State(initialValue: item?.initialQuantity ?? 1)
+        _remainingQuantity = State(initialValue: item?.remainingQuantity ?? 1)
         _notes = State(initialValue: item?.notes ?? "")
         _photoData = State(initialValue: item?.photoData)
     }
@@ -67,7 +73,17 @@ struct AddOrEditLensInventoryItemSheet: View {
                 }
 
                 Section {
-                    Stepper(isEditing ? "Quantidade restante: \(quantity)" : "Quantidade inicial: \(quantity)", value: $quantity, in: 0...100)
+                    if isEditing {
+                        Stepper("Quantidade total: \(initialQuantity)", value: $initialQuantity, in: 1...100)
+                        Stepper("Quantidade restante: \(remainingQuantity)", value: $remainingQuantity, in: 0...initialQuantity)
+                    } else {
+                        Stepper("Quantidade inicial: \(initialQuantity)", value: $initialQuantity, in: 1...100)
+                    }
+                }
+                .onChange(of: initialQuantity) { _, newValue in
+                    if remainingQuantity > newValue {
+                        remainingQuantity = newValue
+                    }
                 }
 
                 Section("Foto (opcional)") {
@@ -97,10 +113,12 @@ struct AddOrEditLensInventoryItemSheet: View {
                         onSave(
                             brand.isEmpty ? "Lente" : brand, model, prescriptionOD.isEmpty ? nil : prescriptionOD,
                             prescriptionOS.isEmpty ? nil : prescriptionOS, side, lot.isEmpty ? nil : lot,
-                            hasExpiryDate ? expiryDate : nil, quantity, photoData, notes.isEmpty ? nil : notes
+                            hasExpiryDate ? expiryDate : nil, initialQuantity, isEditing ? remainingQuantity : initialQuantity,
+                            photoData, notes.isEmpty ? nil : notes
                         )
                         dismiss()
                     }
+                    .disabled(isEditing && remainingQuantity > initialQuantity)
                 }
             }
             .task(id: photoPickerItem) {

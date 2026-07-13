@@ -150,7 +150,7 @@ struct LensPairsView: View {
                     defaultMaximumUses: settings.maximumUses,
                     availableSides: startNewPairSides,
                     availableInventoryItems: availableInventoryItems
-                ) { name, startDate, maximumUses, side, asReserve, inventoryItem in
+                ) { name, startDate, maximumUses, side, asReserve, inventorySelections in
                     Task {
                         await viewModel.startNewPair(
                             name: name,
@@ -159,7 +159,7 @@ struct LensPairsView: View {
                             trackingMode: settings.trackingMode,
                             side: side,
                             asReserve: asReserve,
-                            inventoryItem: inventoryItem,
+                            inventorySelections: inventorySelections,
                             context: modelContext
                         )
                     }
