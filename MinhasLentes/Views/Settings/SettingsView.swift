@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var showFileImporter = false
     #if DEBUG
     @State private var uiTestShowHistory = false
+    @State private var uiTestShowDados = false
     #endif
 
     private var settings: AppSettings {
@@ -74,11 +75,17 @@ struct SettingsView: View {
                 if UITestSupport.requestedRoute() == .historico {
                     uiTestShowHistory = true
                 }
+                if UITestSupport.requestedRoute() == .dados {
+                    uiTestShowDados = true
+                }
                 #endif
             }
             #if DEBUG
             .navigationDestination(isPresented: $uiTestShowHistory) {
                 HistoryView()
+            }
+            .navigationDestination(isPresented: $uiTestShowDados) {
+                dadosScreen
             }
             #endif
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json]) { result in
@@ -208,6 +215,7 @@ struct SettingsView: View {
 
     private var dadosScreen: some View {
         Form {
+            CloudSyncStatusSection()
             backupSection
             exportSection
             dataSection
