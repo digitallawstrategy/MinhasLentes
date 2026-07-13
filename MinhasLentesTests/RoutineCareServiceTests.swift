@@ -51,6 +51,51 @@ final class RoutineCareServiceTests: XCTestCase {
         XCTAssertEqual(log.notes, "Corrigido")
     }
 
+    func testHasCareTodayTrueWhenLogExistsForReferenceDate() throws {
+        _ = try RoutineCareService.registerCare(date: TestSupport.date(2026, 7, 10), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context)
+        XCTAssertTrue(try RoutineCareService.hasCareToday(referenceDate: TestSupport.date(2026, 7, 10, hour: 20), context: context))
+    }
+
+    func testHasCareTodayFalseWhenNoLogForReferenceDate() throws {
+        _ = try RoutineCareService.registerCare(date: TestSupport.date(2026, 7, 9), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context)
+        XCTAssertFalse(try RoutineCareService.hasCareToday(referenceDate: TestSupport.date(2026, 7, 10), context: context))
+    }
+
+    func testHasCareTodayChecksAllLogsNotJustFirst() throws {
+        // Um log "de hoje" registrado antes de um log futuro (fora de ordem) ainda deve contar —
+        // a checagem não pode depender de `allLogs(context:).first`.
+        _ = try RoutineCareService.registerCare(date: TestSupport.date(2026, 7, 10), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context)
+        _ = try RoutineCareService.registerCare(date: TestSupport.date(2026, 7, 15), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context)
+        XCTAssertTrue(try RoutineCareService.hasCareToday(referenceDate: TestSupport.date(2026, 7, 10), context: context))
+    }
+
+    private var saoPauloCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? .current
+        return calendar
+    }
+
+    func testIsDailyCareReminderDueFalseWhenAlreadyRegisteredRegardlessOfHour() {
+        XCTAssertFalse(RoutineCareService.isDailyCareReminderDue(
+            referenceDate: TestSupport.date(2026, 7, 10, hour: 23), reminderHour: 10, hasCareToday: true, calendar: saoPauloCalendar
+        ))
+    }
+
+    func testIsDailyCareReminderDueFalseBeforeReminderHour() {
+        XCTAssertFalse(RoutineCareService.isDailyCareReminderDue(
+            referenceDate: TestSupport.date(2026, 7, 10, hour: 9), reminderHour: 10, hasCareToday: false, calendar: saoPauloCalendar
+        ))
+    }
+
+    func testIsDailyCareReminderDueTrueAtOrAfterReminderHourWhenNotRegistered() {
+        XCTAssertTrue(RoutineCareService.isDailyCareReminderDue(
+            referenceDate: TestSupport.date(2026, 7, 10, hour: 10), reminderHour: 10, hasCareToday: false, calendar: saoPauloCalendar
+        ))
+        XCTAssertTrue(RoutineCareService.isDailyCareReminderDue(
+            referenceDate: TestSupport.date(2026, 7, 10, hour: 15), reminderHour: 10, hasCareToday: false, calendar: saoPauloCalendar
+        ))
+    }
+
     func testMultipleLogsSortedMostRecentFirst() throws {
         _ = try RoutineCareService.registerCare(date: TestSupport.date(2026, 7, 10), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context)
         _ = try RoutineCareService.registerCare(date: TestSupport.date(2026, 7, 11), discardedSolution: true, cleanedCase: true, airDried: true, notes: nil, context: context)

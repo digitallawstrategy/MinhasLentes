@@ -43,6 +43,14 @@ final class LensInventoryItem {
     var statusRawValue: String = LensInventoryStatus.available.rawValue
     var createdAt: Date = Date()
 
+    /// Inverso de `LensPair.inventoryItem` — o `deleteRule: .nullify` precisa estar deste lado
+    /// (o item sendo excluído), não no lado do par: testado e confirmado que anotar só
+    /// `LensPair.inventoryItem` não fazia o SwiftData zerar a referência ao excluir o item
+    /// vinculado. Na prática quase sempre 0 ou 1 elemento (um par por vez usa a caixa), mas o
+    /// tipo continua array porque é o lado "muitos" da relação.
+    @Relationship(deleteRule: .nullify, inverse: \LensPair.inventoryItem)
+    var linkedPairs: [LensPair]? = []
+
     init(
         id: UUID = UUID(),
         brand: String,

@@ -73,6 +73,71 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(try context2.fetchCount(FetchDescriptor<WearSession>()), 1)
     }
 
+    /// `LensPair.inventoryItem` é aditivo (campo opcional simples, sem `@Relationship`
+    /// explícito, mesmo padrão de `EyeAppointment.professional`) — confirma que o vínculo
+    /// sobrevive a reabrir o arquivo, não só a um único `ModelContext` em memória.
+    func testInventoryItemLinkPersistsAcrossContainerRecreation() throws {
+        let tempURL = makeTempURL()
+        defer { removeStore(at: tempURL) }
+        var pairID: UUID!
+
+        do {
+            let container = try makeCurrentContainer(url: tempURL)
+            let context = ModelContext(container)
+            let item = LensInventoryItem(brand: "Marca", model: "Modelo", side: .both, initialQuantity: 4)
+            context.insert(item)
+            let pair = try LensPairService.startNewPair(
+                name: nil, startDate: TestSupport.date(2026, 7, 10), maximumUses: 60,
+                trackingMode: .pair, side: .both, inventoryItem: item, context: context
+            )
+            pairID = pair.id
+            try context.save()
+        }
+
+        let container2 = try makeCurrentContainer(url: tempURL)
+        let context2 = ModelContext(container2)
+        let pair = try XCTUnwrap(try LensPairService.pair(withID: pairID, context: context2))
+        XCTAssertNotNil(pair.inventoryItem, "O vínculo deve sobreviver a reabrir o arquivo, não só durar o ModelContext original")
+        XCTAssertEqual(pair.inventoryItem?.brand, "Marca")
+    }
+
+    /// Risco central desta relação: como não há inverso declarado em `LensInventoryItem`
+    /// (decisão deliberada, ver comentário em `LensPair.inventoryItem`), é o comportamento
+    /// padrão do SwiftData para uma relação opcional sem `@Relationship` explícito
+    /// (`.nullify`) que precisa realmente zerar o vínculo — não pode apagar o par nem lançar
+    /// erro ao excluir a caixa de estoque vinculada.
+    func testDeletingLinkedInventoryItemNullifiesPairReferenceWithoutDeletingPair() async throws {
+        let tempURL = makeTempURL()
+        defer { removeStore(at: tempURL) }
+        var pairID: UUID!
+
+        do {
+            let container = try makeCurrentContainer(url: tempURL)
+            let context = ModelContext(container)
+            let settings = AppSettings()
+            context.insert(settings)
+            let item = try await LensInventoryService.addItem(
+                brand: "Marca", model: "Modelo", prescriptionOD: nil, prescriptionOS: nil, side: .both,
+                lot: nil, expiryDate: nil, initialQuantity: 4, photoData: nil, notes: nil,
+                settings: settings, context: context
+            )
+            let pair = try LensPairService.startNewPair(
+                name: nil, startDate: TestSupport.date(2026, 7, 10), maximumUses: 60,
+                trackingMode: .pair, side: .both, inventoryItem: item, context: context
+            )
+            pairID = pair.id
+            try context.save()
+
+            try await LensInventoryService.deleteItem(item, context: context)
+        }
+
+        let container2 = try makeCurrentContainer(url: tempURL)
+        let context2 = ModelContext(container2)
+        let pair = try XCTUnwrap(try LensPairService.pair(withID: pairID, context: context2))
+        XCTAssertNil(pair.inventoryItem, "Excluir a caixa vinculada deve zerar a referência, não deixá-la pendurada")
+        XCTAssertEqual(try context2.fetchCount(FetchDescriptor<LensInventoryItem>()), 0)
+    }
+
     /// O sintoma relatado é especificamente sobre o calendário de cuidado diário — este teste
     /// isola só `RoutineCareLog`, com vários registros em datas diferentes, exatamente o
     /// cenário de semanas de uso real (não um único registro de teste).

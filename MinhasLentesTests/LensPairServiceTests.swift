@@ -52,6 +52,26 @@ final class LensPairServiceTests: XCTestCase {
         XCTAssertEqual(try LensPairService.inUsePairs(context: context).count, 1)
     }
 
+    func testStartNewPairSetsInventoryItemWhenProvided() throws {
+        let item = LensInventoryItem(
+            brand: "Marca", model: "Modelo", prescriptionOD: nil, prescriptionOS: nil,
+            side: .both, lot: nil, expiryDate: nil, initialQuantity: 6, photoData: nil, notes: nil
+        )
+        context.insert(item)
+
+        let withItem = try LensPairService.startNewPair(
+            name: nil, startDate: TestSupport.date(2026, 7, 10), maximumUses: 60,
+            trackingMode: .pair, side: .both, inventoryItem: item, context: context
+        )
+        XCTAssertEqual(withItem.inventoryItem?.id, item.id)
+
+        let withoutItem = try LensPairService.startNewPair(
+            name: nil, startDate: TestSupport.date(2026, 7, 10), maximumUses: 60,
+            trackingMode: .pair, side: .right, context: context
+        )
+        XCTAssertNil(withoutItem.inventoryItem)
+    }
+
     func testStartNewPairAsReserveDoesNotAffectCurrentInUsePair() throws {
         let pair1 = try makePair()
         let pair2 = try LensPairService.startNewPair(

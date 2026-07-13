@@ -28,13 +28,13 @@ final class LensInventoryViewModel {
 
     func editItem(
         _ item: LensInventoryItem, brand: String, model: String, prescriptionOD: String?, prescriptionOS: String?,
-        side: LensSide, lot: String?, expiryDate: Date?, remainingQuantity: Int, photoData: Data?, notes: String?,
+        side: LensSide, lot: String?, expiryDate: Date?, initialQuantity: Int, remainingQuantity: Int, photoData: Data?, notes: String?,
         settings: AppSettings, context: ModelContext
     ) async {
         do {
             try await LensInventoryService.editItem(
                 item, brand: brand, model: model, prescriptionOD: prescriptionOD, prescriptionOS: prescriptionOS,
-                side: side, lot: lot, expiryDate: expiryDate, remainingQuantity: remainingQuantity,
+                side: side, lot: lot, expiryDate: expiryDate, initialQuantity: initialQuantity, remainingQuantity: remainingQuantity,
                 photoData: photoData, notes: notes, settings: settings, context: context
             )
             HapticsService.success()

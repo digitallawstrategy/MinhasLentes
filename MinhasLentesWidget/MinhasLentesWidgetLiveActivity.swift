@@ -6,7 +6,7 @@ struct MinhasLentesWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LensActivityAttributes.self) { context in
             LockScreenLiveActivityView(attributes: context.attributes, state: context.state)
-                .activityBackgroundTint(Color.black.opacity(0.8))
+                .activityBackgroundTint(WidgetColor.liveActivityBackground)
                 .activitySystemActionForegroundColor(Color.white)
         } dynamicIsland: { context in
             // Só as regiões leading/trailing, sem `.bottom`: mesmo expandida (seja pelo toque

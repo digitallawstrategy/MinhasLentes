@@ -82,7 +82,7 @@ struct ContentView: View {
                 .tabItem { Label("Cuidados", systemImage: "heart.text.square") }
                 .tag(AppTab.cuidados)
             EyeCareView()
-                .tabItem { Label("Consultas", systemImage: "stethoscope") }
+                .tabItem { Label("Consultas", systemImage: "calendar.badge.clock") }
                 .tag(AppTab.consultas)
             SettingsView()
                 .tabItem { Label("Mais", systemImage: "ellipsis.circle") }

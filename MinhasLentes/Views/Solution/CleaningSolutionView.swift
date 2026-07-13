@@ -37,9 +37,9 @@ struct CleaningSolutionView: View {
 
     private var discardStatusText: String {
         guard let daysUntilDiscard else { return "Sem validade calculada" }
-        if daysUntilDiscard > 0 { return "Faltam \(daysUntilDiscard) dia(s)" }
+        if daysUntilDiscard > 0 { return "\(Pluralization.word(daysUntilDiscard, "Falta", "Faltam")) \(Pluralization.count(daysUntilDiscard, "dia", "dias"))" }
         if daysUntilDiscard == 0 { return "Descarte recomendado hoje" }
-        return "Descarte recomendado há \(-daysUntilDiscard) dia(s)"
+        return "Descarte recomendado há \(Pluralization.count(-daysUntilDiscard, "dia", "dias"))"
     }
 
     var body: some View {
@@ -58,11 +58,12 @@ struct CleaningSolutionView: View {
                         Text("Nenhum frasco de solução registrado ainda.")
                             .font(AppTypography.subheadline)
                             .foregroundStyle(.secondary)
-                        Button {
+                        PrimaryActionButton(title: "Registrar frasco de solução", systemImage: "flask") {
                             showStartOrReplaceSolution = true
-                        } label: {
-                            Label("Registrar frasco de solução", systemImage: "flask")
                         }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .padding(.vertical, AppSpacing.xxs)
                     }
                 }
 

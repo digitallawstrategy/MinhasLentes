@@ -17,6 +17,9 @@ struct EyeCareView: View {
     @State private var showScheduleAppointment = false
     @State private var appointmentToEdit: EyeAppointment?
     @State private var appointmentToDelete: EyeAppointment?
+    #if DEBUG
+    @State private var uiTestShowAppointmentDetail = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -48,7 +51,11 @@ struct EyeCareView: View {
         List {
             Section("Próxima consulta") {
                 if let nextAppointment {
-                    nextAppointmentCard(for: nextAppointment)
+                    NavigationLink {
+                        AppointmentDetailView(appointment: nextAppointment, professionals: professionals, settings: settings, viewModel: viewModel)
+                    } label: {
+                        nextAppointmentCard(for: nextAppointment)
+                    }
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -101,7 +108,11 @@ struct EyeCareView: View {
             if !otherScheduledAppointments.isEmpty {
                 Section("Outras consultas agendadas") {
                     ForEach(otherScheduledAppointments) { appointment in
-                        appointmentRow(for: appointment)
+                        NavigationLink {
+                            AppointmentDetailView(appointment: appointment, professionals: professionals, settings: settings, viewModel: viewModel)
+                        } label: {
+                            appointmentRow(for: appointment)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }
@@ -122,7 +133,11 @@ struct EyeCareView: View {
             if !pastAppointments.isEmpty {
                 Section("Histórico de consultas") {
                     ForEach(pastAppointments) { appointment in
-                        appointmentRow(for: appointment)
+                        NavigationLink {
+                            AppointmentDetailView(appointment: appointment, professionals: professionals, settings: settings, viewModel: viewModel)
+                        } label: {
+                            appointmentRow(for: appointment)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }
@@ -142,6 +157,18 @@ struct EyeCareView: View {
         .tabBarScrollInset()
         .background(AmbientBackground())
         .navigationTitle("Consultas")
+        #if DEBUG
+        .task {
+            if UITestSupport.requestedRoute() == .consultaDetalhe {
+                uiTestShowAppointmentDetail = true
+            }
+        }
+        .navigationDestination(isPresented: $uiTestShowAppointmentDetail) {
+            if let appointment = appointments.first {
+                AppointmentDetailView(appointment: appointment, professionals: professionals, settings: settings, viewModel: viewModel)
+            }
+        }
+        #endif
         .sheet(isPresented: $showAddProfessional) {
             AddOrEditProfessionalSheet(professional: nil) { name, clinic, phone, whatsapp, email, address, notes in
                 viewModel.addProfessional(name: name, clinic: clinic, phone: phone, whatsapp: whatsapp, email: email, address: address, notes: notes, context: modelContext)
@@ -211,7 +238,7 @@ struct EyeCareView: View {
     private func nextAppointmentCard(for appointment: EyeAppointment) -> some View {
         let days = daysUntil(appointment)
         let daysTone = tone(forDaysUntil: days)
-        let badgeText = days > 0 ? "Em \(days) dia(s)" : (days == 0 ? "Hoje" : "Atrasada")
+        let badgeText = days > 0 ? "Em \(Pluralization.count(days, "dia", "dias"))" : (days == 0 ? "Hoje" : "Atrasada")
         let statusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar")
         let accessibilityStatusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar", lineLimit: nil)
         let titleBlock = VStack(alignment: .leading, spacing: 2) {
@@ -254,36 +281,47 @@ struct EyeCareView: View {
         .padding(.vertical, AppSpacing.xxs)
     }
 
+    // Regra 1 da rodada de consistência: profissional é uma entidade cadastrada, então o corpo da
+    // linha precisa abrir detalhe — só o `NavigationLink` do nome/clínica faz isso (List desenha o
+    // chevron sozinho); Ligar/WhatsApp/Mapas ficam fora dele, como atalhos de linha independentes,
+    // não aninhados dentro do link de navegação.
     private func professionalRow(for professional: EyeCareProfessional) -> some View {
-        HStack(alignment: .top, spacing: AppSpacing.sm) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.subheadline)
-                .foregroundStyle(AppColor.primary)
-                .frame(width: 36, height: 36)
-                .background(AppColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            NavigationLink {
+                ProfessionalDetailView(professional: professional, viewModel: viewModel)
+            } label: {
+                HStack(alignment: .top, spacing: AppSpacing.sm) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColor.primary)
+                        .frame(width: 36, height: 36)
+                        .background(AppColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                        .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(professional.name)
-                    .font(AppTypography.subheadlineMedium)
-                if let clinic = professional.clinic, !clinic.isEmpty {
-                    Text(clinic)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                HStack(spacing: AppSpacing.md) {
-                    if let phone = professional.phone, !phone.isEmpty {
-                        quickActionButton(title: "Ligar", systemImage: "phone.fill") { openURL(telURL(phone)) }
-                    }
-                    if let whatsapp = professional.whatsapp, !whatsapp.isEmpty {
-                        quickActionButton(title: "WhatsApp", systemImage: "message.fill") { openURL(whatsAppURL(whatsapp)) }
-                    }
-                    if let address = professional.address, !address.isEmpty {
-                        quickActionButton(title: "Mapas", systemImage: "map.fill") { openURL(mapsURL(address)) }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(professional.name)
+                            .font(AppTypography.subheadlineMedium)
+                        if let clinic = professional.clinic, !clinic.isEmpty {
+                            Text(clinic)
+                                .font(AppTypography.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-                .padding(.top, 2)
             }
+
+            HStack(spacing: AppSpacing.md) {
+                if let phone = professional.phone, !phone.isEmpty {
+                    quickActionButton(title: "Ligar", systemImage: "phone.fill") { openURL(telURL(phone)) }
+                }
+                if let whatsapp = professional.whatsapp, !whatsapp.isEmpty {
+                    quickActionButton(title: "WhatsApp", systemImage: "message.fill") { openURL(whatsAppURL(whatsapp)) }
+                }
+                if let address = professional.address, !address.isEmpty {
+                    quickActionButton(title: "Mapas", systemImage: "map.fill") { openURL(mapsURL(address)) }
+                }
+            }
+            .padding(.leading, 44)
         }
         .padding(.vertical, AppSpacing.xxs)
     }
@@ -302,7 +340,7 @@ struct EyeCareView: View {
 
     private func appointmentRow(for appointment: EyeAppointment) -> some View {
         AppListRow(
-            systemImage: "stethoscope",
+            systemImage: "calendar",
             tone: appointment.status == .scheduled ? .informative : .neutral,
             title: appointment.type.displayName,
             subtitle: [DateFormatting.shortWithTime.string(from: appointment.date), appointment.professional?.name]

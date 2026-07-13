@@ -42,7 +42,6 @@ struct PrimaryActionButton: View {
         .background(AppGradient.primaryButtonBackground, in: Capsule())
         .opacity(isDisabled ? 0.4 : 1)
         .disabled(isDisabled)
-        .buttonStyle(.plain)
         .pressScale()
     }
 }
@@ -79,7 +78,6 @@ struct SecondaryActionButton: View {
         .overlay(Capsule().strokeBorder(tint.opacity(0.4), lineWidth: 1.25))
         .opacity(isDisabled ? 0.4 : 1)
         .disabled(isDisabled)
-        .buttonStyle(.plain)
         .pressScale()
     }
 }

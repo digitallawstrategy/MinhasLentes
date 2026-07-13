@@ -162,9 +162,11 @@ final class LensPairsViewModel {
         }
     }
 
-    /// Se `inventoryItem` for informado, uma unidade dele é descontada do estoque após o par
-    /// ser criado com sucesso — a falha em descontar o estoque nunca desfaz o par já criado,
-    /// apenas é reportada como erro (o par é o registro que importa mais).
+    /// Se `inventorySelections` for informado (1 ou 2 seleções — 2 quando o par usa uma caixa por
+    /// olho, ou 1 seleção com `quantity: 2` quando uma única caixa `.both` supre os dois olhos),
+    /// essas unidades são descontadas do estoque após o par ser criado com sucesso — a falha em
+    /// descontar o estoque nunca desfaz o par já criado, apenas é reportada como erro (o par é o
+    /// registro que importa mais).
     func startNewPair(
         name: String?,
         startDate: Date,
@@ -172,7 +174,7 @@ final class LensPairsViewModel {
         trackingMode: TrackingMode,
         side: LensSide,
         asReserve: Bool,
-        inventoryItem: LensInventoryItem?,
+        inventorySelections: [LensInventoryService.ConsumptionSelection],
         context: ModelContext
     ) async {
         let newPair: LensPair
@@ -184,6 +186,9 @@ final class LensPairsViewModel {
                 trackingMode: trackingMode,
                 side: side,
                 asReserve: asReserve,
+                // Vínculo de exibição em LensPairCardView — quando há duas seleções (uma caixa
+                // por olho), guarda só a primeira; ver o comentário em LensPair.inventoryItem.
+                inventoryItem: inventorySelections.first?.item,
                 context: context
             )
             HapticsService.success()
@@ -192,11 +197,11 @@ final class LensPairsViewModel {
             return
         }
 
-        guard let inventoryItem else { return }
+        guard !inventorySelections.isEmpty else { return }
         do {
-            try await LensInventoryService.consumeOne(inventoryItem, forPairNamed: newPair.name, context: context)
+            try await LensInventoryService.consume(selections: inventorySelections, forPairNamed: newPair.name, context: context)
         } catch {
-            presentedError = IdentifiableError(message: "O par foi criado, mas não foi possível descontar a unidade do estoque. \(error.localizedDescription)")
+            presentedError = IdentifiableError(message: "O par foi criado, mas não foi possível descontar o estoque. \(error.localizedDescription)")
         }
     }
 

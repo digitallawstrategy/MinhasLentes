@@ -63,16 +63,14 @@ struct TrashView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(pair.name)
                     .font(AppTypography.subheadlineMedium)
-                Text("Excluído para sempre em \(daysLeft) dia(s), a menos que restaurado")
+                Text("Excluído para sempre em \(Pluralization.count(daysLeft, "dia", "dias")), a menos que restaurado")
                     .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Restaurar") {
+            SecondaryActionButton(title: "Restaurar", fullWidth: false, compact: true) {
                 viewModel.restorePair(pair, context: modelContext)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
             Button(role: .destructive) {
                 viewModel.pairToPermanentlyDelete = pair
             } label: {
