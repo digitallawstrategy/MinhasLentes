@@ -13,7 +13,7 @@ struct LensPairCardView: View {
     let settings: AppSettings
     let onFinishPair: () -> Void
     let onEdit: () -> Void
-    let onShowDiary: () -> Void
+    let onShowTimeline: () -> Void
     let onMoveToTrash: () -> Void
     let onDemoteToReserve: () -> Void
     let wearingSessionPairID: UUID?
@@ -80,7 +80,7 @@ struct LensPairCardView: View {
             Spacer()
             Menu {
                 Button("Editar par", systemImage: "pencil", action: onEdit)
-                Button("Ver diário do par", systemImage: "book.pages", action: onShowDiary)
+                Button("Ver linha do tempo", systemImage: "clock.arrow.circlepath", action: onShowTimeline)
                 Button("Mover para reserva", systemImage: "tray.and.arrow.down", action: onDemoteToReserve)
                 Button("Encerrar ou substituir este par", systemImage: "arrow.triangle.2.circlepath", role: .destructive, action: onFinishPair)
                 Button("Mover para a lixeira", systemImage: "trash", role: .destructive) {

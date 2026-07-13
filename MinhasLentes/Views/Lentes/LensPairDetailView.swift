@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// Tela de detalhe/estatísticas de um par — aberta ao tocar no card "Em uso" da Home ou pelo
-/// deep link do widget. Não é o Diário (`PairDiaryView`, o log cronológico completo): aqui é o
-/// retrato atual — vida útil, progresso, frequência, sessão de uso, produto — com um botão
-/// explícito para o Diário quando o usuário quiser o histórico linha a linha.
+/// deep link do widget. Não é a Linha do tempo (`PairTimelineView`, o log cronológico completo):
+/// aqui é o retrato atual — vida útil, progresso, frequência, sessão de uso, produto — com um
+/// botão explícito para a Linha do tempo quando o usuário quiser o histórico linha a linha.
 struct LensPairDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -13,7 +13,7 @@ struct LensPairDetailView: View {
     let allCleanings: [CaseCleaning]
     let wearingSessionPairID: UUID?
 
-    @State private var showDiary = false
+    @State private var showTimeline = false
 
     private var remainingFraction: Double {
         guard pair.maximumUses > 0 else { return 0 }
@@ -64,8 +64,8 @@ struct LensPairDetailView: View {
                     if pair.inventoryItem != nil {
                         productCard
                     }
-                    SecondaryActionButton(title: "Ver diário", systemImage: "book.pages") {
-                        showDiary = true
+                    SecondaryActionButton(title: "Ver linha do tempo", systemImage: "clock.arrow.circlepath") {
+                        showTimeline = true
                     }
                 }
                 .padding(.horizontal)
@@ -79,8 +79,8 @@ struct LensPairDetailView: View {
                     Button("Fechar") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showDiary) {
-                PairDiaryView(pair: pair, allCleanings: allCleanings, warningBelowPercent: settings.healthWarningBelowPercent)
+            .sheet(isPresented: $showTimeline) {
+                PairTimelineView(pair: pair, settings: settings, allCleanings: allCleanings)
             }
         }
     }

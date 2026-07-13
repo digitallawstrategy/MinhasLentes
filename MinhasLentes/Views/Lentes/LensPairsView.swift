@@ -16,7 +16,7 @@ struct LensPairsView: View {
     @State private var router = AppRouter.shared
     @State private var pairToFinish: LensPair?
     @State private var pairToEdit: LensPair?
-    @State private var pairForDiary: LensPair?
+    @State private var pairForTimeline: LensPair?
     @State private var pairForDetail: LensPair?
     @State private var pairToTrash: LensPair?
     @State private var showStartNewPair = false
@@ -180,8 +180,8 @@ struct LensPairsView: View {
                     viewModel.editPair(pair, name: name, startDate: startDate, maximumUses: maximumUses, context: modelContext)
                 }
             }
-            .sheet(item: $pairForDiary) { pair in
-                PairDiaryView(pair: pair, allCleanings: cleanings, warningBelowPercent: settings.healthWarningBelowPercent)
+            .sheet(item: $pairForTimeline) { pair in
+                PairTimelineView(pair: pair, settings: settings, allCleanings: cleanings)
             }
             .sheet(item: $pairForDetail) { pair in
                 LensPairDetailView(pair: pair, settings: settings, allCleanings: cleanings, wearingSessionPairID: viewModel.wearingSessionPairID)
@@ -269,7 +269,7 @@ struct LensPairsView: View {
                 settings: settings,
                 onFinishPair: { pairToFinish = pair },
                 onEdit: { pairToEdit = pair },
-                onShowDiary: { pairForDiary = pair },
+                onShowTimeline: { pairForTimeline = pair },
                 onMoveToTrash: { viewModel.moveToTrash(pair, context: modelContext) },
                 onDemoteToReserve: { viewModel.demoteToReserve(pair, context: modelContext) },
                 wearingSessionPairID: viewModel.wearingSessionPairID
@@ -320,7 +320,7 @@ struct LensPairsView: View {
             }
             Menu {
                 Button("Editar par", systemImage: "pencil") { pairToEdit = pair }
-                Button("Ver diário do par", systemImage: "book.pages") { pairForDiary = pair }
+                Button("Ver linha do tempo", systemImage: "clock.arrow.circlepath") { pairForTimeline = pair }
                 Button("Encerrar par", systemImage: "arrow.triangle.2.circlepath", role: .destructive) { pairToFinish = pair }
                 Button("Mover para a lixeira", systemImage: "trash", role: .destructive) { pairToTrash = pair }
             } label: {
@@ -333,8 +333,8 @@ struct LensPairsView: View {
 
     /// Abre os detalhes do par indicado por um deep link do widget (`minhaslentes://pair/<uuid>`)
     /// ou pelo toque no card "Em uso" da Home (`router.openPair`), se houver um pendente e o par
-    /// ainda existir. Nunca abre o Diário como destino padrão — ele continua acessível pelo botão
-    /// dentro de `LensPairDetailView` ou pelo menu "Ver diário do par" nesta tela.
+    /// ainda existir. Nunca abre a Linha do tempo como destino padrão — ela continua acessível pelo
+    /// botão dentro de `LensPairDetailView` ou pelo menu "Ver linha do tempo" nesta tela.
     private func openPendingPairIfNeeded() {
         guard let pendingID = router.pendingPairID else { return }
         router.pendingPairID = nil
