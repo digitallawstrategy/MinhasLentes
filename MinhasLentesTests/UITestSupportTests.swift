@@ -37,6 +37,38 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertFalse(UITestSupport.isUITestRun(arguments: []))
     }
 
+    func testRequestedTabParsesValidValues() {
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "home"]), .home)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "lentes"]), .lentes)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "cuidados"]), .cuidados)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "consultas"]), .consultas)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "settings"]), .settings)
+    }
+
+    func testRequestedTabReturnsNilWhenAbsentOrInvalid() {
+        XCTAssertNil(UITestSupport.requestedTab(arguments: []))
+        XCTAssertNil(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab"]))
+        XCTAssertNil(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "unknown"]))
+    }
+
+    func testRequestedRouteParsesValidValues() {
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "estoque"]), .estoque)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "solucao"]), .solucao)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "historico"]), .historico)
+    }
+
+    func testRequestedRouteReturnsNilWhenAbsentOrInvalid() {
+        XCTAssertNil(UITestSupport.requestedRoute(arguments: []))
+        XCTAssertNil(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute"]))
+        XCTAssertNil(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "unknown"]))
+    }
+
+    func testRequestedRouteIsIndependentFromSelectedTab() {
+        let arguments = ["-UITestSelectedTab", "lentes", "-UITestOpenRoute", "estoque"]
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: arguments), .lentes)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: arguments), .estoque)
+    }
+
     // MARK: - applySkipOnboarding
 
     func testApplySkipOnboardingMarksSettingsComplete() throws {
@@ -114,6 +146,17 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(session.lensPair?.id, pair.id)
     }
 
+    func testSeedPreviewDataCreatesAvailableInventoryItem() throws {
+        let referenceDate = TestSupport.date(2026, 7, 12)
+        try UITestSupport.seedPreviewData(context: context, referenceDate: referenceDate)
+
+        let items = try context.fetch(FetchDescriptor<LensInventoryItem>())
+        XCTAssertEqual(items.count, 1)
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.status, .available)
+        XCTAssertEqual(item.remainingQuantity, 4)
+    }
+
     // MARK: - Idempotência
 
     func testSeedPreviewDataCalledTwiceDoesNotDuplicateAnything() throws {
@@ -128,6 +171,7 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<LensCase>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CleaningSolution>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WearSession>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<LensInventoryItem>()), 1)
     }
 
     func testSeedPreviewDataCalledManyTimesStaysStable() throws {

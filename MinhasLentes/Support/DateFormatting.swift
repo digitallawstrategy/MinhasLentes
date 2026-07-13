@@ -24,6 +24,17 @@ enum DateFormatting {
         return formatter
     }()
 
+    /// Dia+mês e hora, sem ano — para linhas de lista já agrupadas por período (Histórico): o
+    /// ano quase sempre é o atual e "às" só ocupa espaço numa linha que já precisa caber
+    /// tipo + dia + lado, então sai daqui, ficando só "dd/MM, HH:mm".
+    static let shortWithTimeCompact: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "dd/MM, HH:mm"
+        return formatter
+    }()
+
     static let timeOnly: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "pt_BR")

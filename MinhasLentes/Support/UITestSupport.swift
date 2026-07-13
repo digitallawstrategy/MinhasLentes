@@ -28,6 +28,8 @@ import SwiftData
 enum UITestSupport {
     private static let skipOnboardingArgument = "-UITestSkipOnboarding"
     private static let seedPreviewDataArgument = "-UITestSeedPreviewData"
+    private static let selectedTabArgument = "-UITestSelectedTab"
+    private static let openRouteArgument = "-UITestOpenRoute"
 
     /// Nome fixo do par semeado — também serve de marca de "já semeado" para `seedPreviewData`
     /// ser seguro de chamar mais de uma vez sobre o mesmo contexto.
@@ -46,6 +48,43 @@ enum UITestSupport {
     /// dos dois fluxos de validação visual deve chegar perto de dado real.
     static func isUITestRun(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
         isSkipOnboardingRequested(arguments: arguments) || isSeedPreviewDataRequested(arguments: arguments)
+    }
+
+    /// `-UITestSelectedTab <home|lentes|cuidados|consultas|settings>` — só existe para permitir
+    /// screenshot automatizado de cada aba sem depender de toque simulado (indisponível no
+    /// ambiente onde os prints de validação visual são tirados). Não afeta a navegação real do
+    /// usuário: fora deste argumento, `AppRouter.selectedTab` sempre começa em `.home`.
+    static func requestedTab(arguments: [String] = ProcessInfo.processInfo.arguments) -> AppTab? {
+        guard let flagIndex = arguments.firstIndex(of: selectedTabArgument), flagIndex + 1 < arguments.count else {
+            return nil
+        }
+        switch arguments[flagIndex + 1] {
+        case "home": return .home
+        case "lentes": return .lentes
+        case "cuidados": return .cuidados
+        case "consultas": return .consultas
+        case "settings": return .settings
+        default: return nil
+        }
+    }
+
+    /// `-UITestOpenRoute <estoque|solucao|historico>` — mesmo propósito de
+    /// `-UITestSelectedTab`, mas para telas que só existem atrás de uma navegação (`Estoque` e
+    /// `Histórico de pares` ficam dentro de Lentes, `Solução` dentro de Cuidados, `Histórico`
+    /// dentro de Configurações). Cada tela verifica sozinha, no `.task`, se a rota pedida é a
+    /// dela — este enum não sabe nada sobre qual aba cada rota pertence, então também é preciso
+    /// passar `-UITestSelectedTab` com a aba certa para a rota realmente aparecer na tela.
+    enum Route: String {
+        case estoque
+        case solucao
+        case historico
+    }
+
+    static func requestedRoute(arguments: [String] = ProcessInfo.processInfo.arguments) -> Route? {
+        guard let flagIndex = arguments.firstIndex(of: openRouteArgument), flagIndex + 1 < arguments.count else {
+            return nil
+        }
+        return Route(rawValue: arguments[flagIndex + 1])
     }
 
     /// Marca o onboarding como concluído, sem mexer em mais nada. Idempotente por natureza: só
@@ -76,6 +115,8 @@ enum UITestSupport {
     /// - Sessão "Estou usando as lentes" ativa neste par — sem isso, o botão da Home mostraria
     ///   "Estou usando as lentes" em vez de "Retirei as lentes", o estado retratado nos prints
     ///   de referência originais.
+    /// - 1 item de estoque disponível (4 unidades, validade em 200 dias) — sem isto, a tela
+    ///   Estoque só mostra o estado vazio, o que não valida `MetricStrip`/`AppListRow`.
     @discardableResult
     static func seedPreviewData(context: ModelContext, referenceDate: Date = Date()) throws -> LensPair {
         let calendar = Calendar.current
@@ -115,6 +156,15 @@ enum UITestSupport {
             postOpeningShelfLifeDays: 90
         ))
         context.insert(WearSession(startedAt: referenceDate, lensPair: pair))
+
+        let inventoryExpiryDate = calendar.date(byAdding: .day, value: 200, to: referenceDate) ?? referenceDate
+        context.insert(LensInventoryItem(
+            brand: "Marca de exemplo",
+            model: "Lentes de reserva",
+            side: .both,
+            expiryDate: inventoryExpiryDate,
+            initialQuantity: 4
+        ))
 
         try context.save()
         return pair

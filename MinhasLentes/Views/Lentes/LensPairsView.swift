@@ -20,6 +20,9 @@ struct LensPairsView: View {
     @State private var pairToTrash: LensPair?
     @State private var showStartNewPair = false
     @State private var startNewPairSides: [LensSide] = [.both]
+    #if DEBUG
+    @State private var uiTestShowInventory = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -82,10 +85,20 @@ struct LensPairsView: View {
             .task {
                 viewModel.refreshWearingSessionState(context: modelContext)
                 openPendingPairIfNeeded()
+                #if DEBUG
+                if UITestSupport.requestedRoute() == .estoque {
+                    uiTestShowInventory = true
+                }
+                #endif
             }
             .onChange(of: router.pendingPairID) { _, _ in
                 openPendingPairIfNeeded()
             }
+            #if DEBUG
+            .navigationDestination(isPresented: $uiTestShowInventory) {
+                LensInventoryView()
+            }
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

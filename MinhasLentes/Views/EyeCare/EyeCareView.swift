@@ -5,6 +5,7 @@ import SwiftData
 /// sugere diagnóstico — apenas ajuda a acompanhar contatos e prazos de retorno.
 struct EyeCareView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \EyeCareProfessional.name) private var professionals: [EyeCareProfessional]
     @Query(sort: \EyeAppointment.date, order: .reverse) private var appointments: [EyeAppointment]
     @Query private var allSettings: [AppSettings]
@@ -25,17 +26,54 @@ struct EyeCareView: View {
         appointments.filter { $0.status == .scheduled }.sorted { $0.date < $1.date }
     }
 
+    private var nextAppointment: EyeAppointment? { scheduledAppointments.first }
+    private var otherScheduledAppointments: [EyeAppointment] { Array(scheduledAppointments.dropFirst()) }
+
     private var pastAppointments: [EyeAppointment] {
         appointments.filter { $0.status != .scheduled }
+    }
+
+    private func daysUntil(_ appointment: EyeAppointment) -> Int {
+        LensStatisticsService.daysUntil(appointment.date)
+    }
+
+    private func tone(forDaysUntil days: Int) -> AppStatusTone {
+        if days <= 0 { return .informative }
+        if days <= settings.advanceReminderDays { return .warning }
+        return .success
     }
 
     var body: some View {
         NavigationStack {
         List {
-            Section {
-                Text("Siga sempre a recomendação do seu oftalmologista. Este aplicativo não sugere diagnóstico — apenas ajuda a acompanhar contatos e prazos.")
-                    .font(AppTypography.footnote)
-                    .foregroundStyle(.secondary)
+            Section("Próxima consulta") {
+                if let nextAppointment {
+                    nextAppointmentCard(for: nextAppointment)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button("Excluir", role: .destructive) { appointmentToDelete = nextAppointment }
+                            Button("Editar") { appointmentToEdit = nextAppointment }
+                                .tint(AppColor.primary)
+                            Button("Cancelar") {
+                                Task { await viewModel.cancelAppointment(nextAppointment, context: modelContext) }
+                            }
+                            .tint(AppColor.warning)
+                            Button("Realizada") {
+                                Task { await viewModel.markCompleted(nextAppointment, context: modelContext) }
+                            }
+                            .tint(AppColor.success)
+                        }
+                } else {
+                    Text("Nenhuma consulta agendada.")
+                        .font(AppTypography.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    showScheduleAppointment = true
+                } label: {
+                    Label("Agendar consulta", systemImage: "calendar.badge.plus")
+                }
             }
 
             Section("Profissionais") {
@@ -60,13 +98,9 @@ struct EyeCareView: View {
                 }
             }
 
-            Section("Consultas agendadas") {
-                if scheduledAppointments.isEmpty {
-                    Text("Nenhuma consulta agendada.")
-                        .font(AppTypography.subheadline)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(scheduledAppointments) { appointment in
+            if !otherScheduledAppointments.isEmpty {
+                Section("Outras consultas agendadas") {
+                    ForEach(otherScheduledAppointments) { appointment in
                         appointmentRow(for: appointment)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
@@ -83,11 +117,6 @@ struct EyeCareView: View {
                             }
                     }
                 }
-                Button {
-                    showScheduleAppointment = true
-                } label: {
-                    Label("Agendar consulta", systemImage: "calendar.badge.plus")
-                }
             }
 
             if !pastAppointments.isEmpty {
@@ -102,7 +131,16 @@ struct EyeCareView: View {
                     }
                 }
             }
+
+            Section {
+                InfoBanner(text: "Siga sempre a recomendação do seu oftalmologista. Este aplicativo não sugere diagnóstico — apenas ajuda a acompanhar contatos e prazos.")
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            }
         }
+        .scrollContentBackground(.hidden)
+        .tabBarScrollInset()
+        .background(AmbientBackground())
         .navigationTitle("Consultas")
         .sheet(isPresented: $showAddProfessional) {
             AddOrEditProfessionalSheet(professional: nil) { name, clinic, phone, whatsapp, email, address, notes in
@@ -170,63 +208,41 @@ struct EyeCareView: View {
         }
     }
 
-    private func professionalRow(for professional: EyeCareProfessional) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(professional.name)
-                .font(AppTypography.subheadlineMedium)
-            if let clinic = professional.clinic, !clinic.isEmpty {
-                Text(clinic)
-                    .font(AppTypography.caption)
-                    .foregroundStyle(.secondary)
-            }
-            HStack(spacing: 20) {
-                if let phone = professional.phone, !phone.isEmpty {
-                    Button {
-                        openURL(telURL(phone))
-                    } label: {
-                        Label("Ligar", systemImage: "phone.fill")
-                    }
-                    .font(AppTypography.caption)
-                }
-                if let whatsapp = professional.whatsapp, !whatsapp.isEmpty {
-                    Button {
-                        openURL(whatsAppURL(whatsapp))
-                    } label: {
-                        Label("WhatsApp", systemImage: "message.fill")
-                    }
-                    .font(AppTypography.caption)
-                }
-                if let address = professional.address, !address.isEmpty {
-                    Button {
-                        openURL(mapsURL(address))
-                    } label: {
-                        Label("Mapas", systemImage: "map.fill")
-                    }
-                    .font(AppTypography.caption)
-                }
-            }
-            .buttonStyle(.borderless)
-            .padding(.top, 2)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private func appointmentRow(for appointment: EyeAppointment) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(appointment.type.displayName)
-                    .font(AppTypography.subheadlineMedium)
-                Spacer()
-                Text(appointment.status.displayName)
-                    .font(AppTypography.captionSemibold)
-                    .foregroundStyle(appointment.status == .scheduled ? AppColor.primary : .secondary)
-            }
+    private func nextAppointmentCard(for appointment: EyeAppointment) -> some View {
+        let days = daysUntil(appointment)
+        let daysTone = tone(forDaysUntil: days)
+        let badgeText = days > 0 ? "Em \(days) dia(s)" : (days == 0 ? "Hoje" : "Atrasada")
+        let statusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar")
+        let accessibilityStatusBadge = StatusBadge(text: badgeText, tone: daysTone, systemImage: "calendar", lineLimit: nil)
+        let titleBlock = VStack(alignment: .leading, spacing: 2) {
+            Text(appointment.type.displayName)
+                .font(AppTypography.headline)
             Text(DateFormatting.shortWithTime.string(from: appointment.date))
-                .font(AppTypography.caption)
+                .font(AppTypography.footnote)
                 .foregroundStyle(.secondary)
+        }
+        return AppCard(variant: .featured) {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    titleBlock
+                    // Mesmo sozinho na própria linha, sem nenhum vizinho disputando espaço, o
+                    // selo truncava ("Falta...") em accessibility-XXXL — o texto simplesmente não
+                    // cabe numa linha só nesse tamanho de fonte, nem com a tela inteira à
+                    // disposição. `lineLimit: nil` deixa a pílula crescer em altura (2 linhas) em
+                    // vez de truncar ou (com `.fixedSize()`, tentado antes) ficar maior que a tela
+                    // e cortar visualmente.
+                    accessibilityStatusBadge
+                }
+            } else {
+                HStack(alignment: .top) {
+                    titleBlock
+                    Spacer(minLength: AppSpacing.xs)
+                    statusBadge
+                }
+            }
             if let professional = appointment.professional {
                 Text(professional.name)
-                    .font(AppTypography.caption)
+                    .font(AppTypography.subheadline)
                     .foregroundStyle(.secondary)
             }
             if let notes = appointment.notes, !notes.isEmpty {
@@ -235,7 +251,66 @@ struct EyeCareView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, AppSpacing.xxs)
+    }
+
+    private func professionalRow(for professional: EyeCareProfessional) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.subheadline)
+                .foregroundStyle(AppColor.primary)
+                .frame(width: 36, height: 36)
+                .background(AppColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(professional.name)
+                    .font(AppTypography.subheadlineMedium)
+                if let clinic = professional.clinic, !clinic.isEmpty {
+                    Text(clinic)
+                        .font(AppTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: AppSpacing.md) {
+                    if let phone = professional.phone, !phone.isEmpty {
+                        quickActionButton(title: "Ligar", systemImage: "phone.fill") { openURL(telURL(phone)) }
+                    }
+                    if let whatsapp = professional.whatsapp, !whatsapp.isEmpty {
+                        quickActionButton(title: "WhatsApp", systemImage: "message.fill") { openURL(whatsAppURL(whatsapp)) }
+                    }
+                    if let address = professional.address, !address.isEmpty {
+                        quickActionButton(title: "Mapas", systemImage: "map.fill") { openURL(mapsURL(address)) }
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(.vertical, AppSpacing.xxs)
+    }
+
+    private func quickActionButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(AppTypography.badge)
+                .padding(.horizontal, AppSpacing.sm)
+                .padding(.vertical, AppSpacing.xxs)
+                .background(AppColor.primary.opacity(0.12), in: Capsule())
+                .foregroundStyle(AppColor.primary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func appointmentRow(for appointment: EyeAppointment) -> some View {
+        AppListRow(
+            systemImage: "stethoscope",
+            tone: appointment.status == .scheduled ? .informative : .neutral,
+            title: appointment.type.displayName,
+            subtitle: [DateFormatting.shortWithTime.string(from: appointment.date), appointment.professional?.name]
+                .compactMap { $0 }
+                .joined(separator: " · "),
+            trailingText: appointment.status.displayName,
+            trailingTone: appointment.status == .scheduled ? .informative : nil
+        )
     }
 
     private func openURL(_ url: URL?) {
