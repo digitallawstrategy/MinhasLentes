@@ -66,7 +66,6 @@ struct HomeHeaderView: View {
                         }
                     }
             }
-            .buttonStyle(.plain)
             .pressScale()
             .accessibilityLabel("Avisos")
             .accessibilityHint("Abre os avisos pendentes")

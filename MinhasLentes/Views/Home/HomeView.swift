@@ -478,7 +478,6 @@ struct HomeView: View {
                     }
                 }
             }
-            .buttonStyle(.plain)
             .pressScale()
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(pair.name), \(status.label)")

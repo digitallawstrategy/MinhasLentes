@@ -64,7 +64,6 @@ struct LensPairCardView: View {
                     // `CuidadosView.caseSummaryCard`).
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.plain)
             .pressScale()
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(pair.name), \(usageStatus.label)")

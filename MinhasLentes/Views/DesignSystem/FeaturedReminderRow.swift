@@ -25,7 +25,6 @@ struct FeaturedReminderRow: View {
                 standardLayout
             }
         }
-        .buttonStyle(.plain)
         .pressScale()
         .accessibilityElement(children: .combine)
     }
