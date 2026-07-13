@@ -186,6 +186,9 @@ final class LensPairsViewModel {
                 trackingMode: trackingMode,
                 side: side,
                 asReserve: asReserve,
+                // Vínculo de exibição em LensPairCardView — quando há duas seleções (uma caixa
+                // por olho), guarda só a primeira; ver o comentário em LensPair.inventoryItem.
+                inventoryItem: inventorySelections.first?.item,
                 context: context
             )
             HapticsService.success()

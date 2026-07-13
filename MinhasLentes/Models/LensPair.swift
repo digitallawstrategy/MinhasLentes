@@ -29,6 +29,13 @@ final class LensPair {
     @Relationship(deleteRule: .nullify, inverse: \WearSession.lensPair)
     var wearSessions: [WearSession]? = []
 
+    /// Item do estoque usado para iniciar este par, quando houver — puramente informativo
+    /// (marca/modelo/validade em `LensPairCardView`), não uma dependência funcional: um par sem
+    /// vínculo (criado sem estoque, ou de antes deste campo existir) continua funcionando
+    /// normalmente. Quando o par consome de duas caixas (uma por olho), guarda só a primeira —
+    /// suficiente para exibição, não para proveniência exata das duas.
+    var inventoryItem: LensInventoryItem?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -36,7 +43,8 @@ final class LensPair {
         startDate: Date,
         maximumUses: Int,
         trackingMode: TrackingMode,
-        side: LensSide
+        side: LensSide,
+        inventoryItem: LensInventoryItem? = nil
     ) {
         self.id = id
         self.name = name
@@ -47,6 +55,7 @@ final class LensPair {
         self.trackingModeRawValue = trackingMode.rawValue
         self.sideRawValue = side.rawValue
         self.createdAt = Date()
+        self.inventoryItem = inventoryItem
     }
 
     var status: LensPairStatus {

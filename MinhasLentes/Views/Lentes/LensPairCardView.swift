@@ -179,6 +179,15 @@ struct LensPairCardView: View {
     // acima.
     private var detailStatItems: [DetailStatItem] {
         var items: [DetailStatItem] = []
+        // Só existe quando o par foi iniciado a partir de uma caixa do estoque (ver
+        // `LensPair.inventoryItem`) — pares antigos ou iniciados sem estoque simplesmente não
+        // mostram esta linha, sem quebra visual.
+        if let inventoryItem = pair.inventoryItem {
+            items.append(DetailStatItem(label: "Produto", value: "\(inventoryItem.brand) \(inventoryItem.model)"))
+            if let expiryDate = inventoryItem.expiryDate {
+                items.append(DetailStatItem(label: "Validade da caixa", value: DateFormatting.short.string(from: expiryDate)))
+            }
+        }
         if let lastUsage = pair.lastUsageDate {
             items.append(DetailStatItem(label: "Último uso", value: DateFormatting.short.string(from: lastUsage)))
         }

@@ -36,6 +36,15 @@ struct LensPairsView: View {
         inventoryItems.filter { $0.status == .available && $0.remainingQuantity > 0 }
     }
 
+    // Mesmas métricas já usadas no "Resumo" de `LensInventoryView` — não uma segunda leitura dos
+    // números, só uma reexibição resumida deles aqui.
+    private var totalRight: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableInventoryItems, side: .right) }
+    private var totalLeft: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableInventoryItems, side: .left) }
+    private var totalBoth: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableInventoryItems, side: .both) }
+    private var totalAvailable: Int { totalRight + totalLeft + totalBoth }
+    private var nearestInventoryExpiry: Date? { LensInventoryStatisticsService.nearestExpiry(items: availableInventoryItems) }
+    private var lowStockCount: Int { availableInventoryItems.filter(LensInventoryStatisticsService.isLowStock).count }
+
     private var reservePairs: [LensPair] {
         allPairs.filter { $0.status == .reserve && $0.deletedAt == nil }
     }
@@ -55,7 +64,7 @@ struct LensPairsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: AppSpacing.md) {
-                    inventoryLink
+                    inventoryCard
                     if finishedPairsCount > 0 {
                         pairHistoryLink
                     }
@@ -176,40 +185,44 @@ struct LensPairsView: View {
         }
     }
 
-    /// `NavigationLink`, não `ReminderCard`: é uma entrada de navegação, não uma ação — o
-    /// VoiceOver anuncia as duas de formas diferentes ("abre..." vs. "toque duplo para
-    /// ativar"), e essa distinção é real, não só estética.
-    private var inventoryLink: some View {
-        NavigationLink {
-            LensInventoryView()
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Label("Estoque de lentes", systemImage: "shippingbox")
-                        .font(AppTypography.subheadlineMedium)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(AppTypography.caption)
-                        .foregroundStyle(.tertiary)
+    /// Card de resumo, não uma linha de navegação pequena — o estoque é parte importante do
+    /// sistema, não um apêndice. Mesmas métricas já usadas no "Resumo" de `LensInventoryView`.
+    private var inventoryCard: some View {
+        AppCard {
+            SectionHeader("Estoque de lentes")
+            if availableInventoryItems.isEmpty {
+                Text("Nenhum item disponível no estoque.")
+                    .font(AppTypography.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                MetricStrip(items: [
+                    MetricStripItem(value: "\(totalAvailable)", label: "Disponíveis", tone: .success),
+                    MetricStripItem(
+                        value: nearestInventoryExpiry.map { DateFormatting.short.string(from: $0) } ?? "—",
+                        label: "Próxima validade"
+                    ),
+                    MetricStripItem(
+                        value: "\(lowStockCount)", label: "Estoque baixo",
+                        tone: lowStockCount == 0 ? .neutral : .warning
+                    ),
+                ])
+                .padding(.vertical, AppSpacing.xxs)
+                HStack(spacing: AppSpacing.md) {
+                    Text("OD: \(totalRight)")
+                    Text("OE: \(totalLeft)")
+                    Text("Ambos: \(totalBoth)")
                 }
-                if !availableInventoryItems.isEmpty {
-                    Text(inventorySummaryText)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
+                .font(AppTypography.caption)
+                .foregroundStyle(.secondary)
             }
+            NavigationLink {
+                LensInventoryView()
+            } label: {
+                Text("Ver estoque")
+            }
+            .font(AppTypography.subheadline)
+            .padding(.top, AppSpacing.xxs)
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, AppSpacing.xxs)
-    }
-
-    private var inventorySummaryText: String {
-        var parts = [availableInventoryItems.count == 1 ? "1 disponível" : "\(availableInventoryItems.count) disponíveis"]
-        let nearExpiry = LensInventoryStatisticsService.itemsNearExpiry(items: availableInventoryItems, withinDays: 30)
-        if !nearExpiry.isEmpty {
-            parts.append(nearExpiry.count == 1 ? "1 vencendo em breve" : "\(nearExpiry.count) vencendo em breve")
-        }
-        return parts.joined(separator: " · ")
     }
 
     private var pairHistoryLink: some View {
