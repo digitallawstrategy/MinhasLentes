@@ -68,11 +68,9 @@ struct TrashView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Restaurar") {
+            SecondaryActionButton(title: "Restaurar", fullWidth: false, compact: true) {
                 viewModel.restorePair(pair, context: modelContext)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
             Button(role: .destructive) {
                 viewModel.pairToPermanentlyDelete = pair
             } label: {

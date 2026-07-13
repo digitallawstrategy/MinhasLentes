@@ -46,7 +46,42 @@ struct NotificationsCenterView: View {
         }
     }
 
+    /// `.navigate` é navegação pura (só troca de aba) — vira linha inteira tocável com chevron,
+    /// não um botão de destaque, que fica reservado para `.registerDailyCare`/`.endWearSession`
+    /// (mudam estado de verdade). Antes os três tipos usavam o mesmo `SecondaryActionButton`,
+    /// sem diferenciar visualmente "isto muda algo agora" de "isto só me leva a outro lugar".
+    @ViewBuilder
     private func row(for item: PendingItem) -> some View {
+        if case .navigate = item.action {
+            Button {
+                perform(item)
+            } label: {
+                rowContent(for: item, trailing: AnyView(
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                ))
+                // `Button` propõe ao próprio label uma altura de controle padrão — sem isto,
+                // `item.detail` cortaria com "…" em Dynamic Type grande (mesmo problema e
+                // correção de `LensPairCardView`/`CuidadosView.caseSummaryCard`).
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Color.clear)
+        } else {
+            rowContent(for: item, trailing: item.actionLabel.map { actionLabel in
+                AnyView(
+                    SecondaryActionButton(title: actionLabel, tint: item.tone.color, fullWidth: false, compact: true) {
+                        perform(item)
+                    }
+                )
+            } ?? AnyView(EmptyView()))
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    private func rowContent(for item: PendingItem, trailing: AnyView) -> some View {
         HStack(spacing: AppSpacing.sm) {
             Image(systemName: item.icon)
                 .foregroundStyle(item.tone.color)
@@ -60,14 +95,9 @@ struct NotificationsCenterView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: AppSpacing.xs)
-            if let actionLabel = item.actionLabel {
-                SecondaryActionButton(title: actionLabel, tint: item.tone.color, fullWidth: false, compact: true) {
-                    perform(item)
-                }
-            }
+            trailing
         }
         .padding(.vertical, AppSpacing.xxs)
-        .listRowBackground(Color.clear)
     }
 
     private func perform(_ item: PendingItem) {

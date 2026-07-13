@@ -65,7 +65,15 @@ struct LensPairDetailView: View {
                     if pair.inventoryItem != nil {
                         productCard
                     }
-                    SecondaryActionButton(title: "Ver linha do tempo", systemImage: "clock.arrow.circlepath") {
+                    // Navegação pura para a linha do tempo — não muda nenhum estado, então não
+                    // é um `SecondaryActionButton` (cápsula de destaque reservada para ações que
+                    // mudam algo). Mesmo formato de linha tocável com chevron já usado em
+                    // `ReminderCard` para o resto da Home.
+                    ReminderCard(
+                        systemImage: "clock.arrow.circlepath",
+                        title: "Linha do tempo",
+                        detail: "Histórico completo de eventos deste par"
+                    ) {
                         showTimeline = true
                     }
                 }

@@ -335,15 +335,28 @@ struct LensPairsView: View {
         }
     }
 
+    // Regra 1 da consistência de interação: par é entidade cadastrada, então o corpo da linha
+    // precisa abrir detalhe — pares em uso já abrem `LensPairDetailView` ao toque
+    // (`LensPairCardView`), reservas não tinham essa via, só "Usar agora"/menu. Reusa o mesmo
+    // `pairForDetail` do deep link do widget/card "Em uso" da Home.
     private func reserveRow(for pair: LensPair) -> some View {
         HStack(spacing: AppSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(pair.name)
-                    .font(AppTypography.subheadlineMedium)
-                Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
-                    .font(AppTypography.caption)
-                    .foregroundStyle(.secondary)
+            Button {
+                pairForDetail = pair
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pair.name)
+                        .font(AppTypography.subheadlineMedium)
+                    Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
+                        .font(AppTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                // Mesmo problema/correção de `LensPairCardView`/`caseSummaryCard`: `Button` propõe
+                // ao próprio label uma altura de controle padrão, cortando o texto sem isto.
+                .fixedSize(horizontal: false, vertical: true)
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Abre os detalhes deste par")
             Spacer()
             SecondaryActionButton(title: "Usar agora", fullWidth: false, compact: true) {
                 viewModel.promoteToInUse(pair, context: modelContext)
