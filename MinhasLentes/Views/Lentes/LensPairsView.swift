@@ -17,6 +17,7 @@ struct LensPairsView: View {
     @State private var pairToFinish: LensPair?
     @State private var pairToEdit: LensPair?
     @State private var pairForDiary: LensPair?
+    @State private var pairForDetail: LensPair?
     @State private var pairToTrash: LensPair?
     @State private var showStartNewPair = false
     @State private var startNewPairSides: [LensSide] = [.both]
@@ -182,6 +183,9 @@ struct LensPairsView: View {
             .sheet(item: $pairForDiary) { pair in
                 PairDiaryView(pair: pair, allCleanings: cleanings, warningBelowPercent: settings.healthWarningBelowPercent)
             }
+            .sheet(item: $pairForDetail) { pair in
+                LensPairDetailView(pair: pair, settings: settings, allCleanings: cleanings, wearingSessionPairID: viewModel.wearingSessionPairID)
+            }
         }
     }
 
@@ -327,13 +331,15 @@ struct LensPairsView: View {
         }
     }
 
-    /// Abre o Diário do par indicado por um deep link do widget (`minhaslentes://pair/<uuid>`),
-    /// se houver um pendente e o par ainda existir.
+    /// Abre os detalhes do par indicado por um deep link do widget (`minhaslentes://pair/<uuid>`)
+    /// ou pelo toque no card "Em uso" da Home (`router.openPair`), se houver um pendente e o par
+    /// ainda existir. Nunca abre o Diário como destino padrão — ele continua acessível pelo botão
+    /// dentro de `LensPairDetailView` ou pelo menu "Ver diário do par" nesta tela.
     private func openPendingPairIfNeeded() {
         guard let pendingID = router.pendingPairID else { return }
         router.pendingPairID = nil
         guard let pair = allPairs.first(where: { $0.id == pendingID }) else { return }
-        pairForDiary = pair
+        pairForDetail = pair
     }
 }
 

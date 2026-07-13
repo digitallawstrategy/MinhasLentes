@@ -41,8 +41,10 @@ struct MinhasLentesWidgetEntryView: View {
         .widgetURL(deepLinkURL)
     }
 
-    /// Toque no widget abre o Diário do par em uso direto, sem passar pela Home genérica —
-    /// só um destino por widget é suportado, então isso é tudo que dá pra linkar aqui.
+    /// Toque no widget abre `LensPairDetailView` (vida útil, frequência, sessão de uso) do par em
+    /// uso direto, sem passar pela Home genérica — só um destino por widget é suportado. Nunca
+    /// abre o Diário: `AppRouter.openPair` + `LensPairsView.openPendingPairIfNeeded()` resolvem
+    /// esta mesma URL para o detalhe, não para o Diário (ver comentário lá).
     private var deepLinkURL: URL? {
         guard let pairID = entry.snapshot.pairID else { return nil }
         return URL(string: "minhaslentes://pair/\(pairID.uuidString)")

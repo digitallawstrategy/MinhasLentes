@@ -4,8 +4,10 @@ import SwiftData
 /// Aba Início: o hub de ações do dia — registrar o uso de hoje, alternar a sessão "estou
 /// usando as lentes", registrar o cuidado diário do estojo e, quando pertinente, a limpeza
 /// periódica. Edição, encerramento e detalhe administrativo ficam em Lentes/Cuidados; tocar
-/// num par aqui leva direto ao diário dele lá. Prioridade visual, nesta ordem: situação das
-/// lentes em uso, ação principal do momento, sessão ativa, cuidados de hoje, lembretes.
+/// num par aqui leva a `LensPairDetailView` (vida útil, frequência, sessão de uso — não o
+/// Diário, que continua acessível por um botão explícito lá dentro). Prioridade visual, nesta
+/// ordem: situação das lentes em uso, ação principal do momento, sessão ativa, cuidados de hoje,
+/// lembretes.
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -476,7 +478,7 @@ struct HomeView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(pair.name), \(status.label)")
             .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
-            .accessibilityHint("Abre o diário deste par")
+            .accessibilityHint("Abre os detalhes deste par")
 
             pairActionRow(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
         }
