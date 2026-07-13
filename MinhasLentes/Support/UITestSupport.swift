@@ -178,7 +178,7 @@ enum UITestSupport {
         context.insert(WearSession(startedAt: referenceDate, lensPair: pair))
 
         let inventoryExpiryDate = calendar.date(byAdding: .day, value: 200, to: referenceDate) ?? referenceDate
-        context.insert(LensInventoryItem(
+        let inventoryItem = LensInventoryItem(
             brand: "Marca de exemplo",
             model: "Lentes de reserva",
             prescriptionOD: "-2.00",
@@ -189,7 +189,12 @@ enum UITestSupport {
             initialQuantity: 4,
             photoData: placeholderImageData(color: .systemGreen),
             notes: "Comprada na ótica de exemplo."
-        ))
+        )
+        context.insert(inventoryItem)
+        // Vincula o par ao item — sem isso, LensPairCardView não teria dado de produto real
+        // para validar por screenshot (`pair.inventoryItem` normalmente vem de
+        // `LensPairService.startNewPair`, fora deste caminho de seed).
+        pair.inventoryItem = inventoryItem
 
         // Profissional + consulta com receita e anexo, para a tela de detalhe de consulta
         // (`-UITestOpenRoute consultaDetalhe`) ter conteúdo real para capturar.
