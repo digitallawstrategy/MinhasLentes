@@ -34,6 +34,13 @@ final class LensPair {
     /// vínculo (criado sem estoque, ou de antes deste campo existir) continua funcionando
     /// normalmente. Quando o par consome de duas caixas (uma por olho), guarda só a primeira —
     /// suficiente para exibição, não para proveniência exata das duas.
+    ///
+    /// Propositalmente uma var simples, sem `@Relationship` aqui — mesmo padrão de
+    /// `LensUsage.lensPair`/`WearSession.lensPair` (o lado "muitos" de uma relação já existente
+    /// nesta classe). O `deleteRule: .nullify` mora do outro lado, em
+    /// `LensInventoryItem.linkedPairs` — testado e confirmado que declarar o inverso só aqui
+    /// (sem relação declarada em `LensInventoryItem`) não bastava: o SwiftData não zerava a
+    /// referência ao excluir o item, mesmo com `deleteRule` anotado neste lado.
     var inventoryItem: LensInventoryItem?
 
     init(

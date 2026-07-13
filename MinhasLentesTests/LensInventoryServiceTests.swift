@@ -168,6 +168,26 @@ final class LensInventoryServiceTests: XCTestCase {
         XCTAssertEqual(bothBox.remainingQuantity, 4)
     }
 
+    func testConsumeSingleBothBoxThrowsAndConsumesNothingWhenInsufficientForBothEyes() async throws {
+        let bothBox = try await makeItem(quantity: 1, side: .both)
+
+        do {
+            try await LensInventoryService.consume(
+                selections: [.init(item: bothBox, quantity: 2)],
+                forPairNamed: "Par nº 1",
+                context: context
+            )
+            XCTFail("Deveria lançar .insufficientStock — só há 1 unidade para os 2 necessários")
+        } catch LensInventoryService.ServiceError.insufficientStock {
+            // Esperado.
+        } catch {
+            XCTFail("Erro inesperado: \(error)")
+        }
+
+        XCTAssertEqual(bothBox.remainingQuantity, 1, "Nada deve ser descontado quando o saldo é insuficiente")
+        XCTAssertEqual(bothBox.status, .available)
+    }
+
     func testConsumeIsAllOrNothingWhenOneSelectionHasInsufficientStock() async throws {
         let rightBox = try await makeItem(quantity: 6, side: .right)
         let leftBox = try await makeItem(quantity: 1, side: .left)
