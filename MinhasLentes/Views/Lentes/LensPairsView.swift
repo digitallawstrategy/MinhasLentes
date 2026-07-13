@@ -204,43 +204,50 @@ struct LensPairsView: View {
     }
 
     /// Card de resumo, não uma linha de navegação pequena — o estoque é parte importante do
-    /// sistema, não um apêndice. Mesmas métricas já usadas no "Resumo" de `LensInventoryView`.
+    /// sistema, não um apêndice. Mesmas métricas já usadas no "Resumo" de `LensInventoryView`. O
+    /// cartão inteiro é o alvo de toque (regra 3 da consistência de interação): `NavigationLink`
+    /// não desenha chevron sozinho fora de `List`/`Form`, então o ícone é manual, mesma receita de
+    /// `pairHistoryLink` logo abaixo.
     private var inventoryCard: some View {
-        AppCard {
-            SectionHeader("Estoque de lentes")
-            if availableInventoryItems.isEmpty {
-                Text("Nenhum item disponível no estoque.")
-                    .font(AppTypography.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                MetricStrip(items: [
-                    MetricStripItem(value: "\(totalAvailable)", label: "Disponíveis", tone: .success),
-                    MetricStripItem(
-                        value: nearestInventoryExpiry.map { DateFormatting.short.string(from: $0) } ?? "—",
-                        label: "Próxima validade"
-                    ),
-                    MetricStripItem(
-                        value: "\(lowStockCount)", label: "Estoque baixo",
-                        tone: lowStockCount == 0 ? .neutral : .warning
-                    ),
-                ])
-                .padding(.vertical, AppSpacing.xxs)
-                HStack(spacing: AppSpacing.md) {
-                    Text("OD: \(totalRight)")
-                    Text("OE: \(totalLeft)")
-                    Text("Ambos: \(totalBoth)")
+        NavigationLink {
+            LensInventoryView()
+        } label: {
+            AppCard {
+                SectionHeader("Estoque de lentes") {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
                 }
-                .font(AppTypography.caption)
-                .foregroundStyle(.secondary)
+                if availableInventoryItems.isEmpty {
+                    Text("Nenhum item disponível no estoque.")
+                        .font(AppTypography.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    MetricStrip(items: [
+                        MetricStripItem(value: "\(totalAvailable)", label: "Disponíveis", tone: .success),
+                        MetricStripItem(
+                            value: nearestInventoryExpiry.map { DateFormatting.short.string(from: $0) } ?? "—",
+                            label: "Próxima validade"
+                        ),
+                        MetricStripItem(
+                            value: "\(lowStockCount)", label: "Estoque baixo",
+                            tone: lowStockCount == 0 ? .neutral : .warning
+                        ),
+                    ])
+                    .padding(.vertical, AppSpacing.xxs)
+                    HStack(spacing: AppSpacing.md) {
+                        Text("OD: \(totalRight)")
+                        Text("OE: \(totalLeft)")
+                        Text("Ambos: \(totalBoth)")
+                    }
+                    .font(AppTypography.caption)
+                    .foregroundStyle(.secondary)
+                }
             }
-            NavigationLink {
-                LensInventoryView()
-            } label: {
-                Text("Ver estoque")
-            }
-            .font(AppTypography.subheadline)
-            .padding(.top, AppSpacing.xxs)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Abre o estoque de lentes")
     }
 
     private var pairHistoryLink: some View {

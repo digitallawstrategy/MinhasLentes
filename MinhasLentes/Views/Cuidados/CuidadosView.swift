@@ -87,96 +87,109 @@ struct CuidadosView: View {
     // lendo igual à outra. Agora só a situação (o que importa para decidir alguma coisa agora)
     // tem destaque visual (badge colorido ao lado do título); o resto vira texto de apoio menor,
     // mesmo padrão já usado no card de "Frasco atual" de Solução.
+    // O cartão inteiro é o alvo de toque (regra 3: card/linha com chevron, não um link de texto
+    // solto no rodapé que não competia visualmente com nada) — `NavigationLink` não desenha
+    // chevron sozinho fora de `List`/`Form`, então o ícone é manual, mesma receita de
+    // `LensPairsView.pairHistoryLink`.
     private var caseSummaryCard: some View {
-        AppCard {
-            if let activeCase {
-                let titleBlock = VStack(alignment: .leading, spacing: 2) {
-                    Text("Estojo")
-                        .font(AppTypography.headline)
-                    Text("Ciclo iniciado em \(DateFormatting.short.string(from: activeCase.startDate))")
-                        .font(AppTypography.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                let badge = daysUntilCaseReplacement.map { days in
-                    StatusBadge(text: situationText(daysRemaining: days, dueVerb: "Substituição recomendada"), tone: situationTone(daysRemaining: days), systemImage: "shippingbox.fill")
-                }
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        titleBlock
-                        badge
+        NavigationLink {
+            CaseView()
+        } label: {
+            AppCard {
+                if let activeCase {
+                    let titleBlock = VStack(alignment: .leading, spacing: 2) {
+                        Text("Estojo")
+                            .font(AppTypography.headline)
+                        Text("Ciclo iniciado em \(DateFormatting.short.string(from: activeCase.startDate))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    let badge = daysUntilCaseReplacement.map { days in
+                        StatusBadge(text: situationText(daysRemaining: days, dueVerb: "Substituição recomendada"), tone: situationTone(daysRemaining: days), systemImage: "shippingbox.fill")
+                    }
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                            titleBlock
+                            badge
+                            summaryChevron
+                        }
+                    } else {
+                        HStack(alignment: .top) {
+                            titleBlock
+                            Spacer(minLength: AppSpacing.xs)
+                            badge
+                            summaryChevron
+                        }
+                    }
+                    if let lastCleaning {
+                        Text("Última limpeza periódica: \(DateFormatting.short.string(from: lastCleaning.cleaningDate))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let lastRoutineCare {
+                        Text("Último cuidado diário: \(DateFormatting.shortWithTime.string(from: lastRoutineCare.date))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 } else {
-                    HStack(alignment: .top) {
-                        titleBlock
-                        Spacer(minLength: AppSpacing.xs)
-                        badge
-                    }
-                }
-                if let lastCleaning {
-                    Text("Última limpeza periódica: \(DateFormatting.short.string(from: lastCleaning.cleaningDate))")
-                        .font(AppTypography.footnote)
+                    SectionHeader("Estojo") { summaryChevron }
+                    Text("Nenhum ciclo de estojo iniciado ainda.")
+                        .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                if let lastRoutineCare {
-                    Text("Último cuidado diário: \(DateFormatting.shortWithTime.string(from: lastRoutineCare.date))")
-                        .font(AppTypography.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                SectionHeader("Estojo")
-                Text("Nenhum ciclo de estojo iniciado ainda.")
-                    .font(AppTypography.subheadline)
-                    .foregroundStyle(.secondary)
             }
-            NavigationLink {
-                CaseView()
-            } label: {
-                Text("Ver detalhes do estojo")
-            }
-            .font(AppTypography.subheadline)
-            .padding(.top, AppSpacing.xxs)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Abre os detalhes do estojo")
     }
 
     private var solutionSummaryCard: some View {
-        AppCard {
-            if let activeSolution {
-                let titleBlock = VStack(alignment: .leading, spacing: 2) {
-                    Text("Solução de limpeza")
-                        .font(AppTypography.headline)
-                    Text("Aberta em \(DateFormatting.short.string(from: activeSolution.openedDate))")
-                        .font(AppTypography.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                let badge = daysUntilSolutionDiscard.map { days in
-                    StatusBadge(text: situationText(daysRemaining: days, dueVerb: "Descarte recomendado"), tone: situationTone(daysRemaining: days), systemImage: "flask.fill")
-                }
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        titleBlock
-                        badge
+        NavigationLink {
+            CleaningSolutionView()
+        } label: {
+            AppCard {
+                if let activeSolution {
+                    let titleBlock = VStack(alignment: .leading, spacing: 2) {
+                        Text("Solução de limpeza")
+                            .font(AppTypography.headline)
+                        Text("Aberta em \(DateFormatting.short.string(from: activeSolution.openedDate))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    let badge = daysUntilSolutionDiscard.map { days in
+                        StatusBadge(text: situationText(daysRemaining: days, dueVerb: "Descarte recomendado"), tone: situationTone(daysRemaining: days), systemImage: "flask.fill")
+                    }
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                            titleBlock
+                            badge
+                            summaryChevron
+                        }
+                    } else {
+                        HStack(alignment: .top) {
+                            titleBlock
+                            Spacer(minLength: AppSpacing.xs)
+                            badge
+                            summaryChevron
+                        }
                     }
                 } else {
-                    HStack(alignment: .top) {
-                        titleBlock
-                        Spacer(minLength: AppSpacing.xs)
-                        badge
-                    }
+                    SectionHeader("Solução de limpeza") { summaryChevron }
+                    Text("Nenhum frasco de solução registrado ainda.")
+                        .font(AppTypography.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-            } else {
-                SectionHeader("Solução de limpeza")
-                Text("Nenhum frasco de solução registrado ainda.")
-                    .font(AppTypography.subheadline)
-                    .foregroundStyle(.secondary)
             }
-            NavigationLink {
-                CleaningSolutionView()
-            } label: {
-                Text("Ver detalhes da solução")
-            }
-            .font(AppTypography.subheadline)
-            .padding(.top, AppSpacing.xxs)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Abre os detalhes da solução de limpeza")
+    }
+
+    private var summaryChevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
     }
 
     private var calendarCard: some View {
