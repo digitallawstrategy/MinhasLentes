@@ -18,6 +18,7 @@ struct LensPairsView: View {
     @State private var pairToEdit: LensPair?
     @State private var pairForTimeline: LensPair?
     @State private var pairForDetail: LensPair?
+    @State private var pairPendingEditAfterDetailClose: LensPair?
     @State private var pairToTrash: LensPair?
     @State private var showStartNewPair = false
     @State private var startNewPairSides: [LensSide] = [.both]
@@ -183,8 +184,21 @@ struct LensPairsView: View {
             .sheet(item: $pairForTimeline) { pair in
                 PairTimelineView(pair: pair, settings: settings, allCleanings: cleanings)
             }
-            .sheet(item: $pairForDetail) { pair in
-                LensPairDetailView(pair: pair, settings: settings, allCleanings: cleanings, wearingSessionPairID: viewModel.wearingSessionPairID)
+            // `onDismiss` (não setar `pairToEdit` direto no `onEdit`) porque `pairForDetail` e
+            // `pairToEdit` são dois `.sheet` irmãos na mesma view — apresentar o segundo enquanto
+            // o primeiro ainda está na tela é um caso mal definido no SwiftUI. `onEdit` só marca a
+            // intenção; o `EditPairSheet` só abre depois que este sheet termina de fechar de
+            // verdade.
+            .sheet(item: $pairForDetail, onDismiss: {
+                if let pair = pairPendingEditAfterDetailClose {
+                    pairPendingEditAfterDetailClose = nil
+                    pairToEdit = pair
+                }
+            }) { pair in
+                LensPairDetailView(
+                    pair: pair, settings: settings, allCleanings: cleanings, wearingSessionPairID: viewModel.wearingSessionPairID,
+                    onEdit: { pairPendingEditAfterDetailClose = pair }
+                )
             }
         }
     }
@@ -267,6 +281,7 @@ struct LensPairsView: View {
             LensPairCardView(
                 pair: pair,
                 settings: settings,
+                onShowDetail: { pairForDetail = pair },
                 onFinishPair: { pairToFinish = pair },
                 onEdit: { pairToEdit = pair },
                 onShowTimeline: { pairForTimeline = pair },

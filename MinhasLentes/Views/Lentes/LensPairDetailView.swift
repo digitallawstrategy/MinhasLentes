@@ -12,6 +12,7 @@ struct LensPairDetailView: View {
     let settings: AppSettings
     let allCleanings: [CaseCleaning]
     let wearingSessionPairID: UUID?
+    let onEdit: () -> Void
 
     @State private var showTimeline = false
 
@@ -77,6 +78,15 @@ struct LensPairDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fechar") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    // Fecha este sheet antes de sinalizar a edição — `onEdit` só marca a intenção
+                    // no chamador, que abre o `EditPairSheet` depois que este terminar de fechar
+                    // (ver comentário no `.sheet(item: $pairForDetail, ...)` de `LensPairsView`).
+                    Button("Editar", systemImage: "pencil") {
+                        onEdit()
+                        dismiss()
+                    }
                 }
             }
             .sheet(isPresented: $showTimeline) {
@@ -195,5 +205,5 @@ struct LensPairDetailView: View {
         trackingMode: .pair,
         side: .both
     )
-    LensPairDetailView(pair: pair, settings: AppSettings(), allCleanings: [], wearingSessionPairID: nil)
+    LensPairDetailView(pair: pair, settings: AppSettings(), allCleanings: [], wearingSessionPairID: nil, onEdit: {})
 }

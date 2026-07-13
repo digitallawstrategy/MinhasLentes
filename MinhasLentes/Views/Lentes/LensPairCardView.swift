@@ -11,6 +11,7 @@ struct LensPairCardView: View {
 
     let pair: LensPair
     let settings: AppSettings
+    let onShowDetail: () -> Void
     let onFinishPair: () -> Void
     let onEdit: () -> Void
     let onShowTimeline: () -> Void
@@ -54,7 +55,15 @@ struct LensPairCardView: View {
     var body: some View {
         AppCard {
             header
-            ringAndHeadline
+            Button(action: onShowDetail) {
+                ringAndHeadline
+            }
+            .buttonStyle(.plain)
+            .pressScale()
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(pair.name), \(usageStatus.label)")
+            .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
+            .accessibilityHint("Abre os detalhes deste par")
             ProgressBarView(fraction: remainingFraction, tint: usageStatus.tone.color)
                 .animation(reduceMotion ? nil : AppAnimation.standard, value: remainingFraction)
             detailStats
@@ -158,9 +167,7 @@ struct LensPairCardView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Usos restantes")
-        .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
+        .accessibilityHidden(true)
     }
 
     private func usageHeadlineText(alignment: HorizontalAlignment) -> some View {
