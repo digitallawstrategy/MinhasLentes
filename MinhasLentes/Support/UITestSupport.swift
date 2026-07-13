@@ -98,6 +98,9 @@ enum UITestSupport {
         /// Abre `LensInventoryItemDetailView` para o item semeado por `seedPreviewData`, a
         /// partir de Estoque (dentro de Lentes) — precisa de `-UITestSelectedTab lentes`.
         case estoqueDetalhe
+        /// Abre `PairTimelineView` para o par semeado por `seedPreviewData`, a partir da aba
+        /// Lentes — precisa de `-UITestSelectedTab lentes`.
+        case linhaDoTempo
     }
 
     static func requestedRoute(arguments: [String] = ProcessInfo.processInfo.arguments) -> Route? {

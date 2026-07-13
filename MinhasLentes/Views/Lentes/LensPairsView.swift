@@ -100,6 +100,9 @@ struct LensPairsView: View {
                 if UITestSupport.requestedRoute() == .estoque || UITestSupport.requestedRoute() == .estoqueDetalhe {
                     uiTestShowInventory = true
                 }
+                if UITestSupport.requestedRoute() == .linhaDoTempo {
+                    pairForTimeline = allPairs.first { $0.name == UITestSupport.seededPairName }
+                }
                 #endif
             }
             .onChange(of: router.pendingPairID) { _, _ in
