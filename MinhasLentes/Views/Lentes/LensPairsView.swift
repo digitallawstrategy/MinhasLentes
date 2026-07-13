@@ -248,6 +248,11 @@ struct LensPairsView: View {
                     .foregroundStyle(.secondary)
                 }
             }
+            // `NavigationLink` propõe ao próprio label uma altura de controle padrão (~1 linha),
+            // não a altura natural do conteúdo — sem isto, "Estoque de lentes"/textos deste
+            // cartão cortavam com "…" em Dynamic Type grande mesmo sem nenhum `lineLimit`
+            // explícito no código (mesmo problema e correção de `CuidadosView.caseSummaryCard`).
+            .fixedSize(horizontal: false, vertical: true)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Abre o estoque de lentes")

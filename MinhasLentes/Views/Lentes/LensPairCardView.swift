@@ -57,6 +57,12 @@ struct LensPairCardView: View {
             header
             Button(action: onShowDetail) {
                 ringAndHeadline
+                    // `Button` propõe ao próprio label uma altura de controle padrão (~1 linha),
+                    // não a altura natural do conteúdo — sem isto, "N de M usos registrados"/"X%
+                    // da vida útil restante" cortavam com "…" em Dynamic Type grande mesmo sem
+                    // nenhum `lineLimit` explícito no código (mesmo problema e correção de
+                    // `CuidadosView.caseSummaryCard`).
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .buttonStyle(.plain)
             .pressScale()

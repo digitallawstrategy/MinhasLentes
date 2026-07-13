@@ -138,6 +138,12 @@ struct CuidadosView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            // `NavigationLink` propõe ao próprio label uma altura de controle padrão (~1 linha),
+            // não a altura natural do conteúdo — `lineLimit(nil)` sozinho permite múltiplas
+            // linhas mas não muda essa proposta, então o texto continuava cortando com "…"
+            // mesmo sem limite de linhas. `fixedSize(vertical: true)` força o label a pedir sua
+            // altura ideal (a de todo o conteúdo empilhado), resolvendo o corte na raiz.
+            .fixedSize(horizontal: false, vertical: true)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Abre os detalhes do estojo")
@@ -180,6 +186,9 @@ struct CuidadosView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            // Ver comentário equivalente em `caseSummaryCard` — `NavigationLink` propõe altura de
+            // controle padrão ao label, não a altura natural do conteúdo empilhado.
+            .fixedSize(horizontal: false, vertical: true)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Abre os detalhes da solução de limpeza")
