@@ -28,6 +28,7 @@ struct Provider: TimelineProvider {
 struct MinhasLentesWidgetEntryView: View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -37,14 +38,16 @@ struct MinhasLentesWidgetEntryView: View {
                 MediumLensWidgetView(snapshot: entry.snapshot)
             }
         }
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(for: .widget) {
+            WidgetGradient.background(colorScheme: colorScheme)
+        }
         .widgetURL(deepLinkURL)
     }
 
     /// Toque no widget abre `LensPairDetailView` (vida útil, frequência, sessão de uso) do par em
     /// uso direto, sem passar pela Home genérica — só um destino por widget é suportado. Nunca
-    /// abre o Diário: `AppRouter.openPair` + `LensPairsView.openPendingPairIfNeeded()` resolvem
-    /// esta mesma URL para o detalhe, não para o Diário (ver comentário lá).
+    /// abre o Diário/Linha do tempo: `AppRouter.openPair` + `LensPairsView.openPendingPairIfNeeded()`
+    /// resolvem esta mesma URL para o detalhe, não para a linha do tempo (ver comentário lá).
     private var deepLinkURL: URL? {
         guard let pairID = entry.snapshot.pairID else { return nil }
         return URL(string: "minhaslentes://pair/\(pairID.uuidString)")
@@ -54,21 +57,39 @@ struct MinhasLentesWidgetEntryView: View {
 private struct SmallLensWidgetView: View {
     let snapshot: LensSnapshot
 
+    private var tone: Color {
+        WidgetTone.forUsage(
+            remaining: snapshot.usesRemaining, maximum: snapshot.maximumUses,
+            goodBelowPercent: snapshot.healthGoodBelowPercent, warningBelowPercent: snapshot.healthWarningBelowPercent,
+            criticalBelowPercent: snapshot.healthCriticalBelowPercent
+        )
+    }
+
     var body: some View {
         if snapshot.hasActivePair {
-            VStack(alignment: .leading, spacing: 2) {
-                Spacer()
-                Text("\(snapshot.usesRemaining)")
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
-                    .minimumScaleFactor(0.6)
+            // Um único ponto focal — o anel — com o nome do par e (só quando relevante) um
+            // status compacto abaixo. Nada de segunda linha de legenda dentro do anel: o número
+            // já é a informação, "restantes" é reforço de contexto fora dele, não obrigatório
+            // quando já há uma sessão ativa para mostrar em cima disso.
+            VStack(spacing: WidgetSpacing.xxs) {
+                WidgetUsageRing(value: snapshot.usesRemaining, remainingFraction: snapshot.remainingFraction, tint: tone, diameter: 64, lineWidth: 7)
+                Text(snapshot.pairName ?? "Par atual")
+                    .font(.caption.weight(.semibold))
                     .lineLimit(1)
-                    .foregroundStyle(Color.accentColor)
-                Text("usos restantes")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
+                    .minimumScaleFactor(0.8)
+                    .padding(.top, 2)
+                if snapshot.wearingSince != nil {
+                    Label("Em uso", systemImage: "eye.circle.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(WidgetColor.primary)
+                        .labelStyle(.titleAndIcon)
+                } else {
+                    Text("restantes")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             EmptyLensWidgetView(compact: true, debugMessage: snapshot.debugMessage)
         }
@@ -78,57 +99,94 @@ private struct SmallLensWidgetView: View {
 private struct MediumLensWidgetView: View {
     let snapshot: LensSnapshot
 
+    private var tone: Color {
+        WidgetTone.forUsage(
+            remaining: snapshot.usesRemaining, maximum: snapshot.maximumUses,
+            goodBelowPercent: snapshot.healthGoodBelowPercent, warningBelowPercent: snapshot.healthWarningBelowPercent,
+            criticalBelowPercent: snapshot.healthCriticalBelowPercent
+        )
+    }
+
+    /// Dia mais urgente entre os 4 candidatos de "próximo cuidado" (limpeza do estojo, solução,
+    /// substituição do estojo, consulta) — o widget só tem espaço para 1 desses por vez (3º sinal
+    /// da lista priorizada), então mostra sempre o mais próximo/atrasado, nunca uma lista dos 4.
+    private var mostUrgentCareSignal: WidgetSignalContent? {
+        var candidates: [(days: Int, content: WidgetSignalContent)] = []
+        if let days = snapshot.daysUntilNextCleaning {
+            let text = days <= 0 ? "Limpeza do estojo atrasada" : "Limpeza do estojo em \(days)d"
+            candidates.append((days, WidgetSignalContent(systemImage: "sparkles", text: text, isUrgent: days <= 0)))
+        }
+        if let days = snapshot.daysUntilSolutionDiscard {
+            let text = days <= 0 ? "Solução vencida" : "Solução vence em \(days)d"
+            candidates.append((days, WidgetSignalContent(systemImage: "drop.fill", text: text, isUrgent: days <= 0)))
+        }
+        if let days = snapshot.daysUntilCaseReplacement {
+            let text = days <= 0 ? "Substituir estojo" : "Estojo em \(days)d"
+            candidates.append((days, WidgetSignalContent(systemImage: "shippingbox.fill", text: text, isUrgent: days <= 0)))
+        }
+        if let days = snapshot.daysUntilNextAppointment {
+            let text = "Consulta em \(days)d"
+            candidates.append((days, WidgetSignalContent(systemImage: "calendar", text: text, isUrgent: false)))
+        }
+        return candidates.min { $0.days < $1.days }?.content
+    }
+
+    /// Até 3 sinais secundários, nesta ordem de prioridade — nunca mais que isso, para o widget
+    /// não virar uma lista de labels do mesmo peso: (1) sessão de uso ativa, (2) cuidado diário
+    /// pendente ou em dia, (3) o cuidado mais urgente entre limpeza/solução/estojo/consulta.
+    private var secondarySignals: [WidgetSignalContent] {
+        var signals: [WidgetSignalContent] = []
+        if snapshot.wearingSince != nil {
+            signals.append(WidgetSignalContent(systemImage: "eye.circle.fill", text: "Usando agora", isUrgent: false, tone: WidgetColor.primary))
+        }
+        signals.append(
+            snapshot.hasRoutineCareToday
+                ? WidgetSignalContent(systemImage: "checkmark.circle.fill", text: "Cuidado diário em dia", isUrgent: false, tone: WidgetColor.success)
+                : WidgetSignalContent(systemImage: "sparkles", text: "Cuidado diário pendente", isUrgent: true)
+        )
+        if let mostUrgentCareSignal {
+            signals.append(mostUrgentCareSignal)
+        }
+        return Array(signals.prefix(3))
+    }
+
     var body: some View {
         if snapshot.hasActivePair {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: WidgetSpacing.md) {
+                // Zona esquerda: par atual.
+                VStack(spacing: WidgetSpacing.xxs) {
+                    WidgetUsageRing(value: snapshot.usesRemaining, remainingFraction: snapshot.remainingFraction, tint: tone, diameter: 66, lineWidth: 7)
                     Text(snapshot.pairName ?? "Par atual")
-                        .font(.headline)
-                    Text("\(snapshot.usesRemaining) usos restantes")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
-                    Text("\(snapshot.usesCount) de \(snapshot.maximumUses) usados")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let wearingSince = snapshot.wearingSince {
-                        Label {
-                            Text(wearingSince, style: .timer)
-                        } icon: {
-                            Text("👁️")
-                        }
-                        .font(.caption.weight(.medium))
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .frame(maxHeight: .infinity)
+
+                Divider()
+
+                // Zona direita: até 3 sinais de cuidado, priorizados — nunca 5 labels soltos do
+                // mesmo peso.
+                VStack(alignment: .leading, spacing: WidgetSpacing.sm) {
+                    ForEach(secondarySignals) { signal in
+                        WidgetSignalRow(systemImage: signal.systemImage, text: signal.text, tone: signal.tone ?? (signal.isUrgent ? WidgetColor.warning : .secondary))
                     }
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    if let daysSinceCleaning = snapshot.daysSinceCleaning {
-                        Label("Estojo limpo há \(daysSinceCleaning)d", systemImage: "sparkles")
-                    }
-                    if let daysUntilNextCleaning = snapshot.daysUntilNextCleaning {
-                        Label(
-                            daysUntilNextCleaning <= 0 ? "Limpeza atrasada" : "Limpeza em \(daysUntilNextCleaning)d",
-                            systemImage: "calendar"
-                        )
-                    }
-                    if let daysUntilCaseReplacement = snapshot.daysUntilCaseReplacement {
-                        Label("Estojo: \(daysUntilCaseReplacement)d", systemImage: "shippingbox")
-                    }
-                    if let daysUntilSolutionDiscard = snapshot.daysUntilSolutionDiscard {
-                        Label("Solução: \(daysUntilSolutionDiscard)d", systemImage: "flask")
-                    }
-                    if let daysUntilNextAppointment = snapshot.daysUntilNextAppointment {
-                        Label("Consulta: \(daysUntilNextAppointment)d", systemImage: "calendar.badge.clock")
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .labelStyle(.titleAndIcon)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             EmptyLensWidgetView(compact: false, debugMessage: snapshot.debugMessage)
         }
     }
+}
+
+private struct WidgetSignalContent: Identifiable {
+    let id = UUID()
+    let systemImage: String
+    let text: String
+    var isUrgent: Bool = false
+    var tone: Color?
 }
 
 private struct EmptyLensWidgetView: View {
@@ -136,23 +194,34 @@ private struct EmptyLensWidgetView: View {
     let debugMessage: String?
 
     var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: "eye.slash")
-                .font(.title2)
-            Text(compact ? "Nenhum par ativo" : "Nenhum par ativo — abra o app para começar")
-                .font(.caption)
-                .multilineTextAlignment(.center)
+        VStack(spacing: WidgetSpacing.xs) {
+            Image(systemName: "eye.circle")
+                .font(compact ? .title2 : .title)
+                .foregroundStyle(WidgetColor.primary)
+                .frame(width: compact ? 44 : 52, height: compact ? 44 : 52)
+                .background(WidgetColor.primary.opacity(0.12), in: Circle())
+
+            VStack(spacing: 2) {
+                Text("Nenhum par em uso")
+                    .font(.caption.weight(.semibold))
+                Text("Abra o app para iniciar um ciclo")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
             #if DEBUG
             if let debugMessage {
                 Text(debugMessage)
                     .font(.system(size: 8))
                     .multilineTextAlignment(.center)
                     .lineLimit(4)
+                    .foregroundStyle(.secondary)
             }
             #endif
         }
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, compact ? WidgetSpacing.xs : WidgetSpacing.md)
     }
 }
 

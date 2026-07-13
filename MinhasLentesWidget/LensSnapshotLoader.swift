@@ -19,15 +19,31 @@ struct LensSnapshot {
     var daysUntilCaseReplacement: Int?
     var daysUntilSolutionDiscard: Int?
     var daysUntilNextAppointment: Int?
+    /// Espelha `RoutineCareService.hasCareToday` — mesma checagem (`Calendar.isDate(_:inSameDayAs:)`
+    /// sobre todos os `RoutineCareLog`), sem nenhuma regra nova, só para o medium widget poder
+    /// mostrar "cuidado diário em dia/pendente" como um dos 3 sinais secundários.
+    var hasRoutineCareToday: Bool
+    /// Limiares configurados pelo usuário em Configurações (`AppSettings.health*BelowPercent`) —
+    /// o widget nunca inventa seus próprios limiares, usa os mesmos do app para decidir a cor do
+    /// anel (`WidgetTone.forUsage`).
+    var healthGoodBelowPercent: Int
+    var healthWarningBelowPercent: Int
+    var healthCriticalBelowPercent: Int
     /// Só preenchido em builds DEBUG quando `hasActivePair` é falso — mostrado na própria tela
     /// do widget para dar visibilidade a um problema que, de outra forma, ficaria completamente
     /// silencioso (não há como anexar o depurador a um widget rodando na tela de início).
     var debugMessage: String?
 
+    var remainingFraction: Double {
+        guard maximumUses > 0 else { return 0 }
+        return Double(usesRemaining) / Double(maximumUses)
+    }
+
     static let placeholder = LensSnapshot(
         pairID: UUID(), pairName: "Par nº 1", usesRemaining: 59, usesCount: 1, maximumUses: 60,
         daysSinceCleaning: 3, daysUntilNextCleaning: 12, hasActivePair: true,
         wearingSince: nil, daysUntilCaseReplacement: 45, daysUntilSolutionDiscard: 20, daysUntilNextAppointment: 90,
+        hasRoutineCareToday: true, healthGoodBelowPercent: 80, healthWarningBelowPercent: 40, healthCriticalBelowPercent: 15,
         debugMessage: nil
     )
 
@@ -35,6 +51,7 @@ struct LensSnapshot {
         pairID: nil, pairName: nil, usesRemaining: 0, usesCount: 0, maximumUses: 0,
         daysSinceCleaning: nil, daysUntilNextCleaning: nil, hasActivePair: false,
         wearingSince: nil, daysUntilCaseReplacement: nil, daysUntilSolutionDiscard: nil, daysUntilNextAppointment: nil,
+        hasRoutineCareToday: false, healthGoodBelowPercent: 80, healthWarningBelowPercent: 40, healthCriticalBelowPercent: 15,
         debugMessage: nil
     )
 }
@@ -105,7 +122,8 @@ enum LensSnapshotLoader {
                 #endif
             }
 
-            let intervalDays = try context.fetch(FetchDescriptor<AppSettings>()).first?.cleaningIntervalDays ?? 15
+            let settings = try context.fetch(FetchDescriptor<AppSettings>()).first
+            let intervalDays = settings?.cleaningIntervalDays ?? 15
             let cleaningDescriptor = FetchDescriptor<CaseCleaning>(sortBy: [SortDescriptor(\.cleaningDate, order: .reverse)])
             let lastCleaning = try context.fetch(cleaningDescriptor).first
 
@@ -143,6 +161,11 @@ enum LensSnapshotLoader {
             let activeSessionDescriptor = FetchDescriptor<WearSession>(predicate: #Predicate { $0.statusRawValue == "active" })
             let wearingSince = try context.fetch(activeSessionDescriptor).first?.startedAt
 
+            // Mesma checagem de `RoutineCareService.hasCareToday` (ver comentário no campo
+            // `hasRoutineCareToday` de `LensSnapshot`), só sem depender do Service do app.
+            let routineCareLogs = try context.fetch(FetchDescriptor<RoutineCareLog>())
+            let hasRoutineCareToday = routineCareLogs.contains { calendar.isDate($0.date, inSameDayAs: now) }
+
             return LensSnapshot(
                 pairID: pair.id,
                 pairName: pair.name,
@@ -155,7 +178,11 @@ enum LensSnapshotLoader {
                 wearingSince: wearingSince,
                 daysUntilCaseReplacement: daysUntilCaseReplacement,
                 daysUntilSolutionDiscard: daysUntilSolutionDiscard,
-                daysUntilNextAppointment: daysUntilNextAppointment
+                daysUntilNextAppointment: daysUntilNextAppointment,
+                hasRoutineCareToday: hasRoutineCareToday,
+                healthGoodBelowPercent: settings?.healthGoodBelowPercent ?? 80,
+                healthWarningBelowPercent: settings?.healthWarningBelowPercent ?? 40,
+                healthCriticalBelowPercent: settings?.healthCriticalBelowPercent ?? 15
             )
         } catch {
             #if DEBUG
