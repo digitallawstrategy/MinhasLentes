@@ -82,10 +82,10 @@ struct MonthlyCareCalendarView: View {
                 .accessibilityLabel("Próximo mês")
             }
 
-            LazyVGrid(columns: columns, spacing: 6) {
+            LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 ForEach(Array(daysGrid.enumerated()), id: \.offset) { _, date in
@@ -94,25 +94,32 @@ struct MonthlyCareCalendarView: View {
             }
 
             if !secondaryLoggedDates.isEmpty {
-                HStack(spacing: 12) {
+                HStack(spacing: 14) {
                     legendItem(color: AppColor.primary, label: "Cuidado diário")
                     legendItem(color: AppColor.secondary, label: "Limpeza periódica")
                 }
-                .padding(.top, 2)
+                .padding(.top, 4)
             }
         }
     }
 
     private func legendItem(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 8, height: 8)
                 .accessibilityHidden(true)
             Text(label)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
     }
+
+    // 32pt (não 24pt): o calendário é um dos elementos mais olhados de um app de rotina diária —
+    // números pequenos demais o deixavam funcional, mas esquecível. Tamanho fixo, não relativo a
+    // Dynamic Type: numa grade de 7 colunas, deixar a célula crescer com a fonte do sistema
+    // estouraria a largura da tela em vez de ficar mais legível (mesmo raciocínio de
+    // `UsageCountRing`).
+    private let cellSize: CGFloat = 32
 
     @ViewBuilder
     private func dayCell(_ date: Date?) -> some View {
@@ -120,31 +127,37 @@ struct MonthlyCareCalendarView: View {
             let isLogged = loggedDaySet.contains(calendar.startOfDay(for: date))
             let isSecondaryLogged = secondaryLoggedDaySet.contains(calendar.startOfDay(for: date))
             let isFuture = date > Date()
+            let isToday = calendar.isDateInToday(date)
             ZStack(alignment: .bottomTrailing) {
                 Circle()
                     .fill(isLogged ? AppColor.primary : Color.clear)
                     .overlay(
-                        Circle().strokeBorder(isFuture ? Color.clear : Color.secondary.opacity(0.35), lineWidth: 1)
+                        // Hoje sempre ganha um contorno na cor da marca, registrado ou não — sem
+                        // isso, "onde estou no mês" só dava para saber contando os dias.
+                        Circle().strokeBorder(
+                            isToday ? AppColor.primary : (isFuture ? Color.clear : Color.secondary.opacity(0.4)),
+                            lineWidth: isToday ? 1.5 : 1
+                        )
                     )
-                    .frame(width: 24, height: 24)
+                    .frame(width: cellSize, height: cellSize)
                     .overlay(
                         Text("\(calendar.component(.day, from: date))")
-                            .font(.system(size: 10))
-                            .foregroundStyle(isLogged ? Color.white : (isFuture ? Color.secondary.opacity(0.35) : Color.primary))
+                            .font(.system(size: 13, weight: isToday ? .bold : .regular))
+                            .foregroundStyle(isLogged ? Color.white : (isFuture ? Color.secondary.opacity(0.4) : Color.primary))
                     )
                 if isSecondaryLogged {
                     Circle()
                         .fill(AppColor.secondary)
-                        .frame(width: 7, height: 7)
-                        .overlay(Circle().strokeBorder(.background, lineWidth: 1))
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().strokeBorder(.background, lineWidth: 1.5))
                 }
             }
-            .frame(width: 24, height: 24)
+            .frame(width: cellSize, height: cellSize)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(dayAccessibilityLabel(date))
-            .accessibilityValue(dayAccessibilityValue(isLogged: isLogged, isSecondaryLogged: isSecondaryLogged, isFuture: isFuture))
+            .accessibilityValue(dayAccessibilityValue(isLogged: isLogged, isSecondaryLogged: isSecondaryLogged, isFuture: isFuture, isToday: isToday))
         } else {
-            Color.clear.frame(width: 24, height: 24)
+            Color.clear.frame(width: cellSize, height: cellSize)
                 .accessibilityHidden(true)
         }
     }
@@ -158,11 +171,13 @@ struct MonthlyCareCalendarView: View {
         return formatter.string(from: date)
     }
 
-    /// Cor sozinha nunca é a única forma de saber se um dia tem registro — isto é o equivalente
-    /// em texto do preenchimento/marcador que a célula já mostra visualmente.
-    private func dayAccessibilityValue(isLogged: Bool, isSecondaryLogged: Bool, isFuture: Bool) -> String {
+    /// Cor sozinha nunca é a única forma de saber se um dia tem registro, nem se é hoje — isto é
+    /// o equivalente em texto do preenchimento/contorno/marcador que a célula já mostra
+    /// visualmente.
+    private func dayAccessibilityValue(isLogged: Bool, isSecondaryLogged: Bool, isFuture: Bool, isToday: Bool) -> String {
         if isFuture { return "Dia futuro" }
         var parts: [String] = []
+        if isToday { parts.append("Hoje") }
         if isLogged { parts.append("Cuidado diário registrado") }
         if isSecondaryLogged { parts.append("Limpeza periódica registrada") }
         return parts.isEmpty ? "Sem registro" : parts.joined(separator: ", ")

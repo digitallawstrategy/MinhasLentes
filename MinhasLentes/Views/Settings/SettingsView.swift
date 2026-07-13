@@ -13,6 +13,9 @@ struct SettingsView: View {
 
     @State private var viewModel = SettingsViewModel()
     @State private var showFileImporter = false
+    #if DEBUG
+    @State private var uiTestShowHistory = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -38,25 +41,46 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                lentesSection
-                healthSection
-                caseSection
-                caseLifecycleSection
-                solutionSection
-                inventorySection
-                appointmentSection
                 notificationStatusSection
-                notificationPreferencesSection
-                backupSection
-                exportSection
-                persistenceInfoSection
-                dataSection
+                // `.minimumScaleFactor` não tem efeito dentro de uma linha de `List`/`Form` neste
+                // iOS — testado tanto na `Section` quanto direto no `Text` interno do `Label`, o
+                // texto truncava com reticências do mesmo jeito nos dois casos, validado por
+                // screenshot real no simulador. A saída que a própria Apple recomenda para
+                // elementos de navegação/chrome (abas, itens de lista curtos) é limitar o teto de
+                // Dynamic Type desses rótulos, deixando o conteúdo de cada tela (o que precisa ser
+                // lido) continuar escalando livremente até accessibility-XXXL. `accessibility1`
+                // ainda é bem maior que o tamanho padrão — só não chega ao extremo em que
+                // "Desenvolvimento" (a mais longa) não cabe ao lado do ícone e do indicador de
+                // navegação sem hifenizar.
+                Section {
+                    NavigationLink { rotinaScreen } label: { Label("Rotina", systemImage: "gauge.with.dots.needle.67percent") }
+                    NavigationLink { lembretesScreen } label: { Label("Lembretes", systemImage: "bell.badge") }
+                    NavigationLink { dadosScreen } label: { Label("Dados", systemImage: "externaldrive") }
+                    NavigationLink { avancadoScreen } label: { Label("Avançado", systemImage: "gearshape.2") }
+                }
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 #if DEBUG
-                developerToolsSection
+                Section {
+                    NavigationLink { developerToolsScreen } label: { Label("Desenvolvimento", systemImage: "ladybug") }
+                }
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 #endif
             }
             .navigationTitle("Configurações")
-            .task { await viewModel.refreshAuthorizationStatus() }
+            .tabBarScrollInset()
+            .task {
+                await viewModel.refreshAuthorizationStatus()
+                #if DEBUG
+                if UITestSupport.requestedRoute() == .historico {
+                    uiTestShowHistory = true
+                }
+                #endif
+            }
+            #if DEBUG
+            .navigationDestination(isPresented: $uiTestShowHistory) {
+                HistoryView()
+            }
+            #endif
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json]) { result in
                 viewModel.handlePickedBackupFile(result)
             }
@@ -126,22 +150,20 @@ struct SettingsView: View {
 
     private func importReportSummary(_ report: BackupService.ImportReport) -> String {
         var lines: [String] = []
-        lines.append("Pares: \(report.pairsImported) importado(s), \(report.pairsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Usos: \(report.usagesImported) importado(s), \(report.usagesSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Limpezas: \(report.cleaningsImported) importada(s), \(report.cleaningsSkippedAsDuplicate) ignorada(s) por já existir.")
-        lines.append("Eventos de histórico: \(report.eventsImported) importado(s), \(report.eventsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Ciclos do estojo: \(report.casesImported) importado(s), \(report.casesSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Cuidados diários: \(report.routineCareLogsImported) importado(s), \(report.routineCareLogsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Soluções de limpeza: \(report.solutionsImported) importado(s), \(report.solutionsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Itens de estoque: \(report.inventoryItemsImported) importado(s), \(report.inventoryItemsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Profissionais: \(report.professionalsImported) importado(s), \(report.professionalsSkippedAsDuplicate) ignorado(s) por já existir.")
-        lines.append("Consultas: \(report.appointmentsImported) importada(s), \(report.appointmentsSkippedAsDuplicate) ignorada(s) por já existir.")
-        lines.append("Sessões de uso: \(report.wearSessionsImported) importada(s), \(report.wearSessionsSkippedAsDuplicate) ignorada(s) por já existir.")
+        lines.append("Pares: \(Pluralization.count(report.pairsImported, "importado", "importados")), \(Pluralization.count(report.pairsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Usos: \(Pluralization.count(report.usagesImported, "importado", "importados")), \(Pluralization.count(report.usagesSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Limpezas: \(Pluralization.count(report.cleaningsImported, "importada", "importadas")), \(Pluralization.count(report.cleaningsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
+        lines.append("Eventos de histórico: \(Pluralization.count(report.eventsImported, "importado", "importados")), \(Pluralization.count(report.eventsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Ciclos do estojo: \(Pluralization.count(report.casesImported, "importado", "importados")), \(Pluralization.count(report.casesSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Cuidados diários: \(Pluralization.count(report.routineCareLogsImported, "importado", "importados")), \(Pluralization.count(report.routineCareLogsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Soluções de limpeza: \(Pluralization.count(report.solutionsImported, "importada", "importadas")), \(Pluralization.count(report.solutionsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
+        lines.append("Itens de estoque: \(Pluralization.count(report.inventoryItemsImported, "importado", "importados")), \(Pluralization.count(report.inventoryItemsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Profissionais: \(Pluralization.count(report.professionalsImported, "importado", "importados")), \(Pluralization.count(report.professionalsSkippedAsDuplicate, "ignorado", "ignorados")) por já existir.")
+        lines.append("Consultas: \(Pluralization.count(report.appointmentsImported, "importada", "importadas")), \(Pluralization.count(report.appointmentsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
+        lines.append("Sessões de uso: \(Pluralization.count(report.wearSessionsImported, "importada", "importadas")), \(Pluralization.count(report.wearSessionsSkippedAsDuplicate, "ignorada", "ignoradas")) por já existir.")
         lines.append("Configurações: \(report.settingsImported ? "importadas" : "mantidas as atuais").")
         return lines.joined(separator: "\n")
     }
-
-    // MARK: - Seções
 
     @ViewBuilder
     private var notificationStatusSection: some View {
@@ -157,6 +179,63 @@ struct SettingsView: View {
             }
         }
     }
+
+    // MARK: - Grupos (Rotina, Lembretes, Dados, Avançado, Desenvolvimento)
+    //
+    // Antes, Configurações era um Form só com 12 seções soltas, uma atrás da outra — cada
+    // preferência individual competindo pelo mesmo nível de atenção que uma ação destrutiva como
+    // "Apagar todos os dados". Agrupar em 4-5 telas (mesmo padrão do próprio Ajustes da Apple:
+    // "Geral", "Tela e Brilho" etc. como linhas que abrem outra tela, não uma lista plana) deixa
+    // a tela raiz curta e cada sub-tela focada num só assunto.
+
+    private var rotinaScreen: some View {
+        Form { lentesSection }
+            .navigationTitle("Rotina")
+            .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var lembretesScreen: some View {
+        Form {
+            caseSection
+            solutionSection
+            inventorySection
+            appointmentSection
+            notificationPreferencesSection
+        }
+        .navigationTitle("Lembretes")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var dadosScreen: some View {
+        Form {
+            backupSection
+            exportSection
+            dataSection
+        }
+        .navigationTitle("Dados")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // Faixas de status e detalhes de persistência são informação de apoio, não algo que se
+    // ajusta no dia a dia — ficam aqui, não na tela raiz.
+    private var avancadoScreen: some View {
+        Form {
+            healthSection
+            persistenceInfoSection
+        }
+        .navigationTitle("Avançado")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    #if DEBUG
+    private var developerToolsScreen: some View {
+        Form { developerToolsSection }
+            .navigationTitle("Desenvolvimento")
+            .navigationBarTitleDisplayMode(.inline)
+    }
+    #endif
+
+    // MARK: - Seções (conteúdo de cada grupo)
 
     private var lentesSection: some View {
         Section {
@@ -191,7 +270,7 @@ struct SettingsView: View {
         } header: {
             Text("Lentes")
         } footer: {
-            Text("Na sessão \"Estou usando as lentes\", dispara três avisos (o tempo acima, +1h, +2h) e depois repete no intervalo configurado aqui. Só vale para a próxima sessão iniciada — não reagenda uma sessão já em andamento.")
+            Text("Vale só para a próxima sessão iniciada.")
         }
     }
 
@@ -214,7 +293,7 @@ struct SettingsView: View {
         } header: {
             Text("Faixas de status de utilização")
         } footer: {
-            Text("Definem, pelo percentual de usos restantes, quando o status muda de Vida útil alta para Vida útil moderada, Poucos usos restantes e Limite de usos atingido. É uma leitura da contagem de usos, não uma avaliação da condição física da lente.")
+            Text("Baseado só na contagem de usos, não na condição física da lente.")
         }
     }
 
@@ -237,15 +316,7 @@ struct SettingsView: View {
             ), in: 0...max(0, settings.cleaningIntervalDays - 1))
 
             DatePicker("Horário das notificações", selection: notificationTimeBinding, displayedComponents: .hourAndMinute)
-        } header: {
-            Text("Estojo")
-        } footer: {
-            Text("A antecedência do aviso nunca alcança ou ultrapassa o intervalo de limpeza — se você reduzir o intervalo, a antecedência é ajustada automaticamente.")
-        }
-    }
 
-    private var caseLifecycleSection: some View {
-        Section {
             Stepper("Substituir o estojo a cada: \(settings.caseReplacementIntervalDays) dias", value: Binding(
                 get: { settings.caseReplacementIntervalDays },
                 set: { settings.caseReplacementIntervalDays = $0; saveSettings() }
@@ -261,9 +332,9 @@ struct SettingsView: View {
                 set: { settings.caseOverdueReminderIntervalDays = $0; rescheduleLensCaseNotifications() }
             ), in: 1...30)
         } header: {
-            Text("Ciclo de vida do estojo")
+            Text("Estojo")
         } footer: {
-            Text("Usado apenas para o próximo ciclo iniciado — não altera o prazo de um ciclo já em andamento. Os avisos de 15 e 7 dias antes e no dia recomendado usam sempre uma linguagem sem alarme; o lembrete periódico só começa depois que o prazo já passou.")
+            Text("A antecedência do aviso e a substituição do estojo valem só para o ciclo atual em diante.")
         }
     }
 
@@ -281,7 +352,7 @@ struct SettingsView: View {
         } header: {
             Text("Solução de limpeza")
         } footer: {
-            Text("A validade após aberto e a data impressa no rótulo são sempre informadas por frasco — nunca um prazo padrão do aplicativo.")
+            Text("Sempre informada por frasco, nunca um prazo padrão do app.")
         }
     }
 
@@ -294,7 +365,7 @@ struct SettingsView: View {
         } header: {
             Text("Estoque de lentes")
         } footer: {
-            Text("Avisos de 60, 30 e 7 dias antes e no dia da validade de cada item. Diferente de um item já vencido não usado, não há lembrete repetido — o app apenas impede selecioná-lo sem confirmação explícita ao iniciar um novo par.")
+            Text("Sem lembrete repetido depois de vencido — o app só pede confirmação extra ao usar o item.")
         }
     }
 
@@ -311,7 +382,7 @@ struct SettingsView: View {
         } header: {
             Text("Consultas")
         } footer: {
-            Text("Avisos de 30, 7 e 1 dia antes, e 2 horas antes de cada consulta. O prazo padrão só vale para novas consultas — siga sempre a recomendação do seu oftalmologista quanto ao retorno.")
+            Text("O prazo padrão vale só para novas consultas — siga a recomendação do seu oftalmologista.")
         }
     }
 
@@ -352,7 +423,7 @@ struct SettingsView: View {
         } header: {
             Text("Backup completo (JSON)")
         } footer: {
-            Text("O backup em JSON contém todos os pares, usos, limpezas, ciclos do estojo, cuidados diários, eventos de histórico e configurações, com seus identificadores e relacionamentos — diferente do CSV/PDF, ele pode ser reimportado para restaurar os dados neste ou em outro aparelho.")
+            Text("Backup completo, com relacionamentos preservados — diferente do CSV/PDF, pode ser reimportado para restaurar os dados neste ou em outro aparelho.")
         }
     }
 
@@ -376,10 +447,9 @@ struct SettingsView: View {
     private var persistenceInfoSection: some View {
         Section("Persistência dos dados") {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Atualizar o app ou reinstalar pela mesma conta normalmente preserva os dados.", systemImage: "arrow.triangle.2.circlepath")
-                Label("Apagar o aplicativo do iPhone remove os dados locais imediatamente e sem volta.", systemImage: "trash")
-                Label("Alterar o Bundle Identifier no Xcode cria um novo contêiner vazio — os dados antigos não aparecem no app com o novo identificador.", systemImage: "shippingbox")
-                Label("A forma segura de preservar seus dados é exportar um backup em JSON antes de apagar o app ou trocar o Bundle Identifier.", systemImage: "checkmark.shield")
+                Label("Atualizar ou reinstalar pela mesma conta preserva os dados.", systemImage: "arrow.triangle.2.circlepath")
+                Label("Apagar o app remove os dados locais sem volta.", systemImage: "trash")
+                Label("Exporte um backup em JSON antes de apagar o app.", systemImage: "checkmark.shield")
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -419,7 +489,7 @@ struct SettingsView: View {
             NavigationLink {
                 DataDiagnosticsView()
             } label: {
-                Label("Diagnóstico de dados", systemImage: "stethoscope")
+                Label("Diagnóstico de dados", systemImage: "wrench.and.screwdriver")
             }
             Button("Agendar notificação de teste em 1 minuto") {
                 Task { await viewModel.scheduleSingleTestNotification() }

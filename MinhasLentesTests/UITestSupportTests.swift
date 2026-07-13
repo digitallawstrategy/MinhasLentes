@@ -29,12 +29,53 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertFalse(UITestSupport.isSeedPreviewDataRequested(arguments: ["-UITestSkipOnboarding"]))
     }
 
+    func testIsSeedPendingItemsPreviewDataRequestedParsesArgument() {
+        XCTAssertTrue(UITestSupport.isSeedPendingItemsPreviewDataRequested(arguments: ["-UITestSeedPendingItemsPreviewData"]))
+        XCTAssertFalse(UITestSupport.isSeedPendingItemsPreviewDataRequested(arguments: ["-UITestSeedPreviewData"]))
+    }
+
     func testIsUITestRunTrueWhenEitherArgumentIsPresent() {
         XCTAssertTrue(UITestSupport.isUITestRun(arguments: ["-UITestSkipOnboarding"]))
         XCTAssertTrue(UITestSupport.isUITestRun(arguments: ["-UITestSeedPreviewData"]))
         XCTAssertTrue(UITestSupport.isUITestRun(arguments: ["-UITestSkipOnboarding", "-UITestSeedPreviewData"]))
         XCTAssertFalse(UITestSupport.isUITestRun(arguments: ["-SomeOtherFlag"]))
         XCTAssertFalse(UITestSupport.isUITestRun(arguments: []))
+    }
+
+    func testRequestedTabParsesValidValues() {
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "home"]), .home)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "lentes"]), .lentes)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "cuidados"]), .cuidados)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "consultas"]), .consultas)
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "settings"]), .settings)
+    }
+
+    func testRequestedTabReturnsNilWhenAbsentOrInvalid() {
+        XCTAssertNil(UITestSupport.requestedTab(arguments: []))
+        XCTAssertNil(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab"]))
+        XCTAssertNil(UITestSupport.requestedTab(arguments: ["-UITestSelectedTab", "unknown"]))
+    }
+
+    func testRequestedRouteParsesValidValues() {
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "estoque"]), .estoque)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "solucao"]), .solucao)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "historico"]), .historico)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "estojo"]), .estojo)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "notificacoes"]), .notificacoes)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "consultaDetalhe"]), .consultaDetalhe)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "estoqueDetalhe"]), .estoqueDetalhe)
+    }
+
+    func testRequestedRouteReturnsNilWhenAbsentOrInvalid() {
+        XCTAssertNil(UITestSupport.requestedRoute(arguments: []))
+        XCTAssertNil(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute"]))
+        XCTAssertNil(UITestSupport.requestedRoute(arguments: ["-UITestOpenRoute", "unknown"]))
+    }
+
+    func testRequestedRouteIsIndependentFromSelectedTab() {
+        let arguments = ["-UITestSelectedTab", "lentes", "-UITestOpenRoute", "estoque"]
+        XCTAssertEqual(UITestSupport.requestedTab(arguments: arguments), .lentes)
+        XCTAssertEqual(UITestSupport.requestedRoute(arguments: arguments), .estoque)
     }
 
     // MARK: - applySkipOnboarding
@@ -114,6 +155,52 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(session.lensPair?.id, pair.id)
     }
 
+    func testSeedPreviewDataCreatesAvailableInventoryItem() throws {
+        let referenceDate = TestSupport.date(2026, 7, 12)
+        try UITestSupport.seedPreviewData(context: context, referenceDate: referenceDate)
+
+        let items = try context.fetch(FetchDescriptor<LensInventoryItem>())
+        XCTAssertEqual(items.count, 1)
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.status, .available)
+        XCTAssertEqual(item.remainingQuantity, 4)
+        XCTAssertNotNil(item.photoData, "Necessário para a tela de detalhe de estoque ter uma foto real para capturar")
+    }
+
+    func testSeedPreviewDataCreatesAppointmentWithPrescriptionAndAttachment() throws {
+        let referenceDate = TestSupport.date(2026, 7, 12)
+        try UITestSupport.seedPreviewData(context: context, referenceDate: referenceDate)
+
+        let appointments = try context.fetch(FetchDescriptor<EyeAppointment>())
+        XCTAssertEqual(appointments.count, 1)
+        let appointment = try XCTUnwrap(appointments.first)
+        XCTAssertNotNil(appointment.prescription)
+        XCTAssertNotNil(appointment.attachmentData, "Necessário para a tela de detalhe de consulta ter um anexo real para capturar")
+        XCTAssertNotNil(appointment.professional)
+    }
+
+    // MARK: - seedPendingItemsPreviewData
+
+    func testSeedPendingItemsPreviewDataDoesNotRegisterRoutineCareToday() throws {
+        let referenceDate = TestSupport.date(2026, 7, 12)
+        try UITestSupport.seedPendingItemsPreviewData(context: context, referenceDate: referenceDate)
+
+        let logs = try context.fetch(FetchDescriptor<RoutineCareLog>())
+        XCTAssertTrue(logs.isEmpty, "Central de avisos só mostra a pendência de cuidado diário se nada tiver sido registrado hoje")
+    }
+
+    func testSeedPendingItemsPreviewDataCreatesWearSessionOlderThanDefaultThreshold() throws {
+        let referenceDate = TestSupport.date(2026, 7, 12)
+        try UITestSupport.seedPendingItemsPreviewData(context: context, referenceDate: referenceDate)
+
+        let sessions = try context.fetch(FetchDescriptor<WearSession>())
+        XCTAssertEqual(sessions.count, 1)
+        let session = try XCTUnwrap(sessions.first)
+        XCTAssertEqual(session.status, .active)
+        let elapsedHours = referenceDate.timeIntervalSince(session.startedAt) / 3600
+        XCTAssertGreaterThanOrEqual(elapsedHours, 8, "Precisa exceder o wearingReminderHours padrão (8h) para virar pendência")
+    }
+
     // MARK: - Idempotência
 
     func testSeedPreviewDataCalledTwiceDoesNotDuplicateAnything() throws {
@@ -128,6 +215,7 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<LensCase>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CleaningSolution>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<WearSession>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<LensInventoryItem>()), 1)
     }
 
     func testSeedPreviewDataCalledManyTimesStaysStable() throws {

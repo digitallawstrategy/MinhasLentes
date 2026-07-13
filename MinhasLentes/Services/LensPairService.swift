@@ -145,6 +145,7 @@ enum LensPairService {
         trackingMode: TrackingMode,
         side: LensSide,
         asReserve: Bool = false,
+        inventoryItem: LensInventoryItem? = nil,
         context: ModelContext
     ) throws -> LensPair {
         let sequence = try nextSequenceNumber(side: side, context: context)
@@ -163,7 +164,8 @@ enum LensPairService {
             startDate: startDate,
             maximumUses: maximumUses,
             trackingMode: trackingMode,
-            side: side
+            side: side,
+            inventoryItem: inventoryItem
         )
         pair.status = asReserve ? .reserve : .inUse
         context.insert(pair)
@@ -349,7 +351,7 @@ enum LensPairService {
             lensPairID: pair.id,
             lensPairName: name,
             side: pair.side,
-            descriptionText: "\(name) excluído permanentemente, junto com \(deletedUsesCount) uso(s)."
+            descriptionText: "\(name) excluído permanentemente, junto com \(Pluralization.count(deletedUsesCount, "uso", "usos"))."
         )
         context.insert(event)
         context.delete(pair)

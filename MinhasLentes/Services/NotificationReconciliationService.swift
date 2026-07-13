@@ -25,6 +25,11 @@ import WidgetKit
 @MainActor
 enum NotificationReconciliationService {
     static func rebuildAll(context: ModelContext, settings: AppSettings) async {
+        // Corrige, de forma idempotente, itens de estoque com `remainingQuantity > initialQuantity`
+        // gravados antes da validação existir em `LensInventoryService.editItem` — roda a cada
+        // reconciliação, sem custo perceptível quando não há nada para corrigir.
+        _ = attemptFetch("o reparo do estoque", context: context, { try LensInventoryService.repairInvalidQuantities(context: context) })
+
         if let activeCase = attemptFetch("o estojo", context: context, { try LensCaseService.activeCase(context: context) }) {
             await NotificationManager.shared.cancelLensCaseNotifications()
             await attempt("estojo", context: context) {
@@ -90,6 +95,15 @@ enum NotificationReconciliationService {
                     log("Não foi possível encerrar automaticamente a sessão de uso órfã. \(error.localizedDescription)", context: context)
                 }
                 await LiveActivityService.endWearingSession()
+            }
+        }
+
+        if let hasCareToday = attemptFetch("o cuidado diário", context: context, { try RoutineCareService.hasCareToday(context: context) }) {
+            await NotificationManager.shared.cancelDailyCareReminderNotification()
+            if !hasCareToday {
+                await attempt("cuidado diário", context: context) {
+                    try await NotificationManager.shared.scheduleDailyCareReminderIfNeeded(settings: settings)
+                }
             }
         }
 

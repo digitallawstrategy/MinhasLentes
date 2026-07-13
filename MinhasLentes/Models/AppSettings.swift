@@ -67,6 +67,13 @@ final class AppSettings {
     /// momento do agendamento, ajustável por consulta.
     var defaultAppointmentIntervalMonths: Int = 12
 
+    /// Liga/desliga o lembrete de cuidado diário do estojo pendente às `dailyCareReminderHour`
+    /// horas — diferente de `notificationHour`/`notificationMinute` (usados pelos avisos com
+    /// antecedência de estojo/solução/estoque/consulta), este é fixo por hora do dia, não por
+    /// dias de antecedência.
+    var dailyCareReminderEnabled: Bool = true
+    var dailyCareReminderHour: Int = 10
+
     init(id: UUID = UUID()) {
         self.id = id
     }
@@ -102,5 +109,7 @@ final class AppSettings {
         inventoryReminderEnabled = true
         appointmentReminderEnabled = true
         defaultAppointmentIntervalMonths = 12
+        dailyCareReminderEnabled = true
+        dailyCareReminderHour = 10
     }
 }

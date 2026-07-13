@@ -15,6 +15,9 @@ final class NotificationManagerTests: XCTestCase {
         XCTAssertEqual(NotificationManager.advanceIdentifier, "estojo.aviso-antecipado")
         XCTAssertEqual(NotificationManager.deadlineIdentifier, "estojo.prazo")
         XCTAssertNotEqual(NotificationManager.advanceIdentifier, NotificationManager.deadlineIdentifier)
+        XCTAssertEqual(NotificationManager.dailyCareReminderIdentifier, "cuidado-diario.lembrete")
+        XCTAssertNotEqual(NotificationManager.dailyCareReminderIdentifier, NotificationManager.advanceIdentifier)
+        XCTAssertNotEqual(NotificationManager.dailyCareReminderIdentifier, NotificationManager.deadlineIdentifier)
         #if DEBUG
         XCTAssertNotEqual(NotificationManager.testOneMinuteIdentifier, NotificationManager.advanceIdentifier)
         XCTAssertNotEqual(NotificationManager.testTwoMinuteIdentifier, NotificationManager.deadlineIdentifier)

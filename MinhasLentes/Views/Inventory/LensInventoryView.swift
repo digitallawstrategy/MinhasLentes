@@ -13,6 +13,9 @@ struct LensInventoryView: View {
     @State private var showAddItem = false
     @State private var itemToEdit: LensInventoryItem?
     @State private var itemToDelete: LensInventoryItem?
+    #if DEBUG
+    @State private var uiTestShowItemDetail = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -30,27 +33,32 @@ struct LensInventoryView: View {
         LensInventoryStatisticsService.itemsNearExpiry(items: availableItems, withinDays: 30)
     }
 
+    private var totalAvailable: Int { totalRight + totalLeft + totalBoth }
+
     var body: some View {
         List {
             if !availableItems.isEmpty {
                 Section("Resumo") {
-                    if totalRight > 0 {
-                        StatRow(label: "Olho direito", value: "\(totalRight) lente(s)")
-                    }
-                    if totalLeft > 0 {
-                        StatRow(label: "Olho esquerdo", value: "\(totalLeft) lente(s)")
-                    }
-                    if totalBoth > 0 {
-                        StatRow(label: "Ambos os olhos", value: "\(totalBoth) lente(s)")
-                    }
-                    if let nearestExpiry {
-                        StatRow(label: "Validade mais próxima", value: DateFormatting.short.string(from: nearestExpiry))
-                    }
+                    MetricStrip(items: [
+                        MetricStripItem(value: "\(totalAvailable)", label: "Disponíveis", tone: .success),
+                        MetricStripItem(
+                            value: nearestExpiry.map { DateFormatting.short.string(from: $0) } ?? "—",
+                            label: "Próxima validade"
+                        ),
+                        MetricStripItem(
+                            value: "\(lowStockItems.count)", label: "Estoque baixo",
+                            tone: lowStockItems.isEmpty ? .neutral : .warning
+                        ),
+                    ])
+                    .padding(.vertical, AppSpacing.xxs)
                     if !itemsNearExpiry.isEmpty {
-                        StatRow(label: "Caixas perto da validade", value: "\(itemsNearExpiry.count)")
-                    }
-                    if !lowStockItems.isEmpty {
-                        StatRow(label: "Estoque baixo", value: "\(lowStockItems.count) item(ns)")
+                        InfoBanner(
+                            systemImage: "calendar.badge.exclamationmark",
+                            text: itemsNearExpiry.count == 1
+                                ? "1 caixa perto da validade nos próximos 30 dias."
+                                : "\(itemsNearExpiry.count) caixas perto da validade nos próximos 30 dias.",
+                            tone: .warning
+                        )
                     }
                 }
             }
@@ -61,7 +69,11 @@ struct LensInventoryView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(availableItems) { item in
-                        row(for: item)
+                        NavigationLink {
+                            LensInventoryItemDetailView(item: item, settings: settings, viewModel: viewModel)
+                        } label: {
+                            row(for: item)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { itemToDelete = item }
                                 Button("Editar") { itemToEdit = item }
@@ -79,7 +91,11 @@ struct LensInventoryView: View {
             if !exhaustedItems.isEmpty {
                 Section("Esgotado") {
                     ForEach(exhaustedItems) { item in
-                        row(for: item)
+                        NavigationLink {
+                            LensInventoryItemDetailView(item: item, settings: settings, viewModel: viewModel)
+                        } label: {
+                            row(for: item)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { itemToDelete = item }
                                 Button("Editar") { itemToEdit = item }
@@ -89,26 +105,41 @@ struct LensInventoryView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .tabBarScrollInset()
+        .background(AmbientBackground())
         .navigationTitle("Estoque de lentes")
         .navigationBarTitleDisplayMode(.inline)
+        #if DEBUG
+        .task {
+            if UITestSupport.requestedRoute() == .estoqueDetalhe {
+                uiTestShowItemDetail = true
+            }
+        }
+        .navigationDestination(isPresented: $uiTestShowItemDetail) {
+            if let item = items.first {
+                LensInventoryItemDetailView(item: item, settings: settings, viewModel: viewModel)
+            }
+        }
+        #endif
         .sheet(isPresented: $showAddItem) {
-            AddOrEditLensInventoryItemSheet(item: nil) { brand, model, od, os, side, lot, expiry, quantity, photo, notes in
+            AddOrEditLensInventoryItemSheet(item: nil) { brand, model, od, os, side, lot, expiry, initialQuantity, _, photo, notes in
                 Task {
                     await viewModel.addItem(
                         brand: brand, model: model, prescriptionOD: od, prescriptionOS: os, side: side,
-                        lot: lot, expiryDate: expiry, initialQuantity: quantity, photoData: photo, notes: notes,
+                        lot: lot, expiryDate: expiry, initialQuantity: initialQuantity, photoData: photo, notes: notes,
                         settings: settings, context: modelContext
                     )
                 }
             }
         }
         .sheet(item: $itemToEdit) { item in
-            AddOrEditLensInventoryItemSheet(item: item) { brand, model, od, os, side, lot, expiry, quantity, photo, notes in
+            AddOrEditLensInventoryItemSheet(item: item) { brand, model, od, os, side, lot, expiry, initialQuantity, remainingQuantity, photo, notes in
                 Task {
                     await viewModel.editItem(
                         item, brand: brand, model: model, prescriptionOD: od, prescriptionOS: os, side: side,
-                        lot: lot, expiryDate: expiry, remainingQuantity: quantity, photoData: photo, notes: notes,
-                        settings: settings, context: modelContext
+                        lot: lot, expiryDate: expiry, initialQuantity: initialQuantity, remainingQuantity: remainingQuantity,
+                        photoData: photo, notes: notes, settings: settings, context: modelContext
                     )
                 }
             }
@@ -135,40 +166,25 @@ struct LensInventoryView: View {
         }
     }
 
+    private func tone(for item: LensInventoryItem) -> AppStatusTone {
+        if item.isExpired { return .critical }
+        if LensInventoryStatisticsService.isLowStock(item) { return .warning }
+        return .success
+    }
+
     private func row(for item: LensInventoryItem) -> some View {
-        HStack(spacing: 10) {
-            if let photoData = item.photoData, let uiImage = UIImage(data: photoData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("\(item.brand) — \(item.model)")
-                        .font(AppTypography.subheadlineMedium)
-                    Spacer()
-                    Text(item.side.displayName)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text("\(item.remainingQuantity) de \(item.initialQuantity) unidade(s) restante(s)")
-                    .font(AppTypography.caption)
-                    .foregroundStyle(.secondary)
-                if let expiryDate = item.expiryDate {
-                    Text("Validade: \(DateFormatting.short.string(from: expiryDate))\(item.isExpired ? " — vencida" : "")")
-                        .font(AppTypography.caption)
-                        .foregroundStyle(item.isExpired ? AppColor.warning : Color.secondary)
-                }
-                if let notes = item.notes, !notes.isEmpty {
-                    Text(notes)
-                        .font(AppTypography.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.vertical, 2)
+        AppListRow(
+            systemImage: "tray.full",
+            leadingImage: item.photoData.flatMap(UIImage.init(data:)),
+            tone: tone(for: item),
+            title: "\(item.brand) — \(item.model)",
+            subtitle: "\(item.side.displayName) · \(item.remainingQuantity) de \(item.initialQuantity) \(Pluralization.word(item.initialQuantity, "unidade", "unidades"))",
+            trailingText: item.expiryDate.map { date in
+                let text = DateFormatting.short.string(from: date)
+                return item.isExpired ? "\(text) (vencida)" : text
+            },
+            trailingTone: item.expiryDate != nil ? tone(for: item) : nil
+        )
     }
 }
 

@@ -7,12 +7,14 @@ import SwiftUI
 /// lixeira). O emblema "Em uso agora" é só informativo, não uma ação.
 struct LensPairCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let pair: LensPair
     let settings: AppSettings
+    let onShowDetail: () -> Void
     let onFinishPair: () -> Void
     let onEdit: () -> Void
-    let onShowDiary: () -> Void
+    let onShowTimeline: () -> Void
     let onMoveToTrash: () -> Void
     let onDemoteToReserve: () -> Void
     let wearingSessionPairID: UUID?
@@ -53,7 +55,20 @@ struct LensPairCardView: View {
     var body: some View {
         AppCard {
             header
-            ringAndHeadline
+            Button(action: onShowDetail) {
+                ringAndHeadline
+                    // `Button` propõe ao próprio label uma altura de controle padrão (~1 linha),
+                    // não a altura natural do conteúdo — sem isto, "N de M usos registrados"/"X%
+                    // da vida útil restante" cortavam com "…" em Dynamic Type grande mesmo sem
+                    // nenhum `lineLimit` explícito no código (mesmo problema e correção de
+                    // `CuidadosView.caseSummaryCard`).
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .pressScale()
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(pair.name), \(usageStatus.label)")
+            .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
+            .accessibilityHint("Abre os detalhes deste par")
             ProgressBarView(fraction: remainingFraction, tint: usageStatus.tone.color)
                 .animation(reduceMotion ? nil : AppAnimation.standard, value: remainingFraction)
             detailStats
@@ -74,17 +89,12 @@ struct LensPairCardView: View {
                 Text("Iniciado em \(DateFormatting.short.string(from: pair.startDate))")
                     .font(AppTypography.footnote)
                     .foregroundStyle(.secondary)
-                HStack(spacing: AppSpacing.xs) {
-                    StatusBadge(text: usageStatus.label, tone: usageStatus.tone, systemImage: "shield.fill")
-                    if isWearingSessionActiveHere {
-                        StatusBadge(text: "Em uso agora", tone: .informative, systemImage: "eye.circle.fill")
-                    }
-                }
+                badges
             }
             Spacer()
             Menu {
                 Button("Editar par", systemImage: "pencil", action: onEdit)
-                Button("Ver diário do par", systemImage: "book.pages", action: onShowDiary)
+                Button("Ver linha do tempo", systemImage: "clock.arrow.circlepath", action: onShowTimeline)
                 Button("Mover para reserva", systemImage: "tray.and.arrow.down", action: onDemoteToReserve)
                 Button("Encerrar ou substituir este par", systemImage: "arrow.triangle.2.circlepath", role: .destructive, action: onFinishPair)
                 Button("Mover para a lixeira", systemImage: "trash", role: .destructive) {
@@ -96,6 +106,39 @@ struct LensPairCardView: View {
                     .foregroundStyle(.secondary)
             }
             .accessibilityLabel("Mais opções para \(pair.name)")
+        }
+    }
+
+    /// Em tamanhos normais os dois selos cabem lado a lado, compactos. Em accessibility sizes,
+    /// "Vida útil alta" + "Em uso agora" juntos não cabem na largura do cartão — dividir a linha
+    /// truncava ambos ("Vi…"/"Em…"). Empilhados, cada um fica sozinho na própria linha e pode usar
+    /// `lineLimit: nil` (mesmo padrão de `StatusBadge`: quebra em 2+ linhas dentro da pílula em
+    /// vez de truncar).
+    @ViewBuilder
+    private var badges: some View {
+        let usageBadge = StatusBadge(
+            text: usageStatus.label,
+            tone: usageStatus.tone,
+            systemImage: "shield.fill",
+            lineLimit: dynamicTypeSize.isAccessibilitySize ? nil : 1
+        )
+        let wearingBadge = isWearingSessionActiveHere ? StatusBadge(
+            text: "Em uso agora",
+            tone: .informative,
+            systemImage: "eye.circle.fill",
+            lineLimit: dynamicTypeSize.isAccessibilitySize ? nil : 1
+        ) : nil
+
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                usageBadge
+                wearingBadge
+            }
+        } else {
+            HStack(spacing: AppSpacing.xs) {
+                usageBadge
+                wearingBadge
+            }
         }
     }
 
@@ -119,24 +162,17 @@ struct LensPairCardView: View {
     }
 
     private var ringView: some View {
-        ZStack {
-            ProgressRingView(remainingFraction: remainingFraction, tint: usageStatus.tone.color)
-            VStack(spacing: 0) {
-                Text("\(pair.usesRemaining)")
-                    .font(AppTypography.metricValue)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .contentTransition(.numericText(value: Double(pair.usesRemaining)))
-                    .animation(reduceMotion ? nil : .spring(duration: 0.5), value: pair.usesRemaining)
-                Text("restantes")
-                    .font(AppTypography.caption)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(spacing: 2) {
+            UsageCountRing(value: pair.usesRemaining, remainingFraction: remainingFraction, tint: usageStatus.tone.color, diameter: 108, lineWidth: 14)
+            // O número dentro do anel é decorativo (tamanho fixo); esta legenda é o texto real,
+            // por extenso, que escala com Dynamic Type — repete o valor para continuar completa
+            // mesmo se só ela for lida.
+            Text("\(pair.usesRemaining) restantes")
+                .font(AppTypography.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
-        .frame(width: 108, height: 108)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Usos restantes")
-        .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses)")
+        .accessibilityHidden(true)
     }
 
     private func usageHeadlineText(alignment: HorizontalAlignment) -> some View {
@@ -149,19 +185,40 @@ struct LensPairCardView: View {
         }
     }
 
-    @ViewBuilder
-    private var detailStats: some View {
+    // Antes, até 4 StatRow empilhadas — rótulo e valor no mesmo peso, uma embaixo da outra, lendo
+    // como uma planilha. `DetailStatGrid` (mesmo espírito do "Highlights" da Apple Saúde) deixa
+    // mais óbvio que são fatos secundários, não uma lista de igual importância ao anel/status
+    // acima.
+    private var detailStatItems: [DetailStatItem] {
+        var items: [DetailStatItem] = []
+        // Só existe quando o par foi iniciado a partir de uma caixa do estoque (ver
+        // `LensPair.inventoryItem`) — pares antigos ou iniciados sem estoque simplesmente não
+        // mostram esta linha, sem quebra visual.
+        if let inventoryItem = pair.inventoryItem {
+            items.append(DetailStatItem(label: "Produto", value: "\(inventoryItem.brand) \(inventoryItem.model)"))
+            if let expiryDate = inventoryItem.expiryDate {
+                items.append(DetailStatItem(label: "Validade da caixa", value: DateFormatting.short.string(from: expiryDate)))
+            }
+        }
         if let lastUsage = pair.lastUsageDate {
-            StatRow(label: "Último uso", value: DateFormatting.short.string(from: lastUsage))
+            items.append(DetailStatItem(label: "Último uso", value: DateFormatting.short.string(from: lastUsage)))
         }
         if let averageIntervalDays {
-            StatRow(label: "Frequência média", value: "a cada \(String(format: "%.1f", averageIntervalDays)) dia(s)")
+            items.append(DetailStatItem(label: "Frequência média", value: "a cada \(String(format: "%.1f", averageIntervalDays)) \(Pluralization.word(Int(averageIntervalDays.rounded()), "dia", "dias"))"))
         }
         if let projectedDepletionDate {
-            StatRow(label: "Previsão de término", value: DateFormatting.short.string(from: projectedDepletionDate))
+            items.append(DetailStatItem(label: "Previsão de término", value: DateFormatting.short.string(from: projectedDepletionDate)))
         }
         if let averageSessionDuration {
-            StatRow(label: "Duração média de uso", value: DateFormatting.durationShort(averageSessionDuration))
+            items.append(DetailStatItem(label: "Duração média de uso", value: DateFormatting.durationShort(averageSessionDuration)))
+        }
+        return items
+    }
+
+    @ViewBuilder
+    private var detailStats: some View {
+        if !detailStatItems.isEmpty {
+            DetailStatGrid(items: detailStatItems)
         }
     }
 }

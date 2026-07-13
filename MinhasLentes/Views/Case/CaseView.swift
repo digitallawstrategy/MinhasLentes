@@ -6,6 +6,7 @@ import SwiftData
 struct CaseView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
     @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
     @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
@@ -40,9 +41,15 @@ struct CaseView: View {
     }
 
     private func caseSituationText(_ days: Int) -> String {
-        if days > 0 { return "Faltam \(days) dia(s)" }
+        if days > 0 { return "\(Pluralization.word(days, "Falta", "Faltam")) \(Pluralization.count(days, "dia", "dias"))" }
         if days == 0 { return "Substituição recomendada para hoje" }
-        return "Substituição recomendada há \(-days) dia(s)"
+        return "Substituição recomendada há \(Pluralization.count(-days, "dia", "dias"))"
+    }
+
+    private func caseSituationTone(_ days: Int) -> AppStatusTone {
+        if days <= 0 { return .critical }
+        if days <= settings.advanceReminderDays { return .warning }
+        return .success
     }
 
     private var lastCleaning: CaseCleaning? { cleanings.first }
@@ -89,21 +96,40 @@ struct CaseView: View {
     @ViewBuilder
     private var caseLifecycleCard: some View {
         AppCard {
-            SectionHeader("Ciclo do estojo")
             if let activeCase {
-                VStack(spacing: AppSpacing.xxs) {
-                    StatRow(label: "Início do ciclo atual", value: DateFormatting.short.string(from: activeCase.startDate))
-                    StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
-                    StatRow(label: "Intervalo configurado", value: "\(activeCase.intervalDays) dias")
-                    if let daysUntilCaseReplacement {
-                        StatRow(label: "Situação", value: caseSituationText(daysUntilCaseReplacement))
+                let titleBlock = VStack(alignment: .leading, spacing: 2) {
+                    Text("Ciclo do estojo")
+                        .font(AppTypography.headline)
+                    Text("Iniciado em \(DateFormatting.short.string(from: activeCase.startDate))")
+                        .font(AppTypography.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                let badge = daysUntilCaseReplacement.map { days in
+                    StatusBadge(text: caseSituationText(days), tone: caseSituationTone(days), systemImage: "shippingbox.fill", lineLimit: dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                }
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                        titleBlock
+                        badge
+                    }
+                } else {
+                    HStack(alignment: .top) {
+                        titleBlock
+                        Spacer(minLength: AppSpacing.xs)
+                        badge
                     }
                 }
+                DetailStatGrid(items: [
+                    DetailStatItem(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate)),
+                    DetailStatItem(label: "Intervalo configurado", value: Pluralization.count(activeCase.intervalDays, "dia", "dias")),
+                ])
+                .padding(.top, AppSpacing.xxs)
                 PrimaryActionButton(title: "Substituí o estojo", systemImage: "shippingbox") {
                     showStartOrReplaceCase = true
                 }
                 .padding(.top, AppSpacing.xxs)
             } else {
+                SectionHeader("Ciclo do estojo")
                 Text("Nenhum ciclo de estojo iniciado ainda.")
                     .font(AppTypography.subheadline)
                     .foregroundStyle(.secondary)
@@ -113,8 +139,17 @@ struct CaseView: View {
                 .padding(.top, AppSpacing.xxs)
             }
 
-            NavigationLink("Ver histórico de ciclos") {
+            NavigationLink {
                 LensCaseHistoryView()
+            } label: {
+                HStack {
+                    Text("Ver histórico de ciclos")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
             }
             .font(AppTypography.subheadline)
             .padding(.top, AppSpacing.xxs)
@@ -155,38 +190,47 @@ struct CaseView: View {
         }
     }
 
+    // Antes, 5 StatRow empilhadas (mesmo peso visual) vinham ANTES da contagem regressiva — o
+    // fato mais acionável da tela (quanto falta) ficava depois de uma lista de datas soltas.
+    // Agora a contagem regressiva (com cor de status) é o primeiro conteúdo do card, e as datas
+    // de apoio viram `DetailStatGrid` logo abaixo — suporte leve, não uma lista competindo pela
+    // atenção.
+    private var periodicCleaningStatItems: [DetailStatItem] {
+        var items: [DetailStatItem] = [
+            DetailStatItem(
+                label: "Última limpeza",
+                value: lastCleaning.map { DateFormatting.short.string(from: $0.cleaningDate) } ?? "Nenhuma registrada"
+            ),
+        ]
+        if let daysSinceLastCleaning {
+            items.append(DetailStatItem(label: "Dias desde a limpeza", value: Pluralization.count(daysSinceLastCleaning, "dia", "dias")))
+        }
+        if let advanceReminderDate {
+            items.append(DetailStatItem(label: "Aviso antecipado", value: DateFormatting.short.string(from: advanceReminderDate)))
+        }
+        if let nextCleaningDate {
+            items.append(DetailStatItem(label: "Prazo da limpeza", value: DateFormatting.short.string(from: nextCleaningDate)))
+        }
+        items.append(DetailStatItem(label: "Intervalo configurado", value: Pluralization.count(settings.cleaningIntervalDays, "dia", "dias")))
+        return items
+    }
+
     @ViewBuilder
     private var periodicCleaningCard: some View {
         AppCard {
             SectionHeader("Limpeza periódica")
-            VStack(spacing: AppSpacing.xxs) {
-                if let lastCleaning {
-                    StatRow(label: "Última limpeza", value: DateFormatting.short.string(from: lastCleaning.cleaningDate))
-                } else {
-                    StatRow(label: "Última limpeza", value: "Nenhuma registrada")
-                }
-                if let daysSinceLastCleaning {
-                    StatRow(label: "Dias desde a limpeza", value: "\(daysSinceLastCleaning) dia(s)")
-                }
-                if let advanceReminderDate {
-                    StatRow(label: "Aviso antecipado", value: DateFormatting.short.string(from: advanceReminderDate))
-                }
-                if let nextCleaningDate {
-                    StatRow(label: "Prazo da limpeza", value: DateFormatting.short.string(from: nextCleaningDate))
-                }
-                StatRow(label: "Intervalo configurado", value: "\(settings.cleaningIntervalDays) dias")
-            }
-
             if let daysUntilNextCleaning {
                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                    Text(daysUntilNextCleaning <= 0 ? "Limpeza atrasada" : "Faltam \(daysUntilNextCleaning) dia(s) para a próxima limpeza")
+                    Text(daysUntilNextCleaning <= 0 ? "Limpeza atrasada" : "\(Pluralization.word(daysUntilNextCleaning, "Falta", "Faltam")) \(Pluralization.count(daysUntilNextCleaning, "dia", "dias")) para a próxima limpeza")
                         .font(AppTypography.footnote.weight(.medium))
                         .foregroundStyle(countdownTone.color)
                     ProgressBarView(fraction: countdownFraction, tint: countdownTone.color)
                         .animation(reduceMotion ? nil : AppAnimation.standard, value: countdownFraction)
                 }
-                .padding(.top, AppSpacing.xxs)
             }
+
+            DetailStatGrid(items: periodicCleaningStatItems)
+                .padding(.top, AppSpacing.xxs)
 
             VStack(spacing: AppSpacing.sm) {
                 PrimaryActionButton(title: "Limpei o estojo hoje", systemImage: "sparkles") {
@@ -227,23 +271,20 @@ struct CaseView: View {
                                 }
                             }
                             Spacer()
-                            Button {
-                                cleaningToEdit = cleaning
+                            // `.swipeActions` só tem efeito dentro de um `List` — esta seção vive
+                            // num `ScrollView`/`VStack` (como o resto de `CaseView`), então o
+                            // padrão que de fato funciona fora de `List` é o mesmo já usado em
+                            // `LensPairsView.reserveRow`/`LensPairCardView.header`: um único menu
+                            // "...", não dois ícones soltos de mesmo peso visual competindo com o
+                            // conteúdo da linha.
+                            Menu {
+                                Button("Editar", systemImage: "pencil") { cleaningToEdit = cleaning }
+                                Button("Excluir", systemImage: "trash", role: .destructive) { cleaningToDelete = cleaning }
                             } label: {
-                                Image(systemName: "pencil")
+                                Image(systemName: "ellipsis.circle")
                                     .foregroundStyle(.secondary)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Editar limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
-
-                            Button(role: .destructive) {
-                                cleaningToDelete = cleaning
-                            } label: {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Excluir limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
+                            .accessibilityLabel("Mais opções para a limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
                         }
                     }
                 }

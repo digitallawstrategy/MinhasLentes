@@ -4,11 +4,14 @@ import SwiftData
 /// Aba Início: o hub de ações do dia — registrar o uso de hoje, alternar a sessão "estou
 /// usando as lentes", registrar o cuidado diário do estojo e, quando pertinente, a limpeza
 /// periódica. Edição, encerramento e detalhe administrativo ficam em Lentes/Cuidados; tocar
-/// num par aqui leva direto ao diário dele lá. Prioridade visual, nesta ordem: situação das
-/// lentes em uso, ação principal do momento, sessão ativa, cuidados de hoje, lembretes.
+/// num par aqui leva a `LensPairDetailView` (vida útil, frequência, sessão de uso — não o
+/// Diário, que continua acessível por um botão explícito lá dentro). Prioridade visual, nesta
+/// ordem: situação das lentes em uso, ação principal do momento, sessão ativa, cuidados de hoje,
+/// lembretes.
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \LensPair.sequenceNumber) private var allPairs: [LensPair]
     @Query private var allSettings: [AppSettings]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
@@ -17,11 +20,13 @@ struct HomeView: View {
     @Query(sort: \EyeAppointment.date) private var appointments: [EyeAppointment]
     @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
     @Query(sort: \LensInventoryItem.createdAt, order: .reverse) private var inventoryItems: [LensInventoryItem]
+    @Query(sort: \WearSession.startedAt, order: .reverse) private var wearSessions: [WearSession]
 
     @State private var caseViewModel = CaseCleaningViewModel()
     @State private var pairsViewModel = LensPairsViewModel()
     @State private var routineCareViewModel = RoutineCareViewModel()
     @State private var router = AppRouter.shared
+    @State private var showNotificationsCenter = false
     @State private var showRoutineCarePrompt = false
     @State private var pendingSessionStartPair: LensPair?
     @State private var showRegisterRoutineCareDetails = false
@@ -59,11 +64,35 @@ struct HomeView: View {
         LensInventoryStatisticsService.itemsNearExpiry(items: availableInventoryItems, withinDays: 30)
     }
 
+    private var activeWearSession: WearSession? {
+        wearSessions.first { $0.status == .active }
+    }
+
+    /// Fonte única do badge do sino e do conteúdo de `NotificationsCenterView` — os dois usam
+    /// exatamente esta mesma lista, então nunca ficam inconsistentes entre si (nunca um badge
+    /// aceso com a central vazia, ou vice-versa).
+    private var pendingItems: [PendingItem] {
+        PendingItemsService.pendingItems(input: PendingItemsInput(
+            hasCareToday: hasRoutineCareToday,
+            dailyCareReminderEnabled: settings.dailyCareReminderEnabled,
+            dailyCareReminderHour: settings.dailyCareReminderHour,
+            activeWearSession: activeWearSession,
+            wearingReminderHours: settings.wearingReminderHours,
+            lastCleaning: lastCleaning,
+            activeCase: activeCase,
+            cleaningIntervalDays: settings.cleaningIntervalDays,
+            advanceReminderDays: settings.advanceReminderDays,
+            activeSolution: activeSolution,
+            nextAppointment: nextAppointment,
+            expiringInventoryItems: expiringInventoryItems
+        ))
+    }
+
     /// Verifica todos os registros do dia, não só o primeiro da lista — um registro futuro
     /// (relógio errado, engano de data em "Registrar em outro dia") ordenaria antes do de hoje e
     /// faria o app deixar de perceber um cuidado diário já feito hoje.
     private var hasRoutineCareToday: Bool {
-        routineCareLogs.contains { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
+        RoutineCareService.hasCare(onSameDayAs: Date(), in: routineCareLogs)
     }
 
     /// Mesma janela usada por `TodayCareCardView` para decidir se a limpeza periódica precisa
@@ -103,8 +132,8 @@ struct HomeView: View {
     private var mainContent: some View {
         ScrollView {
             VStack(spacing: AppSpacing.md) {
-                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle) {
-                    router.selectedTab = .settings
+                HomeHeaderView(greeting: greeting, subtitle: greetingSubtitle, hasPendingItems: !pendingItems.isEmpty) {
+                    showNotificationsCenter = true
                 }
 
                 if inUsePairs.isEmpty && reservePairs.isEmpty {
@@ -159,6 +188,11 @@ struct HomeView: View {
         .task {
             pairsViewModel.refreshWearingSessionState(context: modelContext)
             await endPendingWearingSessionIfNeeded()
+            #if DEBUG
+            if UITestSupport.requestedRoute() == .notificacoes {
+                showNotificationsCenter = true
+            }
+            #endif
         }
         .onChange(of: router.pendingEndWearingSession) { _, _ in
             Task { await endPendingWearingSessionIfNeeded() }
@@ -239,6 +273,9 @@ struct HomeView: View {
     @ViewBuilder
     private func withDialogsAndSheet(_ content: some View) -> some View {
         content
+            .sheet(isPresented: $showNotificationsCenter) {
+                NotificationsCenterView(items: pendingItems, routineCareViewModel: routineCareViewModel, pairsViewModel: pairsViewModel)
+            }
             .alert("Limite atingido", isPresented: $pairsViewModel.showLimitReachedAlert) {
                 Button("Entendi", role: .cancel) {}
             } message: {
@@ -359,7 +396,7 @@ struct HomeView: View {
             ReminderCard(
                 systemImage: "tray.and.arrow.down",
                 title: "Reservas disponíveis",
-                detail: "\(reservePairs.count) par(es)",
+                detail: Pluralization.count(reservePairs.count, "par", "pares"),
                 tone: .neutral
             ) {
                 router.selectedTab = .lentes
@@ -396,62 +433,56 @@ struct HomeView: View {
         let usedToday = hasUsageToday(pair)
         let fraction = pair.maximumUses > 0 ? Double(pair.usesRemaining) / Double(pair.maximumUses) : 0
 
+        // 72 (não 84): mesmo tamanho do anel de "Lembretes", e reduz um pouco o peso vertical do
+        // cartão — "Em uso" é o primeiro cartão da tela, então cada ponto de altura conta pra
+        // deixar mais conteúdo visível antes de rolar.
+        let ringColumn = VStack(spacing: 2) {
+            UsageCountRing(value: pair.usesRemaining, remainingFraction: fraction, tint: status.tone.color, diameter: 72, lineWidth: 7)
+            Text("\(pair.usesRemaining) restantes")
+                .font(AppTypography.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .accessibilityHidden(true)
+
+        let nameColumn = VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+            Text(pair.name)
+                .font(AppTypography.headline)
+                .foregroundStyle(.primary)
+            StatusBadge(text: status.label, tone: status.tone, systemImage: "shield.fill")
+            SegmentedProgressBar(filledFraction: fraction, tone: status.tone)
+                .padding(.top, AppSpacing.xxs)
+        }
+
         return VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Button {
                 router.openPair(pair.id)
             } label: {
-                HStack(spacing: AppSpacing.sm) {
-                    ZStack {
-                        // Traço mais fino que o padrão (14pt) neste anel especificamente: a
-                        // 72x72 fixo, o padrão deixaria pouquíssimo espaço interno para duas
-                        // linhas de texto — apertado o bastante para sobrepor em Dynamic Type
-                        // maior. 7pt libera espaço interno real. 72 (não 84): mesmo tamanho do
-                        // anel de "Lembretes", e reduz um pouco o peso vertical do cartão —
-                        // "Em uso" é o primeiro cartão da tela, então cada ponto de altura conta
-                        // pra deixar mais conteúdo visível antes de rolar.
-                        ProgressRingView(remainingFraction: fraction, tint: status.tone.color, lineWidth: 7)
-                        VStack(spacing: 0) {
-                            Text("\(pair.usesRemaining)")
-                                .font(AppTypography.metricValue)
-                                .minimumScaleFactor(0.4)
-                                .lineLimit(1)
-                            Text("restantes")
-                                .font(AppTypography.caption)
-                                .foregroundStyle(.secondary)
-                                // 0.4, tão agressivo quanto o número acima: é texto decorativo
-                                // (already `.accessibilityHidden` no pai), então encolher bem
-                                // pequeno em Dynamic Type extremo é preferível a truncar com
-                                // "…" — confirmado no simulador com "Accessibility Large".
-                                .minimumScaleFactor(0.4)
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 4)
+                // Empilhado em accessibility sizes: o anel ganha a largura inteira do cartão para
+                // sua legenda, mesmo padrão de `LensPairCardView.ringAndHeadline`.
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: AppSpacing.sm) {
+                        ringColumn
+                        nameColumn
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(width: 72, height: 72)
-                    .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: AppSpacing.xxs) {
-                        Text(pair.name)
-                            .font(AppTypography.headline)
-                            .foregroundStyle(.primary)
-                        StatusBadge(text: status.label, tone: status.tone, systemImage: "shield.fill")
-                        SegmentedProgressBar(filledFraction: fraction, tone: status.tone)
-                            .padding(.top, AppSpacing.xxs)
+                } else {
+                    HStack(spacing: AppSpacing.sm) {
+                        ringColumn
+                        nameColumn
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
                     }
-
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
                 }
             }
-            .buttonStyle(.plain)
             .pressScale()
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(pair.name), \(status.label)")
             .accessibilityValue("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
-            .accessibilityHint("Abre o diário deste par")
+            .accessibilityHint("Abre os detalhes deste par")
 
             pairActionRow(for: pair, usedToday: usedToday, isWearingHere: isWearingHere)
         }
@@ -584,7 +615,7 @@ struct HomeView: View {
         }
         if let nextAppointment {
             let days = LensStatisticsService.daysUntil(nextAppointment.date)
-            items.append(ReminderItem(id: .appointment, icon: "stethoscope", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
+            items.append(ReminderItem(id: .appointment, icon: "calendar.badge.clock", title: "Consulta", detail: appointmentReminderDetail(nextAppointment), tab: .consultas, daysRemaining: days, tone: reminderTone(daysRemaining: days)))
         }
         if !expiringInventoryItems.isEmpty {
             items.append(ReminderItem(id: .inventory, icon: "tray.full", title: "Estoque", detail: inventoryReminderDetail, tab: .lentes, tone: .warning))
@@ -636,16 +667,16 @@ struct HomeView: View {
 
     private func caseReminderDetail(_ lensCase: LensCase) -> String {
         let days = LensStatisticsService.daysUntil(lensCase.nextRecommendedReplacementDate)
-        if days > 0 { return "Substituição recomendada em \(days) dia(s)" }
+        if days > 0 { return "Substituição recomendada em \(Pluralization.count(days, "dia", "dias"))" }
         if days == 0 { return "Substituição recomendada para hoje" }
-        return "Substituição recomendada há \(-days) dia(s)"
+        return "Substituição recomendada há \(Pluralization.count(-days, "dia", "dias"))"
     }
 
     private func solutionReminderDetail(_ solution: CleaningSolution) -> String {
         let days = LensStatisticsService.daysUntil(solution.discardDate)
-        if days > 0 { return "Descarte recomendado em \(days) dia(s)" }
+        if days > 0 { return "Descarte recomendado em \(Pluralization.count(days, "dia", "dias"))" }
         if days == 0 { return "Descarte recomendado para hoje" }
-        return "Descarte recomendado há \(-days) dia(s)"
+        return "Descarte recomendado há \(Pluralization.count(-days, "dia", "dias"))"
     }
 
     private func appointmentReminderDetail(_ appointment: EyeAppointment) -> String {

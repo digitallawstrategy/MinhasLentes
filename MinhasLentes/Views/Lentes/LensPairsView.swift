@@ -16,10 +16,15 @@ struct LensPairsView: View {
     @State private var router = AppRouter.shared
     @State private var pairToFinish: LensPair?
     @State private var pairToEdit: LensPair?
-    @State private var pairForDiary: LensPair?
+    @State private var pairForTimeline: LensPair?
+    @State private var pairForDetail: LensPair?
+    @State private var pairPendingEditAfterDetailClose: LensPair?
     @State private var pairToTrash: LensPair?
     @State private var showStartNewPair = false
     @State private var startNewPairSides: [LensSide] = [.both]
+    #if DEBUG
+    @State private var uiTestShowInventory = false
+    #endif
 
     private var settings: AppSettings {
         allSettings.first ?? AppSettings()
@@ -32,6 +37,15 @@ struct LensPairsView: View {
     private var availableInventoryItems: [LensInventoryItem] {
         inventoryItems.filter { $0.status == .available && $0.remainingQuantity > 0 }
     }
+
+    // Mesmas métricas já usadas no "Resumo" de `LensInventoryView` — não uma segunda leitura dos
+    // números, só uma reexibição resumida deles aqui.
+    private var totalRight: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableInventoryItems, side: .right) }
+    private var totalLeft: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableInventoryItems, side: .left) }
+    private var totalBoth: Int { LensInventoryStatisticsService.totalRemainingQuantity(items: availableInventoryItems, side: .both) }
+    private var totalAvailable: Int { totalRight + totalLeft + totalBoth }
+    private var nearestInventoryExpiry: Date? { LensInventoryStatisticsService.nearestExpiry(items: availableInventoryItems) }
+    private var lowStockCount: Int { availableInventoryItems.filter(LensInventoryStatisticsService.isLowStock).count }
 
     private var reservePairs: [LensPair] {
         allPairs.filter { $0.status == .reserve && $0.deletedAt == nil }
@@ -52,7 +66,7 @@ struct LensPairsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: AppSpacing.md) {
-                    inventoryLink
+                    inventoryCard
                     if finishedPairsCount > 0 {
                         pairHistoryLink
                     }
@@ -82,10 +96,23 @@ struct LensPairsView: View {
             .task {
                 viewModel.refreshWearingSessionState(context: modelContext)
                 openPendingPairIfNeeded()
+                #if DEBUG
+                if UITestSupport.requestedRoute() == .estoque || UITestSupport.requestedRoute() == .estoqueDetalhe {
+                    uiTestShowInventory = true
+                }
+                if UITestSupport.requestedRoute() == .linhaDoTempo {
+                    pairForTimeline = allPairs.first { $0.name == UITestSupport.seededPairName }
+                }
+                #endif
             }
             .onChange(of: router.pendingPairID) { _, _ in
                 openPendingPairIfNeeded()
             }
+            #if DEBUG
+            .navigationDestination(isPresented: $uiTestShowInventory) {
+                LensInventoryView()
+            }
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -137,7 +164,7 @@ struct LensPairsView: View {
                     defaultMaximumUses: settings.maximumUses,
                     availableSides: startNewPairSides,
                     availableInventoryItems: availableInventoryItems
-                ) { name, startDate, maximumUses, side, asReserve, inventoryItem in
+                ) { name, startDate, maximumUses, side, asReserve, inventorySelections in
                     Task {
                         await viewModel.startNewPair(
                             name: name,
@@ -146,7 +173,7 @@ struct LensPairsView: View {
                             trackingMode: settings.trackingMode,
                             side: side,
                             asReserve: asReserve,
-                            inventoryItem: inventoryItem,
+                            inventorySelections: inventorySelections,
                             context: modelContext
                         )
                     }
@@ -157,46 +184,78 @@ struct LensPairsView: View {
                     viewModel.editPair(pair, name: name, startDate: startDate, maximumUses: maximumUses, context: modelContext)
                 }
             }
-            .sheet(item: $pairForDiary) { pair in
-                PairDiaryView(pair: pair, allCleanings: cleanings, warningBelowPercent: settings.healthWarningBelowPercent)
+            .sheet(item: $pairForTimeline) { pair in
+                PairTimelineView(pair: pair, settings: settings, allCleanings: cleanings)
+            }
+            // `onDismiss` (não setar `pairToEdit` direto no `onEdit`) porque `pairForDetail` e
+            // `pairToEdit` são dois `.sheet` irmãos na mesma view — apresentar o segundo enquanto
+            // o primeiro ainda está na tela é um caso mal definido no SwiftUI. `onEdit` só marca a
+            // intenção; o `EditPairSheet` só abre depois que este sheet termina de fechar de
+            // verdade.
+            .sheet(item: $pairForDetail, onDismiss: {
+                if let pair = pairPendingEditAfterDetailClose {
+                    pairPendingEditAfterDetailClose = nil
+                    pairToEdit = pair
+                }
+            }) { pair in
+                LensPairDetailView(
+                    pair: pair, settings: settings, allCleanings: cleanings, wearingSessionPairID: viewModel.wearingSessionPairID,
+                    onEdit: { pairPendingEditAfterDetailClose = pair }
+                )
             }
         }
     }
 
-    /// `NavigationLink`, não `ReminderCard`: é uma entrada de navegação, não uma ação — o
-    /// VoiceOver anuncia as duas de formas diferentes ("abre..." vs. "toque duplo para
-    /// ativar"), e essa distinção é real, não só estética.
-    private var inventoryLink: some View {
+    /// Card de resumo, não uma linha de navegação pequena — o estoque é parte importante do
+    /// sistema, não um apêndice. Mesmas métricas já usadas no "Resumo" de `LensInventoryView`. O
+    /// cartão inteiro é o alvo de toque (regra 3 da consistência de interação): `NavigationLink`
+    /// não desenha chevron sozinho fora de `List`/`Form`, então o ícone é manual, mesma receita de
+    /// `pairHistoryLink` logo abaixo.
+    private var inventoryCard: some View {
         NavigationLink {
             LensInventoryView()
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Label("Estoque de lentes", systemImage: "shippingbox")
-                        .font(AppTypography.subheadlineMedium)
-                    Spacer()
+            AppCard {
+                SectionHeader("Estoque de lentes") {
                     Image(systemName: "chevron.right")
-                        .font(AppTypography.caption)
+                        .font(.caption)
                         .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
                 }
-                if !availableInventoryItems.isEmpty {
-                    Text(inventorySummaryText)
-                        .font(AppTypography.caption)
+                if availableInventoryItems.isEmpty {
+                    Text("Nenhum item disponível no estoque.")
+                        .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
+                } else {
+                    MetricStrip(items: [
+                        MetricStripItem(value: "\(totalAvailable)", label: "Disponíveis", tone: .success),
+                        MetricStripItem(
+                            value: nearestInventoryExpiry.map { DateFormatting.short.string(from: $0) } ?? "—",
+                            label: "Próxima validade"
+                        ),
+                        MetricStripItem(
+                            value: "\(lowStockCount)", label: "Estoque baixo",
+                            tone: lowStockCount == 0 ? .neutral : .warning
+                        ),
+                    ])
+                    .padding(.vertical, AppSpacing.xxs)
+                    HStack(spacing: AppSpacing.md) {
+                        Text("OD: \(totalRight)")
+                        Text("OE: \(totalLeft)")
+                        Text("Ambos: \(totalBoth)")
+                    }
+                    .font(AppTypography.caption)
+                    .foregroundStyle(.secondary)
                 }
             }
+            // `NavigationLink` propõe ao próprio label uma altura de controle padrão (~1 linha),
+            // não a altura natural do conteúdo — sem isto, "Estoque de lentes"/textos deste
+            // cartão cortavam com "…" em Dynamic Type grande mesmo sem nenhum `lineLimit`
+            // explícito no código (mesmo problema e correção de `CuidadosView.caseSummaryCard`).
+            .fixedSize(horizontal: false, vertical: true)
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, AppSpacing.xxs)
-    }
-
-    private var inventorySummaryText: String {
-        var parts = [availableInventoryItems.count == 1 ? "1 disponível" : "\(availableInventoryItems.count) disponíveis"]
-        let nearExpiry = LensInventoryStatisticsService.itemsNearExpiry(items: availableInventoryItems, withinDays: 30)
-        if !nearExpiry.isEmpty {
-            parts.append(nearExpiry.count == 1 ? "1 vencendo em breve" : "\(nearExpiry.count) vencendo em breve")
-        }
-        return parts.joined(separator: " · ")
+        .accessibilityHint("Abre o estoque de lentes")
     }
 
     private var pairHistoryLink: some View {
@@ -237,9 +296,10 @@ struct LensPairsView: View {
             LensPairCardView(
                 pair: pair,
                 settings: settings,
+                onShowDetail: { pairForDetail = pair },
                 onFinishPair: { pairToFinish = pair },
                 onEdit: { pairToEdit = pair },
-                onShowDiary: { pairForDiary = pair },
+                onShowTimeline: { pairForTimeline = pair },
                 onMoveToTrash: { viewModel.moveToTrash(pair, context: modelContext) },
                 onDemoteToReserve: { viewModel.demoteToReserve(pair, context: modelContext) },
                 wearingSessionPairID: viewModel.wearingSessionPairID
@@ -275,22 +335,35 @@ struct LensPairsView: View {
         }
     }
 
+    // Regra 1 da consistência de interação: par é entidade cadastrada, então o corpo da linha
+    // precisa abrir detalhe — pares em uso já abrem `LensPairDetailView` ao toque
+    // (`LensPairCardView`), reservas não tinham essa via, só "Usar agora"/menu. Reusa o mesmo
+    // `pairForDetail` do deep link do widget/card "Em uso" da Home.
     private func reserveRow(for pair: LensPair) -> some View {
         HStack(spacing: AppSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(pair.name)
-                    .font(AppTypography.subheadlineMedium)
-                Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
-                    .font(AppTypography.caption)
-                    .foregroundStyle(.secondary)
+            Button {
+                pairForDetail = pair
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pair.name)
+                        .font(AppTypography.subheadlineMedium)
+                    Text("\(pair.usesRemaining) de \(pair.maximumUses) usos restantes")
+                        .font(AppTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                // Mesmo problema/correção de `LensPairCardView`/`caseSummaryCard`: `Button` propõe
+                // ao próprio label uma altura de controle padrão, cortando o texto sem isto.
+                .fixedSize(horizontal: false, vertical: true)
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Abre os detalhes deste par")
             Spacer()
             SecondaryActionButton(title: "Usar agora", fullWidth: false, compact: true) {
                 viewModel.promoteToInUse(pair, context: modelContext)
             }
             Menu {
                 Button("Editar par", systemImage: "pencil") { pairToEdit = pair }
-                Button("Ver diário do par", systemImage: "book.pages") { pairForDiary = pair }
+                Button("Ver linha do tempo", systemImage: "clock.arrow.circlepath") { pairForTimeline = pair }
                 Button("Encerrar par", systemImage: "arrow.triangle.2.circlepath", role: .destructive) { pairToFinish = pair }
                 Button("Mover para a lixeira", systemImage: "trash", role: .destructive) { pairToTrash = pair }
             } label: {
@@ -301,13 +374,15 @@ struct LensPairsView: View {
         }
     }
 
-    /// Abre o Diário do par indicado por um deep link do widget (`minhaslentes://pair/<uuid>`),
-    /// se houver um pendente e o par ainda existir.
+    /// Abre os detalhes do par indicado por um deep link do widget (`minhaslentes://pair/<uuid>`)
+    /// ou pelo toque no card "Em uso" da Home (`router.openPair`), se houver um pendente e o par
+    /// ainda existir. Nunca abre a Linha do tempo como destino padrão — ela continua acessível pelo
+    /// botão dentro de `LensPairDetailView` ou pelo menu "Ver linha do tempo" nesta tela.
     private func openPendingPairIfNeeded() {
         guard let pendingID = router.pendingPairID else { return }
         router.pendingPairID = nil
         guard let pair = allPairs.first(where: { $0.id == pendingID }) else { return }
-        pairForDiary = pair
+        pairForDetail = pair
     }
 }
 

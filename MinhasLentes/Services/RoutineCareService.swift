@@ -32,6 +32,35 @@ enum RoutineCareService {
         try allLogs(context: context).first
     }
 
+    /// Existe algum registro de cuidado diário na mesma data-calendário de `referenceDate`, entre
+    /// os `logs` informados? Verifica TODOS os registros, não só o primeiro — um registro futuro
+    /// (fuso horário errado, ou registrado "em outro dia" de propósito) poderia ordenar antes do
+    /// de hoje. Pura, sem `ModelContext`, para quem já tem os logs em mãos (`HomeView`, via
+    /// `@Query`) não precisar de uma busca extra.
+    static func hasCare(onSameDayAs referenceDate: Date, in logs: [RoutineCareLog]) -> Bool {
+        logs.contains { Calendar.current.isDate($0.date, inSameDayAs: referenceDate) }
+    }
+
+    /// Mesma checagem de `hasCare(onSameDayAs:in:)`, buscando os logs primeiro — para quem não
+    /// tem um `@Query` já carregado (`RoutineCareViewModel`, `NotificationReconciliationService`).
+    static func hasCareToday(referenceDate: Date = Date(), context: ModelContext) throws -> Bool {
+        hasCare(onSameDayAs: referenceDate, in: try allLogs(context: context))
+    }
+
+    /// Lógica pura de decisão do lembrete de cuidado diário — sem depender de
+    /// `UNUserNotificationCenter` nem de `ModelContext`, para poder ser testada diretamente com
+    /// datas fixas (`referenceDate`). Verdadeiro quando o cuidado do dia ainda não foi
+    /// registrado E já passou (ou é) a hora configurada do lembrete.
+    static func isDailyCareReminderDue(
+        referenceDate: Date = Date(),
+        reminderHour: Int,
+        hasCareToday: Bool,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard !hasCareToday else { return false }
+        return calendar.component(.hour, from: referenceDate) >= reminderHour
+    }
+
     private static func save(context: ModelContext) throws {
         do {
             try context.save()

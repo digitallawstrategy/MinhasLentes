@@ -56,7 +56,7 @@ struct TodayCareCardView: View {
                 Divider()
                 dueCleaningSection
             } else if let daysUntilNextCleaning {
-                Text("Próxima limpeza periódica em \(daysUntilNextCleaning) dia(s)")
+                Text("Próxima limpeza periódica em \(Pluralization.count(daysUntilNextCleaning, "dia", "dias"))")
                     .font(AppTypography.caption)
                     .foregroundStyle(.secondary)
             }
@@ -101,7 +101,7 @@ struct TodayCareCardView: View {
 
     private var cleaningSituationText: String {
         guard let daysUntilNextCleaning else { return "Nenhuma limpeza periódica registrada ainda" }
-        return daysUntilNextCleaning <= 0 ? "Limpeza periódica atrasada" : "Limpeza periódica prevista em \(daysUntilNextCleaning) dia(s)"
+        return daysUntilNextCleaning <= 0 ? "Limpeza periódica atrasada" : "Limpeza periódica prevista em \(Pluralization.count(daysUntilNextCleaning, "dia", "dias"))"
     }
 }
 

@@ -52,6 +52,9 @@ final class RoutineCareViewModel {
             showUndoToast = true
             HapticsService.success()
             scheduleUndoToastAutoDismiss()
+            // Melhor esforço, fora da transação principal: some com o lembrete pendente no
+            // instante do registro, sem esperar a próxima reconciliação de notificações.
+            Task { await NotificationManager.shared.cancelDailyCareReminderNotification() }
         } catch {
             HapticsService.error()
             presentedError = IdentifiableError(message: error.localizedDescription)
@@ -73,8 +76,7 @@ final class RoutineCareViewModel {
     }
 
     private func hasLog(onSameDayAs date: Date, context: ModelContext) -> Bool {
-        let logs = (try? RoutineCareService.allLogs(context: context)) ?? []
-        return logs.contains { Calendar.current.isDate($0.date, inSameDayAs: date) }
+        (try? RoutineCareService.hasCareToday(referenceDate: date, context: context)) ?? false
     }
 
     func undoLastRegisteredRoutineCare(context: ModelContext) {

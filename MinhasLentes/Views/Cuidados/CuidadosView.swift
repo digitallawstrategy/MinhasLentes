@@ -6,10 +6,20 @@ import SwiftData
 /// registros rápidos do dia a dia (uso das lentes, cuidado diário) ficam na aba Início; aqui é
 /// onde se olha o panorama e se administra o que já foi registrado.
 struct CuidadosView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query(sort: \LensCase.startDate, order: .reverse) private var cases: [LensCase]
     @Query(sort: \CleaningSolution.openedDate, order: .reverse) private var solutions: [CleaningSolution]
     @Query(sort: \CaseCleaning.cleaningDate, order: .reverse) private var cleanings: [CaseCleaning]
     @Query(sort: \RoutineCareLog.date, order: .reverse) private var routineCareLogs: [RoutineCareLog]
+    @Query private var allSettings: [AppSettings]
+    #if DEBUG
+    @State private var uiTestShowSolution = false
+    @State private var uiTestShowCase = false
+    #endif
+
+    private var settings: AppSettings {
+        allSettings.first ?? AppSettings()
+    }
 
     private var activeCase: LensCase? { cases.first { $0.status == .active } }
     private var activeSolution: CleaningSolution? { solutions.first { $0.status == .active } }
@@ -26,16 +36,16 @@ struct CuidadosView: View {
         return LensStatisticsService.daysUntil(activeSolution.discardDate)
     }
 
-    private func caseSituationText(_ days: Int) -> String {
-        if days > 0 { return "Faltam \(days) dia(s)" }
-        if days == 0 { return "Substituição recomendada para hoje" }
-        return "Substituição recomendada há \(-days) dia(s)"
+    private func situationText(daysRemaining days: Int, dueVerb: String) -> String {
+        if days > 0 { return "\(Pluralization.word(days, "Falta", "Faltam")) \(Pluralization.count(days, "dia", "dias"))" }
+        if days == 0 { return "\(dueVerb) hoje" }
+        return "\(dueVerb) há \(Pluralization.count(-days, "dia", "dias"))"
     }
 
-    private func solutionSituationText(_ days: Int) -> String {
-        if days > 0 { return "Faltam \(days) dia(s)" }
-        if days == 0 { return "Descarte recomendado para hoje" }
-        return "Descarte recomendado há \(-days) dia(s)"
+    private func situationTone(daysRemaining days: Int) -> AppStatusTone {
+        if days <= 0 { return .critical }
+        if days <= settings.advanceReminderDays { return .warning }
+        return .success
     }
 
     var body: some View {
@@ -54,65 +64,141 @@ struct CuidadosView: View {
             .tabBarScrollInset()
             .background(AmbientBackground())
             .navigationTitle("Cuidados")
+            #if DEBUG
+            .task {
+                if UITestSupport.requestedRoute() == .solucao {
+                    uiTestShowSolution = true
+                } else if UITestSupport.requestedRoute() == .estojo {
+                    uiTestShowCase = true
+                }
+            }
+            .navigationDestination(isPresented: $uiTestShowSolution) {
+                CleaningSolutionView()
+            }
+            .navigationDestination(isPresented: $uiTestShowCase) {
+                CaseView()
+            }
+            #endif
         }
     }
 
+    // Antes, cada fato (ciclo iniciado, substituição, situação, última limpeza, último cuidado)
+    // era uma linha rótulo/valor com o mesmo peso — cinco StatRow seguidas sem hierarquia, uma
+    // lendo igual à outra. Agora só a situação (o que importa para decidir alguma coisa agora)
+    // tem destaque visual (badge colorido ao lado do título); o resto vira texto de apoio menor,
+    // mesmo padrão já usado no card de "Frasco atual" de Solução.
+    // O cartão inteiro é o alvo de toque (regra 3: card/linha com chevron, não um link de texto
+    // solto no rodapé que não competia visualmente com nada) — `NavigationLink` não desenha
+    // chevron sozinho fora de `List`/`Form`, então o ícone é manual, mesma receita de
+    // `LensPairsView.pairHistoryLink`.
     private var caseSummaryCard: some View {
-        AppCard {
-            SectionHeader("Estojo")
-            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+        NavigationLink {
+            CaseView()
+        } label: {
+            AppCard {
                 if let activeCase {
-                    StatRow(label: "Ciclo atual iniciado em", value: DateFormatting.short.string(from: activeCase.startDate))
-                    StatRow(label: "Substituição recomendada", value: DateFormatting.short.string(from: activeCase.nextRecommendedReplacementDate))
-                    if let daysUntilCaseReplacement {
-                        StatRow(label: "Situação", value: caseSituationText(daysUntilCaseReplacement))
+                    let titleBlock = VStack(alignment: .leading, spacing: 2) {
+                        Text("Estojo")
+                            .font(AppTypography.headline)
+                        Text("Ciclo iniciado em \(DateFormatting.short.string(from: activeCase.startDate))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    let badge = daysUntilCaseReplacement.map { days in
+                        StatusBadge(text: situationText(daysRemaining: days, dueVerb: "Substituição recomendada"), tone: situationTone(daysRemaining: days), systemImage: "shippingbox.fill")
+                    }
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                            titleBlock
+                            badge
+                            summaryChevron
+                        }
+                    } else {
+                        HStack(alignment: .top) {
+                            titleBlock
+                            Spacer(minLength: AppSpacing.xs)
+                            badge
+                            summaryChevron
+                        }
+                    }
+                    if let lastCleaning {
+                        Text("Última limpeza periódica: \(DateFormatting.short.string(from: lastCleaning.cleaningDate))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let lastRoutineCare {
+                        Text("Último cuidado diário: \(DateFormatting.shortWithTime.string(from: lastRoutineCare.date))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 } else {
+                    SectionHeader("Estojo") { summaryChevron }
                     Text("Nenhum ciclo de estojo iniciado ainda.")
                         .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                if let lastCleaning {
-                    StatRow(label: "Última limpeza periódica", value: DateFormatting.short.string(from: lastCleaning.cleaningDate))
-                }
-                if let lastRoutineCare {
-                    StatRow(label: "Último cuidado diário", value: DateFormatting.shortWithTime.string(from: lastRoutineCare.date))
-                }
             }
-            NavigationLink {
-                CaseView()
-            } label: {
-                Text("Ver detalhes do estojo")
-            }
-            .font(AppTypography.subheadline)
-            .padding(.top, AppSpacing.xxs)
+            // `NavigationLink` propõe ao próprio label uma altura de controle padrão (~1 linha),
+            // não a altura natural do conteúdo — `lineLimit(nil)` sozinho permite múltiplas
+            // linhas mas não muda essa proposta, então o texto continuava cortando com "…"
+            // mesmo sem limite de linhas. `fixedSize(vertical: true)` força o label a pedir sua
+            // altura ideal (a de todo o conteúdo empilhado), resolvendo o corte na raiz.
+            .fixedSize(horizontal: false, vertical: true)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Abre os detalhes do estojo")
     }
 
     private var solutionSummaryCard: some View {
-        AppCard {
-            SectionHeader("Solução de limpeza")
-            VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+        NavigationLink {
+            CleaningSolutionView()
+        } label: {
+            AppCard {
                 if let activeSolution {
-                    StatRow(label: "Aberto em", value: DateFormatting.short.string(from: activeSolution.openedDate))
-                    StatRow(label: "Descarte recomendado", value: DateFormatting.short.string(from: activeSolution.discardDate))
-                    if let daysUntilSolutionDiscard {
-                        StatRow(label: "Situação", value: solutionSituationText(daysUntilSolutionDiscard))
+                    let titleBlock = VStack(alignment: .leading, spacing: 2) {
+                        Text("Solução de limpeza")
+                            .font(AppTypography.headline)
+                        Text("Aberta em \(DateFormatting.short.string(from: activeSolution.openedDate))")
+                            .font(AppTypography.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    let badge = daysUntilSolutionDiscard.map { days in
+                        StatusBadge(text: situationText(daysRemaining: days, dueVerb: "Descarte recomendado"), tone: situationTone(daysRemaining: days), systemImage: "flask.fill")
+                    }
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                            titleBlock
+                            badge
+                            summaryChevron
+                        }
+                    } else {
+                        HStack(alignment: .top) {
+                            titleBlock
+                            Spacer(minLength: AppSpacing.xs)
+                            badge
+                            summaryChevron
+                        }
                     }
                 } else {
+                    SectionHeader("Solução de limpeza") { summaryChevron }
                     Text("Nenhum frasco de solução registrado ainda.")
                         .font(AppTypography.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
-            NavigationLink {
-                CleaningSolutionView()
-            } label: {
-                Text("Ver detalhes da solução")
-            }
-            .font(AppTypography.subheadline)
-            .padding(.top, AppSpacing.xxs)
+            // Ver comentário equivalente em `caseSummaryCard` — `NavigationLink` propõe altura de
+            // controle padrão ao label, não a altura natural do conteúdo empilhado.
+            .fixedSize(horizontal: false, vertical: true)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Abre os detalhes da solução de limpeza")
+    }
+
+    private var summaryChevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
     }
 
     private var calendarCard: some View {
@@ -125,13 +211,21 @@ struct CuidadosView: View {
         }
     }
 
+    // Recolhida por padrão: 4 dicas sempre visíveis competiam com estojo/solução/calendário pelo
+    // ponto focal do dashboard. O conteúdo continua todo aqui, só não abre a tela sozinho.
     private var orientationsCard: some View {
         AppCard {
-            SectionHeader("Orientações")
-            orientationRow("Nunca complete solução antiga com solução nova — descarte e use sempre solução fresca.")
-            orientationRow("Deixe o estojo secar ao ar livre depois de cada uso, sem tampar molhado.")
-            orientationRow("Siga sempre a validade e as instruções do fabricante das lentes e da solução.")
-            orientationRow("Procure um oftalmologista em caso de dor, vermelhidão ou alteração na visão.")
+            DisclosureGroup("Orientações") {
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    orientationRow("Nunca complete solução antiga com solução nova — descarte e use sempre solução fresca.")
+                    orientationRow("Deixe o estojo secar ao ar livre depois de cada uso, sem tampar molhado.")
+                    orientationRow("Siga sempre a validade e as instruções do fabricante das lentes e da solução.")
+                    orientationRow("Procure um oftalmologista em caso de dor, vermelhidão ou alteração na visão.")
+                }
+                .padding(.top, AppSpacing.xs)
+            }
+            .font(AppTypography.subheadlineMedium)
+            .tint(AppColor.primary)
         }
     }
 

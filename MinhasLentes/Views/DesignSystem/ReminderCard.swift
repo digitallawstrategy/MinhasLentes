@@ -29,7 +29,6 @@ struct ReminderCard: View {
                     .accessibilityHidden(true)
             }
         }
-        .buttonStyle(.plain)
         .pressScale()
         .accessibilityElement(children: .combine)
     }

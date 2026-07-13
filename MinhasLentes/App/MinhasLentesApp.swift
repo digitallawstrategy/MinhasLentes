@@ -53,10 +53,15 @@ struct MinhasLentesApp: App {
     /// decide qual chamar.
     private static func applyUITestArgumentsIfNeeded(container: ModelContainer) {
         let context = container.mainContext
-        if UITestSupport.isSeedPreviewDataRequested() {
+        if UITestSupport.isSeedPendingItemsPreviewDataRequested() {
+            try? UITestSupport.seedPendingItemsPreviewData(context: context)
+        } else if UITestSupport.isSeedPreviewDataRequested() {
             try? UITestSupport.seedPreviewData(context: context)
         } else if UITestSupport.isSkipOnboardingRequested() {
             try? UITestSupport.applySkipOnboarding(context: context)
+        }
+        if let tab = UITestSupport.requestedTab() {
+            AppRouter.shared.selectedTab = tab
         }
     }
     #endif
