@@ -139,8 +139,17 @@ struct CaseView: View {
                 .padding(.top, AppSpacing.xxs)
             }
 
-            NavigationLink("Ver histórico de ciclos") {
+            NavigationLink {
                 LensCaseHistoryView()
+            } label: {
+                HStack {
+                    Text("Ver histórico de ciclos")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
             }
             .font(AppTypography.subheadline)
             .padding(.top, AppSpacing.xxs)
@@ -262,23 +271,20 @@ struct CaseView: View {
                                 }
                             }
                             Spacer()
-                            Button {
-                                cleaningToEdit = cleaning
+                            // `.swipeActions` só tem efeito dentro de um `List` — esta seção vive
+                            // num `ScrollView`/`VStack` (como o resto de `CaseView`), então o
+                            // padrão que de fato funciona fora de `List` é o mesmo já usado em
+                            // `LensPairsView.reserveRow`/`LensPairCardView.header`: um único menu
+                            // "...", não dois ícones soltos de mesmo peso visual competindo com o
+                            // conteúdo da linha.
+                            Menu {
+                                Button("Editar", systemImage: "pencil") { cleaningToEdit = cleaning }
+                                Button("Excluir", systemImage: "trash", role: .destructive) { cleaningToDelete = cleaning }
                             } label: {
-                                Image(systemName: "pencil")
+                                Image(systemName: "ellipsis.circle")
                                     .foregroundStyle(.secondary)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Editar limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
-
-                            Button(role: .destructive) {
-                                cleaningToDelete = cleaning
-                            } label: {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Excluir limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
+                            .accessibilityLabel("Mais opções para a limpeza de \(DateFormatting.shortWithTime.string(from: cleaning.cleaningDate))")
                         }
                     }
                 }

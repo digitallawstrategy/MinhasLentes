@@ -63,6 +63,13 @@ struct FeaturedReminderRow: View {
             }
             .frame(width: 72, height: 72)
             .accessibilityHidden(true)
+
+            // Mesmo papel de navegação do chevron de `ReminderCard` — só que discreto (caption,
+            // .quaternary) pra não competir com o anel, que já é o ponto focal desta linha.
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.quaternary)
+                .accessibilityHidden(true)
         }
     }
 
@@ -77,6 +84,11 @@ struct FeaturedReminderRow: View {
 
             textBlock
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.quaternary)
+                .accessibilityHidden(true)
         }
     }
 

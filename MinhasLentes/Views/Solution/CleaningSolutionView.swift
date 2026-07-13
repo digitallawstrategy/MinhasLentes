@@ -58,11 +58,12 @@ struct CleaningSolutionView: View {
                         Text("Nenhum frasco de solução registrado ainda.")
                             .font(AppTypography.subheadline)
                             .foregroundStyle(.secondary)
-                        Button {
+                        PrimaryActionButton(title: "Registrar frasco de solução", systemImage: "flask") {
                             showStartOrReplaceSolution = true
-                        } label: {
-                            Label("Registrar frasco de solução", systemImage: "flask")
                         }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .padding(.vertical, AppSpacing.xxs)
                     }
                 }
 
