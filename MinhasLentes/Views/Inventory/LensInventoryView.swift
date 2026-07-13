@@ -66,7 +66,11 @@ struct LensInventoryView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(availableItems) { item in
-                        row(for: item)
+                        NavigationLink {
+                            LensInventoryItemDetailView(item: item, settings: settings, viewModel: viewModel)
+                        } label: {
+                            row(for: item)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { itemToDelete = item }
                                 Button("Editar") { itemToEdit = item }
@@ -84,7 +88,11 @@ struct LensInventoryView: View {
             if !exhaustedItems.isEmpty {
                 Section("Esgotado") {
                     ForEach(exhaustedItems) { item in
-                        row(for: item)
+                        NavigationLink {
+                            LensInventoryItemDetailView(item: item, settings: settings, viewModel: viewModel)
+                        } label: {
+                            row(for: item)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { itemToDelete = item }
                                 Button("Editar") { itemToEdit = item }

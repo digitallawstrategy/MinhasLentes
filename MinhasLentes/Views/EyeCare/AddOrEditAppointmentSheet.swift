@@ -74,11 +74,8 @@ struct AddOrEditAppointmentSheet: View {
 
                 Section("Anexo (opcional)") {
                     PhotosPicker("Escolher foto (receita/pedido)", selection: $attachmentPickerItem, matching: .images)
-                    if let attachmentData, let uiImage = UIImage(data: attachmentData) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 160)
+                    if attachmentData != nil {
+                        ImageAttachmentPreview(data: attachmentData, accessibilityLabel: "Foto da receita ou pedido de exame")
                         Button("Remover anexo", role: .destructive) { self.attachmentData = nil }
                     }
                 }

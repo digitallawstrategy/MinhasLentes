@@ -48,7 +48,11 @@ struct EyeCareView: View {
         List {
             Section("Próxima consulta") {
                 if let nextAppointment {
-                    nextAppointmentCard(for: nextAppointment)
+                    NavigationLink {
+                        AppointmentDetailView(appointment: nextAppointment, professionals: professionals, settings: settings, viewModel: viewModel)
+                    } label: {
+                        nextAppointmentCard(for: nextAppointment)
+                    }
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -101,7 +105,11 @@ struct EyeCareView: View {
             if !otherScheduledAppointments.isEmpty {
                 Section("Outras consultas agendadas") {
                     ForEach(otherScheduledAppointments) { appointment in
-                        appointmentRow(for: appointment)
+                        NavigationLink {
+                            AppointmentDetailView(appointment: appointment, professionals: professionals, settings: settings, viewModel: viewModel)
+                        } label: {
+                            appointmentRow(for: appointment)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }
@@ -122,7 +130,11 @@ struct EyeCareView: View {
             if !pastAppointments.isEmpty {
                 Section("Histórico de consultas") {
                     ForEach(pastAppointments) { appointment in
-                        appointmentRow(for: appointment)
+                        NavigationLink {
+                            AppointmentDetailView(appointment: appointment, professionals: professionals, settings: settings, viewModel: viewModel)
+                        } label: {
+                            appointmentRow(for: appointment)
+                        }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("Excluir", role: .destructive) { appointmentToDelete = appointment }
                                 Button("Editar") { appointmentToEdit = appointment }

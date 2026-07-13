@@ -88,11 +88,8 @@ struct AddOrEditLensInventoryItemSheet: View {
 
                 Section("Foto (opcional)") {
                     PhotosPicker("Escolher foto", selection: $photoPickerItem, matching: .images)
-                    if let photoData, let uiImage = UIImage(data: photoData) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 160)
+                    if photoData != nil {
+                        ImageAttachmentPreview(data: photoData, accessibilityLabel: "Foto da caixa de lentes")
                         Button("Remover foto", role: .destructive) { self.photoData = nil }
                     }
                 }
