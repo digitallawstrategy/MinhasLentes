@@ -4,14 +4,17 @@ import UIKit
 
 #if DEBUG
 /// Suporte a validação visual automatizada (Codex/Xcode abrindo o app direto na Home, sem
-/// interação manual) — existe inteiro só em build DEBUG, nunca compila em Release. Dois
-/// argumentos de lançamento independentes, checados via `ProcessInfo.processInfo.arguments`
-/// (o que `xcrun simctl launch <device> <bundle-id> --args ...` popula):
+/// interação manual) — existe inteiro só em build DEBUG, nunca compila em Release. Argumentos de
+/// lançamento independentes, checados via `ProcessInfo.processInfo.arguments` (o que
+/// `xcrun simctl launch <device> <bundle-id> --args ...` popula):
 ///
 /// - `-UITestSkipOnboarding`: marca o onboarding como concluído, sem semear nenhum dado.
 /// - `-UITestSeedPreviewData`: semeia um conjunto fixo de dados de demonstração e, por
 ///   coerência (dado semeado sem onboarding concluído mostraria a tela de boas-vindas por
 ///   cima), também marca o onboarding como concluído.
+/// - `-UITestOnboardingStep <passo>`: o oposto de `-UITestSkipOnboarding` — força a tela de
+///   boas-vindas a aparecer (nenhum dado semeado) e abre direto no passo pedido, para screenshot
+///   de cada tela do próprio fluxo de onboarding.
 ///
 /// As funções aqui são puras em relação ao `ModelContext` que recebem — não sabem de onde esse
 /// contexto veio (`AppContainer` decide, à parte, se é o armazenamento real ou um isolado em
@@ -19,12 +22,12 @@ import UIKit
 /// notificação nem apresentação de Live Activity. Isso as torna testáveis diretamente com
 /// `TestSupport.makeContext()`, como qualquer outro Service deste projeto.
 ///
-/// Escopo, de propósito: `AppContainer` roda qualquer um destes dois argumentos contra um
+/// Escopo, de propósito: `AppContainer` roda qualquer um destes argumentos contra um
 /// `ModelConfiguration` em memória (nunca o arquivo real do App Group) — ver o comentário lá.
 /// Isso torna a validação visual determinística, mas também significa que ela não exercita App
 /// Group, leitura do widget/Live Activity a partir do mesmo arquivo, nem `AppMigrationPlan`
 /// contra um banco real pré-existente. São escopos diferentes, não uma lacuna: para validar
-/// essa parte, rode o app sem nenhum dos dois argumentos.
+/// essa parte, rode o app sem nenhum argumento de validação visual.
 @MainActor
 enum UITestSupport {
     private static let skipOnboardingArgument = "-UITestSkipOnboarding"
@@ -32,6 +35,7 @@ enum UITestSupport {
     private static let seedPendingItemsPreviewDataArgument = "-UITestSeedPendingItemsPreviewData"
     private static let selectedTabArgument = "-UITestSelectedTab"
     private static let openRouteArgument = "-UITestOpenRoute"
+    private static let onboardingStepArgument = "-UITestOnboardingStep"
 
     /// Nome fixo do par semeado — também serve de marca de "já semeado" para `seedPreviewData`
     /// ser seguro de chamar mais de uma vez sobre o mesmo contexto.
@@ -51,13 +55,18 @@ enum UITestSupport {
         arguments.contains(seedPendingItemsPreviewDataArgument)
     }
 
-    /// `true` se qualquer um dos três argumentos estiver presente — `AppContainer` usa isto
-    /// para decidir se abre o armazenamento real do App Group ou um isolado em memória; nenhum
-    /// dos fluxos de validação visual deve chegar perto de dado real.
+    /// `true` se qualquer um dos argumentos de validação visual estiver presente —
+    /// `AppContainer` usa isto para decidir se abre o armazenamento real do App Group ou um
+    /// isolado em memória; nenhum dos fluxos de validação visual deve chegar perto de dado real.
     static func isUITestRun(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
         isSkipOnboardingRequested(arguments: arguments)
             || isSeedPreviewDataRequested(arguments: arguments)
             || isSeedPendingItemsPreviewDataRequested(arguments: arguments)
+            || isOnboardingStepRequested(arguments: arguments)
+    }
+
+    static func isOnboardingStepRequested(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        requestedOnboardingStep(arguments: arguments) != nil
     }
 
     /// `-UITestSelectedTab <home|lentes|cuidados|consultas|settings>` — só existe para permitir
@@ -101,6 +110,18 @@ enum UITestSupport {
         /// Abre `PairTimelineView` para o par semeado por `seedPreviewData`, a partir da aba
         /// Lentes — precisa de `-UITestSelectedTab lentes`.
         case linhaDoTempo
+    }
+
+    /// `-UITestOnboardingStep <welcome|benefits|setup|notifications>` — abre `OnboardingView`
+    /// (store em memória, sem marcar `hasCompletedOnboarding`) direto no passo pedido, para
+    /// screenshot de cada tela do fluxo de boas-vindas sem simular toque. `OnboardingStep` é
+    /// definida em `OnboardingView.swift` — é estado de fluxo de UI, não roteamento de app
+    /// inteiro (diferente de `AppTab`), então não faz sentido morar em `Support/AppRouter.swift`.
+    static func requestedOnboardingStep(arguments: [String] = ProcessInfo.processInfo.arguments) -> OnboardingStep? {
+        guard let flagIndex = arguments.firstIndex(of: onboardingStepArgument), flagIndex + 1 < arguments.count else {
+            return nil
+        }
+        return OnboardingStep(rawValue: arguments[flagIndex + 1])
     }
 
     static func requestedRoute(arguments: [String] = ProcessInfo.processInfo.arguments) -> Route? {

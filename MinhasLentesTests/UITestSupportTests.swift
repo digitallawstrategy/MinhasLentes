@@ -78,6 +78,25 @@ final class UITestSupportTests: XCTestCase {
         XCTAssertEqual(UITestSupport.requestedRoute(arguments: arguments), .estoque)
     }
 
+    // MARK: - requestedOnboardingStep
+
+    func testRequestedOnboardingStepParsesValidValues() {
+        XCTAssertEqual(UITestSupport.requestedOnboardingStep(arguments: ["-UITestOnboardingStep", "welcome"]), .welcome)
+        XCTAssertEqual(UITestSupport.requestedOnboardingStep(arguments: ["-UITestOnboardingStep", "benefits"]), .benefits)
+        XCTAssertEqual(UITestSupport.requestedOnboardingStep(arguments: ["-UITestOnboardingStep", "setup"]), .setup)
+        XCTAssertEqual(UITestSupport.requestedOnboardingStep(arguments: ["-UITestOnboardingStep", "notifications"]), .notifications)
+    }
+
+    func testRequestedOnboardingStepReturnsNilWhenAbsentOrInvalid() {
+        XCTAssertNil(UITestSupport.requestedOnboardingStep(arguments: []))
+        XCTAssertNil(UITestSupport.requestedOnboardingStep(arguments: ["-UITestOnboardingStep"]))
+        XCTAssertNil(UITestSupport.requestedOnboardingStep(arguments: ["-UITestOnboardingStep", "unknown"]))
+    }
+
+    func testIsUITestRunTrueWhenOnboardingStepArgumentIsPresent() {
+        XCTAssertTrue(UITestSupport.isUITestRun(arguments: ["-UITestOnboardingStep", "welcome"]))
+    }
+
     // MARK: - applySkipOnboarding
 
     func testApplySkipOnboardingMarksSettingsComplete() throws {
