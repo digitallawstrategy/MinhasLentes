@@ -10,7 +10,13 @@ struct OnboardingFeatureRow: View {
     let title: String
 
     var body: some View {
-        HStack(spacing: AppSpacing.md) {
+        // `.frame(maxWidth: .infinity, alignment: .leading)` no lugar de um `Spacer` à direita:
+        // com um `Spacer`, `Text`/`Spacer` disputam o espaço flexível com a mesma prioridade e o
+        // `Text` acaba truncado em vez de quebrar linha em Dynamic Type grande (confirmado em
+        // accessibility XXXL) — `.frame` já reserva o espaço restante direto para o texto, sem
+        // disputa. `alignment: .top` no `HStack` (não `.center`, o padrão) para o selo do ícone
+        // ficar alinhado ao topo quando o texto quebra em 2+ linhas.
+        HStack(alignment: .top, spacing: AppSpacing.md) {
             Image(systemName: systemImage)
                 .font(.title3)
                 .foregroundStyle(AppColor.primary)
@@ -19,7 +25,8 @@ struct OnboardingFeatureRow: View {
                 .accessibilityHidden(true)
             Text(title)
                 .font(AppTypography.subheadlineMedium)
-            Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
     }
@@ -33,29 +40,42 @@ struct OnboardingBenefitsStepView: View {
     let onContinue: () -> Void
 
     var body: some View {
-        VStack(spacing: AppSpacing.xl) {
-            Spacer()
+        // `ScrollView` + `GeometryReader` (para o conteúdo saber a altura real disponível e
+        // preencher via `minHeight:`), não uma pilha fixa com `Spacer`s soltos: em Dynamic Type
+        // grande (accessibility XXXL) o título + 3 linhas de benefício facilmente ultrapassam a
+        // altura da tela — sem rolagem, o SwiftUI comprime tudo pra caber, e essa compressão
+        // vertical trunca o texto em vez de simplesmente rolar (confirmado visualmente). Com
+        // `minHeight: proxy.size.height`, em tamanho padrão o conteúdo ainda ocupa a tela cheia e
+        // os `Spacer`s centralizam normalmente — só em Dynamic Type grande é que ultrapassa essa
+        // altura mínima e passa a rolar.
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: AppSpacing.xl) {
+                    Spacer(minLength: AppSpacing.xxl)
 
-            VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                Text("Como o Minhas Lentes ajuda")
-                    .font(AppTypography.title)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                        Text("Como o Minhas Lentes ajuda")
+                            .font(AppTypography.title)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                VStack(spacing: AppSpacing.md) {
-                    OnboardingFeatureRow(systemImage: "eye", title: "Acompanhe os usos das lentes")
-                    OnboardingFeatureRow(systemImage: "heart.text.square", title: "Cuide do estojo e da solução")
-                    OnboardingFeatureRow(systemImage: "bell", title: "Receba lembretes no momento certo")
+                        VStack(spacing: AppSpacing.md) {
+                            OnboardingFeatureRow(systemImage: "eye", title: "Acompanhe os usos das lentes")
+                            OnboardingFeatureRow(systemImage: "heart.text.square", title: "Cuide do estojo e da solução")
+                            OnboardingFeatureRow(systemImage: "bell", title: "Receba lembretes no momento certo")
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.lg)
+
+                    Spacer(minLength: AppSpacing.xxl)
+
+                    PrimaryActionButton(title: "Continuar", action: onContinue)
+                        .padding(.horizontal, AppSpacing.lg)
                 }
+                .padding(.bottom, AppSpacing.xl)
+                .frame(minHeight: proxy.size.height)
             }
-            .padding(.horizontal, AppSpacing.lg)
-
-            Spacer()
-            Spacer()
-
-            PrimaryActionButton(title: "Continuar", action: onContinue)
-                .padding(.horizontal, AppSpacing.lg)
         }
-        .padding(.bottom, AppSpacing.xl)
     }
 }
 
