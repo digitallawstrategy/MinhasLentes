@@ -2,7 +2,8 @@ import Foundation
 import Observation
 import SwiftData
 
-/// Conduz o fluxo de primeira abertura: criação do(s) par(es) inicial(is), registro da última
+/// Conduz o fluxo de primeira abertura (4 passos: boas-vindas, benefícios, configuração inicial e
+/// notificações — ver `OnboardingView`): criação do(s) par(es) inicial(is), registro da última
 /// limpeza do estojo e solicitação opcional de notificações (com explicação prévia, exibida
 /// pela `NotificationPermissionView` antes da chamada ao sistema).
 @MainActor
@@ -12,13 +13,15 @@ final class OnboardingViewModel {
     var maximumUses = 60
     var trackingMode: TrackingMode = .pair
     var lastCleaningDate = Date()
-    var wantsNotifications = true
     var isCompleting = false
     var presentedError: IdentifiableError?
 
-    /// Cria o(s) par(es) inicial(is) e registra a última limpeza do estojo. Não solicita
-    /// autorização de notificações — isso é feito separadamente, após a tela explicativa.
-    /// Retorna `true` somente se todas as etapas foram concluídas com sucesso.
+    /// Cria o(s) par(es) inicial(is) e registra a última limpeza do estojo. Não marca
+    /// `hasCompletedOnboarding` nem solicita autorização de notificações — isso acontece só ao
+    /// final do passo de notificações, via `completeOnboarding(settings:context:)`, para o
+    /// usuário nunca "sair" do onboarding (e `ContentView` trocar para as abas principais) antes
+    /// de ver a explicação de notificações. Retorna `true` somente se todas as etapas foram
+    /// concluídas com sucesso.
     @discardableResult
     func createInitialData(settings: AppSettings, context: ModelContext) async -> Bool {
         isCompleting = true
@@ -59,12 +62,21 @@ final class OnboardingViewModel {
             }
 
             _ = try await CaseCleaningService.registerCleaning(date: lastCleaningDate, notes: nil, settings: settings, context: context)
-            settings.hasCompletedOnboarding = true
-            try context.save()
             return true
         } catch {
             presentedError = IdentifiableError(message: "Não foi possível concluir a configuração inicial. \(error.localizedDescription)")
             return false
+        }
+    }
+
+    /// Marca o onboarding como concluído — chamado uma única vez, ao final do passo de
+    /// notificações, independentemente de o usuário ter permitido ou não os avisos.
+    func completeOnboarding(settings: AppSettings, context: ModelContext) {
+        settings.hasCompletedOnboarding = true
+        do {
+            try context.save()
+        } catch {
+            presentedError = IdentifiableError(message: "Não foi possível concluir o onboarding. \(error.localizedDescription)")
         }
     }
 
