@@ -20,7 +20,11 @@ enum PreviewData {
             EyeAppointment.self,
             WearSession.self,
         ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        // `cloudKitDatabase: .none` explícito — o padrão de `ModelConfiguration` é `.automatic`,
+        // que tentaria detectar o container CloudKit pelo entitlement do app mesmo aqui, num
+        // container de Preview isolado em memória. Sem isto, cada Preview loga um erro real de
+        // "sem conta iCloud" no console à toa.
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         // swiftlint:disable:next force_try
         let container = try! ModelContainer(for: schema, configurations: [configuration])
         let context = container.mainContext

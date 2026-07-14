@@ -187,7 +187,7 @@ final class PersistenceTests: XCTestCase {
     /// real do app tem hoje, de antes desta mudança.
     private func makeLegacyContainer(url: URL) throws -> ModelContainer {
         let schema = Schema(AppSchemaV1.models)
-        let configuration = ModelConfiguration(schema: schema, url: url)
+        let configuration = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 
@@ -195,7 +195,7 @@ final class PersistenceTests: XCTestCase {
     /// mesmo schema versionado, mesmo plano de migração.
     private func makeCurrentContainer(url: URL) throws -> ModelContainer {
         let schema = Schema(versionedSchema: AppSchemaV1.self)
-        let configuration = ModelConfiguration(schema: schema, url: url)
+        let configuration = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, migrationPlan: AppMigrationPlan.self, configurations: [configuration])
     }
 
@@ -256,7 +256,7 @@ final class PersistenceTests: XCTestCase {
             LensCase.self, CleaningSolution.self, EyeAppointment.self, EyeCareProfessional.self,
             WearSession.self,
         ])
-        let configuration = ModelConfiguration(schema: schema, url: url)
+        let configuration = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [configuration])
     }
 

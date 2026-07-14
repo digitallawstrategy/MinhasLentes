@@ -101,6 +101,9 @@ enum UITestSupport {
         /// Abre `PairTimelineView` para o par semeado por `seedPreviewData`, a partir da aba
         /// Lentes — precisa de `-UITestSelectedTab lentes`.
         case linhaDoTempo
+        /// Abre a tela "Dados" de Configurações (backup, exportação, `CloudSyncStatusSection`) —
+        /// precisa de `-UITestSelectedTab settings`.
+        case dados
     }
 
     static func requestedRoute(arguments: [String] = ProcessInfo.processInfo.arguments) -> Route? {

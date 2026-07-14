@@ -71,6 +71,13 @@ struct MinhasLentesApp: App {
             if let modelContainer {
                 ContentView()
                     .modelContainer(modelContainer)
+                    // Só depois da UI já de pé — nunca troca o `ModelContainer` desta sessão
+                    // (já resolvido e cacheado acima), só prepara o store com CloudKit pra
+                    // próxima vez que o app abrir. Ver comentário completo em
+                    // `AppContainer.attemptCloudMigrationIfNeeded()`.
+                    .task {
+                        await AppContainer.attemptCloudMigrationIfNeeded()
+                    }
             } else {
                 StartupFailureView(message: initializationErrorMessage ?? "Erro desconhecido ao abrir o armazenamento local.")
             }

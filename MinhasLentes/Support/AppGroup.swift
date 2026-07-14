@@ -17,12 +17,40 @@ enum AppGroup {
         }
     }
 
-    /// Caminho do arquivo SQLite dentro do contêiner do App Group.
+    /// Caminho do arquivo SQLite dentro do contêiner do App Group — o store local legado, sem
+    /// CloudKit. Nunca migrado/sobrescrito no lugar: continua existindo para sempre como rede de
+    /// segurança, mesmo depois que o store com CloudKit (`cloudStoreURL()`) estiver em uso.
     static func storeURL() throws -> URL {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier) else {
             throw SharedContainerError.containerUnavailable
         }
         return containerURL.appendingPathComponent("MinhasLentes.sqlite")
+    }
+
+    /// Caminho do arquivo do store sincronizado por CloudKit — deliberadamente um arquivo NOVO e
+    /// separado de `storeURL()`, nunca o mesmo. Ver `CloudSyncMigrationService` e
+    /// `AppContainer.attemptCloudMigrationIfNeeded()`: o conteúdo do store legado é copiado para
+    /// cá uma vez, o arquivo legado em si nunca é tocado.
+    static func cloudStoreURL() throws -> URL {
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier) else {
+            throw SharedContainerError.containerUnavailable
+        }
+        return containerURL.appendingPathComponent("MinhasLentesCloud.sqlite")
+    }
+
+    private static var sharedDefaults: UserDefaults {
+        UserDefaults(suiteName: identifier) ?? .standard
+    }
+
+    private static let cloudMigrationCompleteKey = "cloudSyncMigrationComplete"
+
+    /// `true` depois que `CloudSyncMigrationService` copiou o store legado para o store com
+    /// CloudKit com sucesso, ao menos uma vez — a partir daí, `AppContainer` passa a abrir o
+    /// store com CloudKit na próxima vez que o app iniciar (nunca no meio de uma sessão já em
+    /// andamento, ver comentário em `AppContainer.attemptCloudMigrationIfNeeded()`).
+    static var isCloudMigrationComplete: Bool {
+        get { sharedDefaults.bool(forKey: cloudMigrationCompleteKey) }
+        set { sharedDefaults.set(newValue, forKey: cloudMigrationCompleteKey) }
     }
 
     /// Migra silenciosamente, uma única vez, um banco criado antes deste app ter um App Group

@@ -86,8 +86,14 @@ enum LensSnapshotLoader {
             LensCase.self, CleaningSolution.self, EyeAppointment.self, EyeCareProfessional.self,
             WearSession.self, HistoryEvent.self, RoutineCareLog.self, LensInventoryItem.self,
         ])
-        let url = try AppGroup.storeURL()
-        let configuration = ModelConfiguration(schema: schema, url: url)
+        // Mesma flag que `AppContainer` usa para decidir qual dos dois stores é o canônico —
+        // depois que `CloudSyncMigrationService` migrou o conteúdo (ver o app principal), o
+        // widget precisa passar a ler o arquivo novo, senão mostraria dados parados no instante
+        // da migração para sempre. `cloudKitDatabase: .none` mesmo lendo o arquivo com CloudKit:
+        // este alvo não tem o entitlement, e só precisa LER as tabelas de dado — quem sincroniza
+        // de verdade é sempre o processo do app principal, nunca o widget.
+        let url = try AppGroup.isCloudMigrationComplete ? AppGroup.cloudStoreURL() : AppGroup.storeURL()
+        let configuration = ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         cachedContainer = container
         return container

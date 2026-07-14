@@ -20,7 +20,12 @@ enum TestSupport {
             EyeAppointment.self,
             WearSession.self,
         ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        // `cloudKitDatabase: .none` explícito — o padrão de `ModelConfiguration` é `.automatic`,
+        // que (o alvo de testes roda hospedado no app, herdando o entitlement de CloudKit dele)
+        // tentaria detectar conta iCloud a cada teste, poluindo o log com um erro real de "sem
+        // conta iCloud" sem nenhum efeito nos testes em si — mas sem necessidade nenhuma de
+        // acontecer, já que estes containers são sempre isolados em memória.
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try! ModelContainer(for: schema, configurations: [configuration])
         return ModelContext(container)
     }
